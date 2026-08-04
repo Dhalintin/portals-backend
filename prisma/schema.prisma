@@ -1,0 +1,334 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum GlobalRole {
+  SUPER_ADMIN   // Platform owner
+  USER
+}
+
+enum OrgRole {
+  SCHOOL_ADMIN
+  TEACHER
+  EXAM_OFFICER
+  // We can add PARENT / STUDENT later if needed for logged-in portals
+}
+
+enum TermName {
+  FIRST
+  SECOND
+  THIRD
+}
+
+enum PinStatus {
+  UNUSED
+  USED
+  EXPIRED
+  DISABLED
+}
+
+enum GenderType {
+  MALE
+  FEMALE
+  OTHER
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLATFORM USER
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String     @id @default(uuid())
+  email         String     @unique
+  passwordHash  String?
+  firstName     String
+  lastName      String
+  phone         String?    @unique
+  avatarUrl     String?
+  globalRole    GlobalRole @default(USER)
+  isActive      Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  memberships   Membership[]
+  createdOrgs   Organization[] @relation("OrgCreator")
+
+  @@index([email])
+  @@index([globalRole])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ORGANIZATION (School)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Organization {
+  id              String   @id @default(uuid())
+  name            String
+  slug            String   @unique               // e.g. greenspring-lagos
+  email           String?  @unique
+  phone           String?
+  logoUrl         String?
+  primaryColor    String?  @default("#1e3a5f")
+  accentColor     String?  @default("#0f766e")
+  address         String?
+  city            String?
+  state           String?
+  country         String   @default("Nigeria")
+  isActive        Boolean  @default(true)
+  onBoarded       Boolean  @default(false)
+  createdById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Optional branding / settings
+  motto           String?
+  schoolType      String?                       // Primary, Secondary, etc.
+
+  creator         User?             @relation("OrgCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  memberships     Membership[]
+  academicSessions AcademicSession[]
+  classes         Class[]
+  subjects        Subject[]
+  students        Student[]
+  results         Result[]
+  pins            Pin[]
+  announcements   Announcement[]
+
+  @@index([slug])
+  @@index([isActive])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MEMBERSHIP (User ↔ Organization)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Membership {
+  id             String   @id @default(uuid())
+  userId         String
+  organizationId String
+  role           OrgRole
+  isActive       Boolean  @default(true)
+  joinedAt       DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([role])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ACADEMIC STRUCTURE
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AcademicSession {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String                          // "2025/2026"
+  startDate      DateTime?
+  endDate        DateTime?
+  isCurrent      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  terms          Term[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@index([isCurrent])
+}
+
+model Term {
+  id        String   @id @default(uuid())
+  sessionId String
+  name      TermName
+  isCurrent Boolean  @default(false)
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime @default(now())
+
+  session   AcademicSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  results   Result[]
+  pins      Pin[]
+
+  @@unique([sessionId, name])
+  @@index([sessionId])
+}
+
+model Class {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String                          // "JSS 2", "SSS 1"
+  arm            String?                         // "A", "Science", "Gold"
+  level          String?                         // "Junior Secondary", "Primary"
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  students       Student[]
+  results        Result[]
+
+  @@unique([organizationId, name, arm])
+  @@index([organizationId])
+}
+
+model Subject {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  code           String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  scores         Score[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STUDENT
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Student {
+  id               String     @id @default(uuid())
+  organizationId   String
+  admissionNumber  String
+  firstName        String
+  lastName         String
+  otherNames       String?
+  gender           GenderType?
+  classId          String?
+  parentPhone      String?
+  parentEmail      String?
+  isActive         Boolean    @default(true)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  class            Class?       @relation(fields: [classId], references: [id], onDelete: SetNull)
+  results          Result[]
+  pins             Pin[]
+
+  @@unique([organizationId, admissionNumber])
+  @@index([organizationId])
+  @@index([classId])
+  @@index([admissionNumber])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RESULTS (Core of the MVP)
+// One Result per student per term.
+// Scores are stored per subject under that Result.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Result {
+  id             String   @id @default(uuid())
+  organizationId String
+  studentId      String
+  termId         String
+  classId        String?                          // denormalized for easy querying
+  totalScore     Float?
+  percentage     Float?
+  position       Int?                             // class position
+  grade          String?                          // overall grade if needed
+  remark         String?                          // teacher / principal remark
+  isPublished    Boolean  @default(false)
+  publishedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term           Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
+  class          Class?       @relation(fields: [classId], references: [id], onDelete: SetNull)
+  scores         Score[]
+
+  @@unique([studentId, termId])
+  @@index([organizationId, termId])
+  @@index([isPublished])
+  @@index([classId, termId])
+}
+
+model Score {
+  id        String  @id @default(uuid())
+  resultId  String
+  subjectId String
+  ca1       Float?  @default(0)                   // Continuous Assessment 1
+  ca2       Float?  @default(0)                   // Continuous Assessment 2
+  exam      Float?  @default(0)
+  total     Float?                                // ca1 + ca2 + exam
+  grade     String?
+  remark    String?
+
+  result    Result  @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  @@unique([resultId, subjectId])
+  @@index([resultId])
+  @@index([subjectId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PIN SYSTEM (Core monetisation)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Pin {
+  id             String    @id @default(uuid())
+  code           String    @unique                 // the actual PIN parents type
+  organizationId String
+  termId         String
+  studentId      String?                          // optional: pre-assign to a student
+  status         PinStatus @default(UNUSED)
+  usedAt         DateTime?
+  usedByIp       String?
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  term           Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
+  student        Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
+
+  @@index([code])
+  @@index([organizationId, termId, status])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ANNOUNCEMENTS (Simple notice board)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Announcement {
+  id             String   @id @default(uuid())
+  organizationId String
+  title          String
+  body           String
+  isPinned       Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  publishedAt    DateTime @default(now())
+  expiresAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([isActive, publishedAt])
+}
