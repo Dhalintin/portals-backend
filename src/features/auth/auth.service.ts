@@ -4,11 +4,10 @@ import {
   OrgRole,
   type Membership,
   type Organization,
-  type User,
 } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { hashPassword, verifyPassword } from "../../lib/password";
-import { signAccessToken } from "../../lib/jwt";
+
 import { randomToken, sha256 } from "../../lib/crypto";
 import {
   BadRequestError,
@@ -16,7 +15,7 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "../../common/errors/AppError";
-import type { AppRole, AuthTokenPayload, PublicUser } from "./auth.types";
+import type { AuthTokenPayload } from "./auth.types";
 import type {
   ChangePasswordBody,
   CreateOrganizationBody,
@@ -29,58 +28,12 @@ import type {
 } from "./auth.dto";
 import { verifyGoogleIdToken } from "../../lib/goggle";
 
-type MembershipWithOrg = Membership & { organization: Organization };
+import { resolveAuthContext } from "../../utils/auth/resolveAuthContext";
+import { issueToken } from "../../utils/issueToken";
+import { slugify } from "../../utils/slugify";
+import { toPublicUser } from "../../utils/toPublic";
 
-function mapOrgRole(role: OrgRole): AppRole {
-  switch (role) {
-    case OrgRole.SCHOOL_ADMIN:
-      return "school_admin";
-    case OrgRole.TEACHER:
-      return "teacher";
-    case OrgRole.EXAM_OFFICER:
-      return "exam_officer";
-    default:
-      return "teacher";
-  }
-}
-
-function displayName(user: User): string {
-  return `${user.firstName} ${user.lastName}`.trim();
-}
-
-function toPublicUser(
-  user: User,
-  memberships: MembershipWithOrg[],
-  active: {
-    role: AppRole;
-    schoolId: string | null;
-    schoolSlug: string | null;
-    schoolName: string | null;
-  }
-): PublicUser {
-  return {
-    id: user.id,
-    email: user.email,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    name: displayName(user),
-    phone: user.phone,
-    avatarUrl: user.avatarUrl,
-    role: active.role,
-    schoolId: active.schoolId,
-    schoolSlug: active.schoolSlug,
-    schoolName: active.schoolName,
-    globalRole: user.globalRole,
-    memberships: memberships.map((m) => ({
-      id: m.id,
-      organizationId: m.organizationId,
-      role: mapOrgRole(m.role),
-      schoolName: m.organization.name,
-      schoolSlug: m.organization.slug,
-      isActive: m.isActive && m.organization.isActive,
-    })),
-  };
-}
+export type MembershipWithOrg = Membership & { organization: Organization };
 
 async function loadUserWithMemberships(email: string) {
   return prisma.user.findUnique({
@@ -104,94 +57,6 @@ async function loadUserById(id: string) {
       },
     },
   });
-}
-
-function resolveAuthContext(
-  user: User & { memberships: MembershipWithOrg[] },
-  organizationId?: string
-): {
-  role: AppRole;
-  schoolId: string | null;
-  schoolSlug: string | null;
-  schoolName: string | null;
-  membershipId: string | null;
-} {
-  if (user.globalRole === GlobalRole.SUPER_ADMIN) {
-    return {
-      role: "platform_admin",
-      schoolId: null,
-      schoolSlug: null,
-      schoolName: null,
-      membershipId: null,
-    };
-  }
-
-  const activeMemberships = user.memberships.filter(
-    (m) => m.isActive && m.organization.isActive
-  );
-
-  if (activeMemberships.length === 0) {
-    throw new ForbiddenError("No active school membership");
-  }
-
-  let membership: MembershipWithOrg | undefined;
-
-  if (organizationId) {
-    membership = activeMemberships.find(
-      (m) => m.organizationId === organizationId
-    );
-    if (!membership) {
-      throw new ForbiddenError("Not a member of that organization");
-    }
-  } else if (activeMemberships.length === 1) {
-    membership = activeMemberships[0];
-  } else {
-    throw new BadRequestError(
-      "Multiple schools found. Pass organizationId to select one.",
-      {
-        code: "ORGANIZATION_SELECTION_REQUIRED",
-        memberships: activeMemberships.map((m) => ({
-          organizationId: m.organizationId,
-          schoolName: m.organization.name,
-          schoolSlug: m.organization.slug,
-          role: mapOrgRole(m.role),
-        })),
-      }
-    );
-  }
-
-  return {
-    role: mapOrgRole(membership.role),
-    schoolId: membership.organizationId,
-    schoolSlug: membership.organization.slug,
-    schoolName: membership.organization.name,
-    membershipId: membership.id,
-  };
-}
-
-function issueToken(
-  user: User,
-  ctx: ReturnType<typeof resolveAuthContext>
-): { token: string; payload: AuthTokenPayload } {
-  const payload: AuthTokenPayload = {
-    sub: user.id,
-    email: user.email,
-    role: ctx.role,
-    schoolId: ctx.schoolId,
-    membershipId: ctx.membershipId,
-  };
-  return { token: signAccessToken(payload), payload };
-}
-
-function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 80);
 }
 
 async function ensureUniqueSlug(base: string): Promise<string> {

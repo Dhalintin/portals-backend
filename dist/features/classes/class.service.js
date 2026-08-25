@@ -3,33 +3,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.classService = void 0;
 const prisma_1 = require("../../lib/prisma");
 const AppError_1 = require("../../common/errors/AppError");
+const normalization_1 = require("../../utils/normalization");
+const toClassPublic_1 = require("../../utils/toClassPublic");
 function requireSchoolId(schoolId) {
     if (!schoolId) {
         throw new AppError_1.ForbiddenError("No school context");
     }
     return schoolId;
-}
-function displayName(name, arm) {
-    return arm ? `${name}${arm}` : name; // "JSS 2" + "A" → "JSS 2A" — adjust if you prefer "JSS 2 A"
-}
-function toClassPublic(row) {
-    return {
-        id: row.id,
-        organizationId: row.organizationId,
-        name: row.name,
-        arm: row.arm,
-        level: row.level,
-        isActive: row.isActive,
-        displayName: displayName(row.name, row.arm),
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-    };
-}
-/** Normalize arm for unique constraint (null vs undefined) */
-function normalizeArm(arm) {
-    if (arm === undefined || arm === null || arm === "")
-        return null;
-    return arm;
 }
 exports.classService = {
     async list(schoolId, query) {
@@ -66,7 +46,7 @@ exports.classService = {
             }),
         ]);
         return {
-            items: rows.map(toClassPublic),
+            items: rows.map(toClassPublic_1.toClassPublic),
             meta: {
                 page,
                 pageSize,
@@ -83,11 +63,11 @@ exports.classService = {
         if (!row) {
             throw new AppError_1.NotFoundError("Class not found");
         }
-        return toClassPublic(row);
+        return (0, toClassPublic_1.toClassPublic)(row);
     },
     async create(schoolId, input) {
         const organizationId = requireSchoolId(schoolId);
-        const arm = normalizeArm(input.arm);
+        const arm = (0, normalization_1.normalizeArm)(input.arm);
         try {
             const row = await prisma_1.prisma.class.create({
                 data: {
@@ -98,7 +78,7 @@ exports.classService = {
                     isActive: true,
                 },
             });
-            return toClassPublic(row);
+            return (0, toClassPublic_1.toClassPublic)(row);
         }
         catch (err) {
             // Unique: @@unique([organizationId, name, arm])
@@ -124,12 +104,12 @@ exports.classService = {
                 where: { id },
                 data: {
                     ...(input.name !== undefined ? { name: input.name } : {}),
-                    ...(input.arm !== undefined ? { arm: normalizeArm(input.arm) } : {}),
+                    ...(input.arm !== undefined ? { arm: (0, normalization_1.normalizeArm)(input.arm) } : {}),
                     ...(input.level !== undefined ? { level: input.level } : {}),
                     ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
                 },
             });
-            return toClassPublic(row);
+            return (0, toClassPublic_1.toClassPublic)(row);
         }
         catch (err) {
             if (typeof err === "object" &&
@@ -154,6 +134,6 @@ exports.classService = {
             where: { id },
             data: { isActive: false },
         });
-        return toClassPublic(row);
+        return (0, toClassPublic_1.toClassPublic)(row);
     },
 };

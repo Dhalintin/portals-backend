@@ -1,5 +1,5 @@
 // src/features/classes/class.service.ts
-import type { Class, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import {
   ConflictError,
@@ -11,37 +11,14 @@ import type {
   ListClassesQuery,
   UpdateClassBody,
 } from "./class.dto";
-import type { ClassPublic } from "./class.types";
+import { normalizeArm } from "../../utils/normalization";
+import { toClassPublic } from "../../utils/toClassPublic";
 
 function requireSchoolId(schoolId: string | null | undefined): string {
   if (!schoolId) {
     throw new ForbiddenError("No school context");
   }
   return schoolId;
-}
-
-function displayName(name: string, arm: string | null): string {
-  return arm ? `${name}${arm}` : name; // "JSS 2" + "A" → "JSS 2A" — adjust if you prefer "JSS 2 A"
-}
-
-function toClassPublic(row: Class): ClassPublic {
-  return {
-    id: row.id,
-    organizationId: row.organizationId,
-    name: row.name,
-    arm: row.arm,
-    level: row.level,
-    isActive: row.isActive,
-    displayName: displayName(row.name, row.arm),
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
-}
-
-/** Normalize arm for unique constraint (null vs undefined) */
-function normalizeArm(arm: string | null | undefined): string | null {
-  if (arm === undefined || arm === null || arm === "") return null;
-  return arm;
 }
 
 export const classService = {

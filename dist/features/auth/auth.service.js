@@ -5,49 +5,13 @@ exports.authService = void 0;
 const client_1 = require("@prisma/client");
 const prisma_1 = require("../../lib/prisma");
 const password_1 = require("../../lib/password");
-const jwt_1 = require("../../lib/jwt");
 const crypto_1 = require("../../lib/crypto");
 const AppError_1 = require("../../common/errors/AppError");
 const goggle_1 = require("../../lib/goggle");
-function mapOrgRole(role) {
-    switch (role) {
-        case client_1.OrgRole.SCHOOL_ADMIN:
-            return "school_admin";
-        case client_1.OrgRole.TEACHER:
-            return "teacher";
-        case client_1.OrgRole.EXAM_OFFICER:
-            return "exam_officer";
-        default:
-            return "teacher";
-    }
-}
-function displayName(user) {
-    return `${user.firstName} ${user.lastName}`.trim();
-}
-function toPublicUser(user, memberships, active) {
-    return {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        name: displayName(user),
-        phone: user.phone,
-        avatarUrl: user.avatarUrl,
-        role: active.role,
-        schoolId: active.schoolId,
-        schoolSlug: active.schoolSlug,
-        schoolName: active.schoolName,
-        globalRole: user.globalRole,
-        memberships: memberships.map((m) => ({
-            id: m.id,
-            organizationId: m.organizationId,
-            role: mapOrgRole(m.role),
-            schoolName: m.organization.name,
-            schoolSlug: m.organization.slug,
-            isActive: m.isActive && m.organization.isActive,
-        })),
-    };
-}
+const resolveAuthContext_1 = require("../../utils/auth/resolveAuthContext");
+const issueToken_1 = require("../../utils/issueToken");
+const slugify_1 = require("../../utils/slugify");
+const toPublic_1 = require("../../utils/toPublic");
 async function loadUserWithMemberships(email) {
     return prisma_1.prisma.user.findUnique({
         where: { email },
@@ -69,69 +33,6 @@ async function loadUserById(id) {
             },
         },
     });
-}
-function resolveAuthContext(user, organizationId) {
-    if (user.globalRole === client_1.GlobalRole.SUPER_ADMIN) {
-        return {
-            role: "platform_admin",
-            schoolId: null,
-            schoolSlug: null,
-            schoolName: null,
-            membershipId: null,
-        };
-    }
-    const activeMemberships = user.memberships.filter((m) => m.isActive && m.organization.isActive);
-    if (activeMemberships.length === 0) {
-        throw new AppError_1.ForbiddenError("No active school membership");
-    }
-    let membership;
-    if (organizationId) {
-        membership = activeMemberships.find((m) => m.organizationId === organizationId);
-        if (!membership) {
-            throw new AppError_1.ForbiddenError("Not a member of that organization");
-        }
-    }
-    else if (activeMemberships.length === 1) {
-        membership = activeMemberships[0];
-    }
-    else {
-        throw new AppError_1.BadRequestError("Multiple schools found. Pass organizationId to select one.", {
-            code: "ORGANIZATION_SELECTION_REQUIRED",
-            memberships: activeMemberships.map((m) => ({
-                organizationId: m.organizationId,
-                schoolName: m.organization.name,
-                schoolSlug: m.organization.slug,
-                role: mapOrgRole(m.role),
-            })),
-        });
-    }
-    return {
-        role: mapOrgRole(membership.role),
-        schoolId: membership.organizationId,
-        schoolSlug: membership.organization.slug,
-        schoolName: membership.organization.name,
-        membershipId: membership.id,
-    };
-}
-function issueToken(user, ctx) {
-    const payload = {
-        sub: user.id,
-        email: user.email,
-        role: ctx.role,
-        schoolId: ctx.schoolId,
-        membershipId: ctx.membershipId,
-    };
-    return { token: (0, jwt_1.signAccessToken)(payload), payload };
-}
-function slugify(input) {
-    return input
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-|-$/g, "")
-        .slice(0, 80);
 }
 async function ensureUniqueSlug(base) {
     let slug = base || "school";
@@ -182,14 +83,14 @@ exports.authService = {
         if (!valid) {
             throw new AppError_1.UnauthorizedError("Invalid email or password");
         }
-        const ctx = resolveAuthContext(user, input.organizationId);
-        const { token } = issueToken(user, ctx);
+        const ctx = (0, resolveAuthContext_1.resolveAuthContext)(user, input.organizationId);
+        const { token } = (0, issueToken_1.issueToken)(user, ctx);
         await prisma_1.prisma.user.update({
             where: { id: user.id },
             data: { lastLoginAt: new Date() },
         });
         return {
-            user: toPublicUser(user, user.memberships, ctx),
+            user: (0, toPublic_1.toPublicUser)(user, user.memberships, ctx),
             token,
         };
     },
@@ -277,7 +178,7 @@ exports.authService = {
                 throw new AppError_1.ConflictError("An account with this phone already exists");
             }
         }
-        const baseSlug = input.slug ?? slugify(input.organizationName);
+        const baseSlug = input.slug ?? (0, slugify_1.slugify)(input.organizationName);
         const slug = await ensureUniqueSlug(baseSlug);
         const passwordHash = await (0, password_1.hashPassword)(input.password);
         const { user, memberships, ctx } = await prisma_1.prisma.$transaction(async (tx) => {
@@ -325,9 +226,9 @@ exports.authService = {
             where: { id: user.id },
             data: { lastLoginAt: new Date() },
         });
-        const { token } = issueToken(user, ctx);
+        const { token } = (0, issueToken_1.issueToken)(user, ctx);
         return {
-            user: toPublicUser(user, memberships, ctx),
+            user: (0, toPublic_1.toPublicUser)(user, memberships, ctx),
             token,
         };
     },
@@ -343,7 +244,7 @@ exports.authService = {
         if (user.globalRole === client_1.GlobalRole.SUPER_ADMIN) {
             throw new AppError_1.BadRequestError("Platform admins should create schools via the admin API");
         }
-        const baseSlug = input.slug ?? slugify(input.organizationName);
+        const baseSlug = input.slug ?? (0, slugify_1.slugify)(input.organizationName);
         const slug = await ensureUniqueSlug(baseSlug);
         const { memberships, ctx } = await prisma_1.prisma.$transaction(async (tx) => {
             const organization = await tx.organization.create({
@@ -379,9 +280,9 @@ exports.authService = {
             };
             return { memberships, ctx };
         });
-        const { token } = issueToken(user, ctx);
+        const { token } = (0, issueToken_1.issueToken)(user, ctx);
         return {
-            user: toPublicUser(user, memberships, ctx),
+            user: (0, toPublic_1.toPublicUser)(user, memberships, ctx),
             token,
         };
     },
@@ -393,10 +294,10 @@ exports.authService = {
         if (!user || !user.isActive) {
             throw new AppError_1.UnauthorizedError();
         }
-        const ctx = resolveAuthContext(user, input.organizationId);
-        const { token } = issueToken(user, ctx);
+        const ctx = (0, resolveAuthContext_1.resolveAuthContext)(user, input.organizationId);
+        const { token } = (0, issueToken_1.issueToken)(user, ctx);
         return {
-            user: toPublicUser(user, user.memberships, ctx),
+            user: (0, toPublic_1.toPublicUser)(user, user.memberships, ctx),
             token,
         };
     },
@@ -462,9 +363,9 @@ exports.authService = {
                 membershipId: null,
             };
             // Token without school: use a dedicated onboard role or allow null schoolId
-            const { token } = issueToken(user, onboardingCtx);
+            const { token } = (0, issueToken_1.issueToken)(user, onboardingCtx);
             return {
-                user: toPublicUser(user, user.memberships, onboardingCtx),
+                user: (0, toPublic_1.toPublicUser)(user, user.memberships, onboardingCtx),
                 token,
                 needsOrganization: true,
             };
@@ -497,10 +398,10 @@ exports.authService = {
         }
         // Platform admin
         if (user.globalRole === client_1.GlobalRole.SUPER_ADMIN) {
-            const ctx = resolveAuthContext(user, input.organizationId);
-            const { token } = issueToken(user, ctx);
+            const ctx = (0, resolveAuthContext_1.resolveAuthContext)(user, input.organizationId);
+            const { token } = (0, issueToken_1.issueToken)(user, ctx);
             return {
-                user: toPublicUser(user, user.memberships, ctx),
+                user: (0, toPublic_1.toPublicUser)(user, user.memberships, ctx),
                 token,
                 needsOrganization: false,
             };
@@ -514,17 +415,17 @@ exports.authService = {
                 schoolName: null,
                 membershipId: null,
             };
-            const { token } = issueToken(user, onboardingCtx);
+            const { token } = (0, issueToken_1.issueToken)(user, onboardingCtx);
             return {
-                user: toPublicUser(user, user.memberships, onboardingCtx),
+                user: (0, toPublic_1.toPublicUser)(user, user.memberships, onboardingCtx),
                 token,
                 needsOrganization: true,
             };
         }
-        const ctx = resolveAuthContext(user, input.organizationId);
-        const { token } = issueToken(user, ctx);
+        const ctx = (0, resolveAuthContext_1.resolveAuthContext)(user, input.organizationId);
+        const { token } = (0, issueToken_1.issueToken)(user, ctx);
         return {
-            user: toPublicUser(user, user.memberships, ctx),
+            user: (0, toPublic_1.toPublicUser)(user, user.memberships, ctx),
             token,
             needsOrganization: false,
         };
@@ -556,7 +457,7 @@ exports.authService = {
             ctx.schoolSlug = null;
             ctx.schoolName = null;
         }
-        return toPublicUser(user, user.memberships, ctx);
+        return (0, toPublic_1.toPublicUser)(user, user.memberships, ctx);
     },
     /**
      * Stateless JWT: client discards token.

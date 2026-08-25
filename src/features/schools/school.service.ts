@@ -8,29 +8,7 @@ import {
 import type { UpdateSchoolBody } from "./school.dto";
 import type { SchoolPublic } from "./school.types";
 import type { Organization } from "@prisma/client";
-
-function toSchoolPublic(org: Organization): SchoolPublic {
-  return {
-    id: org.id,
-    name: org.name,
-    slug: org.slug,
-    email: org.email,
-    phone: org.phone,
-    logoUrl: org.logoUrl,
-    primaryColor: org.primaryColor,
-    accentColor: org.accentColor,
-    address: org.address,
-    city: org.city,
-    state: org.state,
-    country: org.country,
-    motto: org.motto,
-    schoolType: org.schoolType,
-    isActive: org.isActive,
-    onBoarded: org.onBoarded,
-    createdAt: org.createdAt,
-    updatedAt: org.updatedAt,
-  };
-}
+import { toSchoolPublic } from "../../utils/toPublic";
 
 function requireSchoolId(schoolId: string | null | undefined): string {
   if (!schoolId) {

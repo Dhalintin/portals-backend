@@ -4,28 +4,7 @@ exports.schoolService = void 0;
 // src/features/schools/school.service.ts
 const prisma_1 = require("../../lib/prisma");
 const AppError_1 = require("../../common/errors/AppError");
-function toSchoolPublic(org) {
-    return {
-        id: org.id,
-        name: org.name,
-        slug: org.slug,
-        email: org.email,
-        phone: org.phone,
-        logoUrl: org.logoUrl,
-        primaryColor: org.primaryColor,
-        accentColor: org.accentColor,
-        address: org.address,
-        city: org.city,
-        state: org.state,
-        country: org.country,
-        motto: org.motto,
-        schoolType: org.schoolType,
-        isActive: org.isActive,
-        onBoarded: org.onBoarded,
-        createdAt: org.createdAt,
-        updatedAt: org.updatedAt,
-    };
-}
+const toPublic_1 = require("../../utils/toPublic");
 function requireSchoolId(schoolId) {
     if (!schoolId) {
         throw new AppError_1.ForbiddenError("No school context. Select or create a school first.");
@@ -41,7 +20,7 @@ exports.schoolService = {
         if (!org) {
             throw new AppError_1.NotFoundError("School not found");
         }
-        return toSchoolPublic(org);
+        return (0, toPublic_1.toSchoolPublic)(org);
     },
     async updateMe(schoolId, userId, input) {
         if (!userId)
@@ -77,6 +56,6 @@ exports.schoolService = {
                     : {}),
             },
         });
-        return toSchoolPublic(updated);
+        return (0, toPublic_1.toSchoolPublic)(updated);
     },
 };
