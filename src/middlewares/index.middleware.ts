@@ -5,7 +5,7 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 
-import indexRoutes from "../features/appRoute";
+import appRouter from "../features/appRoutes";
 
 export default (app: Application) => {
   app.use(morgan("combined"));
@@ -32,5 +32,5 @@ export default (app: Application) => {
 
   app.use(cookieParser());
 
-  app.use("/api/v1", indexRoutes);
+  app.use("/api/v1", appRouter);
 };

@@ -1,12 +1,11 @@
 // prisma/schema.prisma
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -52,10 +51,12 @@ model User {
   id            String     @id @default(uuid())
   email         String     @unique
   passwordHash  String?
+  googleId      String?    @unique  // NEW
   firstName     String
   lastName      String
   phone         String?    @unique
   avatarUrl     String?
+  lastLoginAt   DateTime?  // NEW
   globalRole    GlobalRole @default(USER)
   isActive      Boolean    @default(true)
   createdAt     DateTime   @default(now())
@@ -63,9 +64,11 @@ model User {
 
   memberships   Membership[]
   createdOrgs   Organization[] @relation("OrgCreator")
+  passwordResetTokens  PasswordResetToken[] // NEW
 
   @@index([email])
   @@index([globalRole])
+  @@index([googleId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -331,4 +334,19 @@ model Announcement {
 
   @@index([organizationId])
   @@index([isActive, publishedAt])
+}
+
+// NEW
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
