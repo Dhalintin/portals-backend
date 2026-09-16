@@ -12,7 +12,7 @@ import type {
   UpdateClassBody,
 } from "./class.dto";
 import { normalizeArm } from "../../utils/normalization";
-import { toClassPublic } from "../../utils/toClassPublic";
+import { toClassPublic } from "../../utils/toPublic";
 
 function requireSchoolId(schoolId: string | null | undefined): string {
   if (!schoolId) {

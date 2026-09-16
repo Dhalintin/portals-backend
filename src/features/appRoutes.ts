@@ -39,12 +39,15 @@ appRouter.use("/health", (req, res) => {
 import authRoutes from "./auth/auth.routes";
 import schoolRoutes from "./schools/school.routes";
 import classRoutes from "./classes/class.routes";
+import studentRoutes from "./students/student.routes";
 
 appRouter.use("/auth", authRoutes);
 
 appRouter.use("/schools", schoolRoutes);
 
 appRouter.use("/classes", classRoutes);
+
+appRouter.use("/students", studentRoutes);
 
 appRouter.use(notFound);
 appRouter.use(errorHandler);

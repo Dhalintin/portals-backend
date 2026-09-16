@@ -16,8 +16,12 @@ export function validate(schemas: Schemas): RequestHandler {
         req.body = schemas.body.parse(req.body);
       }
       if (schemas.query) {
-        req.query = schemas.query.parse(req.query) as typeof req.query;
+        // Attach validated data to a custom property
+        (req as any).validatedQuery = schemas.query.parse(req.query);
       }
+      // if (schemas.query) {
+      //   req.query = schemas.query.parse(req.query) as typeof req.query;
+      // }
       if (schemas.params) {
         req.params = schemas.params.parse(req.params) as typeof req.params;
       }

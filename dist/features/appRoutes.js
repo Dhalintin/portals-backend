@@ -36,9 +36,11 @@ appRouter.use("/health", (req, res) => {
 const auth_routes_1 = __importDefault(require("./auth/auth.routes"));
 const school_routes_1 = __importDefault(require("./schools/school.routes"));
 const class_routes_1 = __importDefault(require("./classes/class.routes"));
+const student_routes_1 = __importDefault(require("./students/student.routes"));
 appRouter.use("/auth", auth_routes_1.default);
 appRouter.use("/schools", school_routes_1.default);
 appRouter.use("/classes", class_routes_1.default);
+appRouter.use("/students", student_routes_1.default);
 appRouter.use(notFound_1.notFound);
 appRouter.use(errorHandler_1.errorHandler);
 exports.default = appRouter;

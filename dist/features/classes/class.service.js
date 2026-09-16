@@ -4,7 +4,7 @@ exports.classService = void 0;
 const prisma_1 = require("../../lib/prisma");
 const AppError_1 = require("../../common/errors/AppError");
 const normalization_1 = require("../../utils/normalization");
-const toClassPublic_1 = require("../../utils/toClassPublic");
+const toPublic_1 = require("../../utils/toPublic");
 function requireSchoolId(schoolId) {
     if (!schoolId) {
         throw new AppError_1.ForbiddenError("No school context");
@@ -46,7 +46,7 @@ exports.classService = {
             }),
         ]);
         return {
-            items: rows.map(toClassPublic_1.toClassPublic),
+            items: rows.map(toPublic_1.toClassPublic),
             meta: {
                 page,
                 pageSize,
@@ -63,7 +63,7 @@ exports.classService = {
         if (!row) {
             throw new AppError_1.NotFoundError("Class not found");
         }
-        return (0, toClassPublic_1.toClassPublic)(row);
+        return (0, toPublic_1.toClassPublic)(row);
     },
     async create(schoolId, input) {
         const organizationId = requireSchoolId(schoolId);
@@ -78,7 +78,7 @@ exports.classService = {
                     isActive: true,
                 },
             });
-            return (0, toClassPublic_1.toClassPublic)(row);
+            return (0, toPublic_1.toClassPublic)(row);
         }
         catch (err) {
             // Unique: @@unique([organizationId, name, arm])
@@ -109,7 +109,7 @@ exports.classService = {
                     ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
                 },
             });
-            return (0, toClassPublic_1.toClassPublic)(row);
+            return (0, toPublic_1.toClassPublic)(row);
         }
         catch (err) {
             if (typeof err === "object" &&
@@ -134,6 +134,6 @@ exports.classService = {
             where: { id },
             data: { isActive: false },
         });
-        return (0, toClassPublic_1.toClassPublic)(row);
+        return (0, toPublic_1.toClassPublic)(row);
     },
 };
