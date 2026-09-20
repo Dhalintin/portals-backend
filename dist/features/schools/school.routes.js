@@ -10,7 +10,7 @@ const school_controller_1 = require("./school.controller");
 const school_dto_1 = require("./school.dto");
 const router = (0, express_1.Router)();
 router.use(authenticate_1.authenticate, authorize_2.requireSchoolContext);
-router.get("/me", (0, authorize_1.authorize)("school_admin", "teacher", "exam_officer"), school_controller_1.schoolController.getMe);
-router.patch("/me", (0, authorize_1.authorize)("school_admin"), // only admins change branding/settings
+router.get("/me", (0, authorize_1.authorize)("SCHOOL_ADMIN", "TEACHER", "EXAM_OFFICER"), school_controller_1.schoolController.getMe);
+router.patch("/me", (0, authorize_1.authorize)("SCHOOL_ADMIN"), // only admins change branding/settings
 (0, validate_1.validate)({ body: school_dto_1.updateSchoolBodySchema }), school_controller_1.schoolController.updateMe);
 exports.default = router;

@@ -8,6 +8,7 @@ function authorize(...roles) {
         if (!req.user) {
             return next(new AppError_1.UnauthorizedError());
         }
+        console.log(req.user.role);
         if (roles.length && !roles.includes(req.user.role)) {
             return next(new AppError_1.ForbiddenError("Insufficient permissions"));
         }
@@ -19,7 +20,7 @@ const requireSchoolContext = (req, _res, next) => {
     if (!req.user) {
         return next(new AppError_1.UnauthorizedError());
     }
-    if (req.user.role === "platform_admin") {
+    if (req.user.role === "PLATFORM_ADMIN") {
         return next();
     }
     if (!req.user.schoolId) {

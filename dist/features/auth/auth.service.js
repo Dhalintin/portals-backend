@@ -214,7 +214,7 @@ exports.authService = {
                 include: { organization: true },
             });
             const ctx = {
-                role: "school_admin",
+                role: "SCHOOL_ADMIN",
                 schoolId: organization.id,
                 schoolSlug: organization.slug,
                 schoolName: organization.name,
@@ -272,7 +272,7 @@ exports.authService = {
             });
             const membership = memberships.find((m) => m.organizationId === organization.id);
             const ctx = {
-                role: "school_admin",
+                role: "SCHOOL_ADMIN",
                 schoolId: organization.id,
                 schoolSlug: organization.slug,
                 schoolName: organization.name,
@@ -356,7 +356,7 @@ exports.authService = {
             });
             // No school yet — client should call createOrganization after storing token
             const onboardingCtx = {
-                role: "school_admin",
+                role: "SCHOOL_ADMIN",
                 schoolId: null,
                 schoolSlug: null,
                 schoolName: null,
@@ -409,7 +409,7 @@ exports.authService = {
         const activeMemberships = user.memberships.filter((m) => m.isActive && m.organization.isActive);
         if (activeMemberships.length === 0) {
             const onboardingCtx = {
-                role: "school_admin",
+                role: "SCHOOL_ADMIN",
                 schoolId: null,
                 schoolSlug: null,
                 schoolName: null,
@@ -453,7 +453,7 @@ exports.authService = {
                 ?.organization.name ?? null,
             membershipId: tokenCtx.membershipId ?? null,
         };
-        if (tokenCtx.role === "platform_admin") {
+        if (tokenCtx.role === "PLATFORM_ADMIN") {
             ctx.schoolSlug = null;
             ctx.schoolName = null;
         }

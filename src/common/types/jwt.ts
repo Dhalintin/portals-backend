@@ -4,6 +4,7 @@ import type { Role } from "../types/auth"; // or define Role here
 export type JwtPayload = {
   sub: string;
   role: Role;
+  orgRole: Role;
   schoolId: string | null;
   email?: string;
   membershipId?: string | null;

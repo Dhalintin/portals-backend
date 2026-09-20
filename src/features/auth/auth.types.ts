@@ -1,9 +1,9 @@
 // src/features/auth/auth.types.ts
 export type AppRole =
-  | "platform_admin"
-  | "school_admin"
-  | "teacher"
-  | "exam_officer";
+  | "PLATFORM_ADMIN"
+  | "SCHOOL_ADMIN"
+  | "TEACHER"
+  | "EXAM_OFFICER";
 
 export type AuthTokenPayload = {
   sub: string;

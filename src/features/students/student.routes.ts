@@ -14,49 +14,52 @@ import {
   studentIdParamsSchema,
   updateStudentBodySchema,
 } from "./student.dto";
+import { Role } from "../../common/types/auth";
 
 const studentRoutes = Router();
+
+const platformUsers = ["SCHOOL_ADMIN", "TEACHER", "EXAM_OFFICER"] as Role[];
 
 studentRoutes.use(authenticate, requireSchoolContext);
 
 studentRoutes.get(
   "/",
-  authorize("school_admin", "teacher", "exam_officer"),
+  authorize(...platformUsers),
   validate({ query: listStudentsQuerySchema }),
   studentController.list
 );
 
 studentRoutes.post(
   "/",
-  authorize("school_admin", "exam_officer"),
+  authorize("SCHOOL_ADMIN", "EXAM_OFFICER"),
   validate({ body: createStudentBodySchema }),
   studentController.create
 );
 
 studentRoutes.post(
   "/bulk",
-  authorize("school_admin", "exam_officer"),
+  authorize("SCHOOL_ADMIN", "EXAM_OFFICER"),
   validate({ body: bulkCreateStudentsBodySchema }),
   studentController.bulkCreate
 );
 
 studentRoutes.get(
   "/:id",
-  authorize("school_admin", "teacher", "exam_officer"),
+  authorize(...platformUsers),
   validate({ params: studentIdParamsSchema }),
   studentController.getById
 );
 
 studentRoutes.patch(
   "/:id",
-  authorize("school_admin", "exam_officer"),
+  authorize("SCHOOL_ADMIN", "EXAM_OFFICER"),
   validate({ params: studentIdParamsSchema, body: updateStudentBodySchema }),
   studentController.update
 );
 
 studentRoutes.delete(
   "/:id",
-  authorize("school_admin"),
+  authorize("SCHOOL_ADMIN"),
   validate({ params: studentIdParamsSchema }),
   studentController.remove
 );

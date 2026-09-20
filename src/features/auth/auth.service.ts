@@ -271,7 +271,7 @@ export const authService = {
       });
 
       const ctx = {
-        role: "school_admin" as const,
+        role: "SCHOOL_ADMIN" as const,
         schoolId: organization.id,
         schoolSlug: organization.slug,
         schoolName: organization.name,
@@ -343,7 +343,7 @@ export const authService = {
       )!;
 
       const ctx = {
-        role: "school_admin" as const,
+        role: "SCHOOL_ADMIN" as const,
         schoolId: organization.id,
         schoolSlug: organization.slug,
         schoolName: organization.name,
@@ -438,7 +438,7 @@ export const authService = {
 
       // No school yet — client should call createOrganization after storing token
       const onboardingCtx = {
-        role: "school_admin" as const,
+        role: "SCHOOL_ADMIN" as const,
         schoolId: null as string | null,
         schoolSlug: null as string | null,
         schoolName: null as string | null,
@@ -499,7 +499,7 @@ export const authService = {
 
     if (activeMemberships.length === 0) {
       const onboardingCtx = {
-        role: "school_admin" as const,
+        role: "SCHOOL_ADMIN" as const,
         schoolId: null as string | null,
         schoolSlug: null as string | null,
         schoolName: null as string | null,
@@ -554,7 +554,7 @@ export const authService = {
       membershipId: tokenCtx.membershipId ?? null,
     };
 
-    if (tokenCtx.role === "platform_admin") {
+    if (tokenCtx.role === "PLATFORM_ADMIN") {
       ctx.schoolSlug = null;
       ctx.schoolName = null;
     }

@@ -1,10 +1,10 @@
 // src/types/auth.ts  (or src/lib/auth/types.ts)
 
 export type Role =
-  | "platform_admin"
-  | "school_admin"
-  | "teacher"
-  | "exam_officer";
+  | "PLATFORM_ADMIN"
+  | "SCHOOL_ADMIN"
+  | "TEACHER"
+  | "EXAM_OFFICER";
 
 /** User as stored in memory / localStorage after login or /auth/me */
 export type SessionUser = {

@@ -7,7 +7,7 @@ const mapOrgRole_1 = require("./mapOrgRole");
 function resolveAuthContext(user, organizationId) {
     if (user.globalRole === client_1.GlobalRole.SUPER_ADMIN) {
         return {
-            role: "platform_admin",
+            role: "PLATFORM_ADMIN",
             schoolId: null,
             schoolSlug: null,
             schoolName: null,

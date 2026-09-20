@@ -16,8 +16,11 @@ import {
   updateTeacherBodySchema,
 } from "./teacher.dto";
 import { z } from "zod";
+import { Role } from "../../common/types/auth";
 
 const classIdParams = z.object({ classId: z.string().uuid() });
+
+const platformUsers = ["SCHOOL_ADMIN", "TEACHER", "EXAM_OFFICER"] as Role[];
 
 const teacherRoutes = Router();
 
@@ -25,28 +28,28 @@ teacherRoutes.use(authenticate, requireSchoolContext);
 
 teacherRoutes.get(
   "/",
-  authorize("school_admin", "exam_officer"),
+  authorize("SCHOOL_ADMIN", "EXAM_OFFICER"),
   validate({ query: listTeachersQuerySchema }),
   teacherController.list
 );
 
 teacherRoutes.post(
   "/invite",
-  authorize("school_admin"),
+  authorize("SCHOOL_ADMIN"),
   validate({ body: inviteTeacherBodySchema }),
   teacherController.invite
 );
 
 teacherRoutes.get(
   "/me/assignments",
-  authorize("school_admin", "teacher", "exam_officer"),
+  authorize(...platformUsers),
   teacherController.myAssignments
 );
 
 // Class staffing (used by class detail Teachers tab)
 teacherRoutes.put(
   "/classes/:classId/class-teacher",
-  authorize("school_admin"),
+  authorize("SCHOOL_ADMIN"),
   validate({
     params: classIdParams,
     body: setClassTeacherBodySchema,
@@ -56,14 +59,14 @@ teacherRoutes.put(
 
 teacherRoutes.get(
   "/classes/:classId/subject-teachers",
-  authorize("school_admin", "exam_officer"),
+  authorize("SCHOOL_ADMIN", "EXAM_OFFICER"),
   validate({ params: classIdParams }),
   teacherController.listClassSubjectTeachers
 );
 
 teacherRoutes.put(
   "/classes/:classId/subject-teachers",
-  authorize("school_admin"),
+  authorize("SCHOOL_ADMIN"),
   validate({
     params: classIdParams,
     body: setClassSubjectTeacherBodySchema,
@@ -73,28 +76,28 @@ teacherRoutes.put(
 
 teacherRoutes.get(
   "/:id",
-  authorize("school_admin", "exam_officer"),
+  authorize("SCHOOL_ADMIN", "EXAM_OFFICER"),
   validate({ params: teacherIdParamsSchema }),
   teacherController.getById
 );
 
 teacherRoutes.patch(
   "/:id",
-  authorize("school_admin"),
+  authorize("SCHOOL_ADMIN"),
   validate({ params: teacherIdParamsSchema, body: updateTeacherBodySchema }),
   teacherController.update
 );
 
 teacherRoutes.delete(
   "/:id",
-  authorize("school_admin"),
+  authorize("SCHOOL_ADMIN"),
   validate({ params: teacherIdParamsSchema }),
   teacherController.remove
 );
 
 teacherRoutes.put(
   "/:id/assignments",
-  authorize("school_admin"),
+  authorize("SCHOOL_ADMIN"),
   validate({ params: teacherIdParamsSchema, body: setAssignmentsBodySchema }),
   teacherController.setAssignments
 );

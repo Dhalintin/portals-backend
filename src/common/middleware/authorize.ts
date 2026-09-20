@@ -8,6 +8,9 @@ export function authorize(...roles: Role[]): RequestHandler {
     if (!req.user) {
       return next(new UnauthorizedError());
     }
+
+    console.log(req.user.role);
+
     if (roles.length && !roles.includes(req.user.role)) {
       return next(new ForbiddenError("Insufficient permissions"));
     }
@@ -20,7 +23,7 @@ export const requireSchoolContext: RequestHandler = (req, _res, next) => {
   if (!req.user) {
     return next(new UnauthorizedError());
   }
-  if (req.user.role === "platform_admin") {
+  if (req.user.role === "PLATFORM_ADMIN") {
     return next();
   }
   if (!req.user.schoolId) {

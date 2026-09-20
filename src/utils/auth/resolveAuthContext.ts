@@ -17,7 +17,7 @@ export function resolveAuthContext(
 } {
   if (user.globalRole === GlobalRole.SUPER_ADMIN) {
     return {
-      role: "platform_admin",
+      role: "PLATFORM_ADMIN",
       schoolId: null,
       schoolSlug: null,
       schoolName: null,

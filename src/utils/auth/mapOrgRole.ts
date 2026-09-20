@@ -4,12 +4,12 @@ import { AppRole } from "../../lib/jwt";
 export function mapOrgRole(role: OrgRole): AppRole {
   switch (role) {
     case OrgRole.SCHOOL_ADMIN:
-      return "school_admin";
+      return "SCHOOL_ADMIN";
     case OrgRole.TEACHER:
-      return "teacher";
+      return "TEACHER";
     case OrgRole.EXAM_OFFICER:
-      return "exam_officer";
+      return "EXAM_OFFICER";
     default:
-      return "teacher";
+      return "TEACHER";
   }
 }

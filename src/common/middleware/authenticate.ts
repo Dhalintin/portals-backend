@@ -25,6 +25,7 @@ export const authenticate: RequestHandler = (req, _res, next) => {
     }
     req.user = {
       sub: payload.sub,
+      orgRole: payload.role,
       role: payload.role,
       schoolId: payload.schoolId ?? null,
       email: payload.email,

@@ -21,42 +21,45 @@ import {
   classSubjectParamsSchema,
   setClassSubjectsBodySchema,
 } from "./classSubject.dto";
+import { Role } from "../../common/types/auth";
 
 const router = Router();
 
 router.use(authenticate, requireSchoolContext);
 
+const platformUsers = ["SCHOOL_ADMIN", "TEACHER", "EXAM_OFFICER"] as Role[];
+
 router.get(
   "/",
-  authorize("school_admin", "teacher", "exam_officer"),
+  authorize(...platformUsers),
   validate({ query: listClassesQuerySchema }),
   classController.list
 );
 
 router.post(
   "/",
-  authorize("school_admin"),
+  authorize("SCHOOL_ADMIN"),
   validate({ body: createClassBodySchema }),
   classController.create
 );
 
 router.get(
   "/:id",
-  authorize("school_admin", "teacher", "exam_officer"),
+  authorize(...platformUsers),
   validate({ params: classIdParamsSchema }),
   classController.getById
 );
 
 router.patch(
   "/:id",
-  authorize("school_admin"),
+  authorize("SCHOOL_ADMIN"),
   validate({ params: classIdParamsSchema, body: updateClassBodySchema }),
   classController.update
 );
 
 router.delete(
   "/:id",
-  authorize("school_admin"),
+  authorize("SCHOOL_ADMIN"),
   validate({ params: classIdParamsSchema }),
   classController.remove
 );
@@ -67,14 +70,14 @@ router.delete(
 
 router.get(
   "/:classId/subjects",
-  authorize("school_admin", "teacher", "exam_officer"),
+  authorize(...platformUsers),
   validate({ params: classIdForClassSubjectParamsSchema }),
   classSubjectController.list
 );
 
 router.put(
   "/:classId/subjects",
-  authorize("school_admin", "exam_officer"),
+  authorize("SCHOOL_ADMIN", "EXAM_OFFICER"),
   validate({
     params: classIdForClassSubjectParamsSchema,
     body: setClassSubjectsBodySchema,
@@ -84,7 +87,7 @@ router.put(
 
 router.post(
   "/:classId/subjects",
-  authorize("school_admin", "exam_officer"),
+  authorize("SCHOOL_ADMIN", "EXAM_OFFICER"),
   validate({
     params: classIdForClassSubjectParamsSchema,
     body: addClassSubjectBodySchema,
@@ -94,7 +97,7 @@ router.post(
 
 router.delete(
   "/:classId/subjects/:subjectId",
-  authorize("school_admin", "exam_officer"),
+  authorize("SCHOOL_ADMIN", "EXAM_OFFICER"),
   validate({ params: classIdForClassSubjectParamsSchema }),
   classSubjectController.remove
 );

@@ -13,13 +13,13 @@ router.use(authenticate, requireSchoolContext);
 
 router.get(
   "/me",
-  authorize("school_admin", "teacher", "exam_officer"),
+  authorize("SCHOOL_ADMIN", "TEACHER", "EXAM_OFFICER"),
   schoolController.getMe
 );
 
 router.patch(
   "/me",
-  authorize("school_admin"), // only admins change branding/settings
+  authorize("SCHOOL_ADMIN"), // only admins change branding/settings
   validate({ body: updateSchoolBodySchema }),
   schoolController.updateMe
 );
