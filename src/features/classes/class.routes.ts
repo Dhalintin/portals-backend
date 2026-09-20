@@ -14,6 +14,14 @@ import {
   updateClassBodySchema,
 } from "./class.dto";
 
+import { classSubjectController } from "./classSubject.controller";
+import {
+  addClassSubjectBodySchema,
+  classIdForClassSubjectParamsSchema,
+  classSubjectParamsSchema,
+  setClassSubjectsBodySchema,
+} from "./classSubject.dto";
+
 const router = Router();
 
 router.use(authenticate, requireSchoolContext);
@@ -51,6 +59,44 @@ router.delete(
   authorize("school_admin"),
   validate({ params: classIdParamsSchema }),
   classController.remove
+);
+
+// Class subject routes
+
+// In class.routes.ts (or separate router merged under /classes)
+
+router.get(
+  "/:classId/subjects",
+  authorize("school_admin", "teacher", "exam_officer"),
+  validate({ params: classIdForClassSubjectParamsSchema }),
+  classSubjectController.list
+);
+
+router.put(
+  "/:classId/subjects",
+  authorize("school_admin", "exam_officer"),
+  validate({
+    params: classIdForClassSubjectParamsSchema,
+    body: setClassSubjectsBodySchema,
+  }),
+  classSubjectController.set
+);
+
+router.post(
+  "/:classId/subjects",
+  authorize("school_admin", "exam_officer"),
+  validate({
+    params: classIdForClassSubjectParamsSchema,
+    body: addClassSubjectBodySchema,
+  }),
+  classSubjectController.add
+);
+
+router.delete(
+  "/:classId/subjects/:subjectId",
+  authorize("school_admin", "exam_officer"),
+  validate({ params: classIdForClassSubjectParamsSchema }),
+  classSubjectController.remove
 );
 
 export default router;

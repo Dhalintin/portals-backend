@@ -152,7 +152,7 @@ export const studentService = {
         include: { class: true },
         orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
         skip,
-        take: Number.parseInt(pageSize),
+        take: Number(pageSize),
       }),
     ]);
 

@@ -43,6 +43,15 @@ exports.classService = {
                 orderBy: [{ name: "asc" }, { arm: "asc" }],
                 skip,
                 take: pageSize,
+                include: {
+                    classTeacher: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                        },
+                    },
+                },
             }),
         ]);
         return {
@@ -59,6 +68,15 @@ exports.classService = {
         const organizationId = requireSchoolId(schoolId);
         const row = await prisma_1.prisma.class.findFirst({
             where: { id, organizationId },
+            include: {
+                classTeacher: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                    },
+                },
+            },
         });
         if (!row) {
             throw new AppError_1.NotFoundError("Class not found");

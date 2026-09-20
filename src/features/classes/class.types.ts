@@ -10,4 +10,10 @@ export type ClassPublic = {
   displayName: string;
   createdAt: Date;
   updatedAt: Date;
+  classTeacher?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
 };

@@ -7,6 +7,8 @@ const authorize_1 = require("../../common/middleware/authorize");
 const validate_1 = require("../../common/middleware/validate");
 const class_controller_1 = require("./class.controller");
 const class_dto_1 = require("./class.dto");
+const classSubject_controller_1 = require("./classSubject.controller");
+const classSubject_dto_1 = require("./classSubject.dto");
 const router = (0, express_1.Router)();
 router.use(authenticate_1.authenticate, authorize_1.requireSchoolContext);
 router.get("/", (0, authorize_1.authorize)("school_admin", "teacher", "exam_officer"), (0, validate_1.validate)({ query: class_dto_1.listClassesQuerySchema }), class_controller_1.classController.list);
@@ -14,4 +16,16 @@ router.post("/", (0, authorize_1.authorize)("school_admin"), (0, validate_1.vali
 router.get("/:id", (0, authorize_1.authorize)("school_admin", "teacher", "exam_officer"), (0, validate_1.validate)({ params: class_dto_1.classIdParamsSchema }), class_controller_1.classController.getById);
 router.patch("/:id", (0, authorize_1.authorize)("school_admin"), (0, validate_1.validate)({ params: class_dto_1.classIdParamsSchema, body: class_dto_1.updateClassBodySchema }), class_controller_1.classController.update);
 router.delete("/:id", (0, authorize_1.authorize)("school_admin"), (0, validate_1.validate)({ params: class_dto_1.classIdParamsSchema }), class_controller_1.classController.remove);
+// Class subject routes
+// In class.routes.ts (or separate router merged under /classes)
+router.get("/:classId/subjects", (0, authorize_1.authorize)("school_admin", "teacher", "exam_officer"), (0, validate_1.validate)({ params: classSubject_dto_1.classIdForClassSubjectParamsSchema }), classSubject_controller_1.classSubjectController.list);
+router.put("/:classId/subjects", (0, authorize_1.authorize)("school_admin", "exam_officer"), (0, validate_1.validate)({
+    params: classSubject_dto_1.classIdForClassSubjectParamsSchema,
+    body: classSubject_dto_1.setClassSubjectsBodySchema,
+}), classSubject_controller_1.classSubjectController.set);
+router.post("/:classId/subjects", (0, authorize_1.authorize)("school_admin", "exam_officer"), (0, validate_1.validate)({
+    params: classSubject_dto_1.classIdForClassSubjectParamsSchema,
+    body: classSubject_dto_1.addClassSubjectBodySchema,
+}), classSubject_controller_1.classSubjectController.add);
+router.delete("/:classId/subjects/:subjectId", (0, authorize_1.authorize)("school_admin", "exam_officer"), (0, validate_1.validate)({ params: classSubject_dto_1.classIdForClassSubjectParamsSchema }), classSubject_controller_1.classSubjectController.remove);
 exports.default = router;

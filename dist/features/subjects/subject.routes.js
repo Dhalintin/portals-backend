@@ -1,0 +1,16 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const authenticate_1 = require("../../common/middleware/authenticate");
+const authorize_1 = require("../../common/middleware/authorize");
+const validate_1 = require("../../common/middleware/validate");
+const subject_controller_1 = require("./subject.controller");
+const subject_dto_1 = require("./subject.dto");
+const subjectRoutes = (0, express_1.Router)();
+subjectRoutes.use(authenticate_1.authenticate, authorize_1.requireSchoolContext);
+subjectRoutes.get("/", (0, authorize_1.authorize)("school_admin", "teacher", "exam_officer"), (0, validate_1.validate)({ query: subject_dto_1.listSubjectsQuerySchema }), subject_controller_1.subjectController.list);
+subjectRoutes.post("/", (0, authorize_1.authorize)("school_admin", "exam_officer"), (0, validate_1.validate)({ body: subject_dto_1.createSubjectBodySchema }), subject_controller_1.subjectController.create);
+subjectRoutes.get("/:id", (0, authorize_1.authorize)("school_admin", "teacher", "exam_officer"), (0, validate_1.validate)({ params: subject_dto_1.subjectIdParamsSchema }), subject_controller_1.subjectController.getById);
+subjectRoutes.patch("/:id", (0, authorize_1.authorize)("school_admin", "exam_officer"), (0, validate_1.validate)({ params: subject_dto_1.subjectIdParamsSchema, body: subject_dto_1.updateSubjectBodySchema }), subject_controller_1.subjectController.update);
+subjectRoutes.delete("/:id", (0, authorize_1.authorize)("school_admin"), (0, validate_1.validate)({ params: subject_dto_1.subjectIdParamsSchema }), subject_controller_1.subjectController.remove);
+exports.default = subjectRoutes;

@@ -57,6 +57,15 @@ export const classService = {
         orderBy: [{ name: "asc" }, { arm: "asc" }],
         skip,
         take: pageSize,
+        include: {
+          classTeacher: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
       }),
     ]);
 
@@ -76,6 +85,15 @@ export const classService = {
 
     const row = await prisma.class.findFirst({
       where: { id, organizationId },
+      include: {
+        classTeacher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
     });
 
     if (!row) {

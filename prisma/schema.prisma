@@ -64,7 +64,11 @@ model User {
 
   memberships   Membership[]
   createdOrgs   Organization[] @relation("OrgCreator")
-  passwordResetTokens  PasswordResetToken[] // NEW
+  passwordResetTokens  PasswordResetToken[]
+  
+
+  classTeacherOf      Class[]               @relation("ClassTeacher")
+  classSubjectTeaching ClassSubjectTeacher[]
 
   @@index([email])
   @@index([globalRole])
@@ -107,6 +111,10 @@ model Organization {
   results         Result[]
   pins            Pin[]
   announcements   Announcement[]
+
+  classSubjects          ClassSubject[]
+  classSubjectTeachers ClassSubjectTeacher[]
+
 
   @@index([slug])
   @@index([isActive])
@@ -186,8 +194,16 @@ model Class {
   students       Student[]
   results        Result[]
 
+  classTeacherId String?
+  classTeacher   User?   @relation("ClassTeacher", fields: [classTeacherId], references: [id], onDelete: SetNull)
+
+  subjects         ClassSubject[]
+  subjectTeachers ClassSubjectTeacher[]
+
   @@unique([organizationId, name, arm])
+  @@unique([organizationId, classTeacherId])
   @@index([organizationId])
+  @@index([classTeacherId])
 }
 
 model Subject {
@@ -201,6 +217,9 @@ model Subject {
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   scores         Score[]
+
+  classSubjects   ClassSubject[]
+  classTeachers ClassSubjectTeacher[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -336,7 +355,6 @@ model Announcement {
   @@index([isActive, publishedAt])
 }
 
-// NEW
 model PasswordResetToken {
   id        String    @id @default(uuid())
   userId    String
@@ -349,4 +367,42 @@ model PasswordResetToken {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+// Which subjects this class takes (curriculum)
+model ClassSubject {
+  id             String   @id @default(uuid())
+  organizationId String
+  classId        String
+  subjectId      String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  class        Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, subjectId])
+  @@index([organizationId])
+  @@index([classId])
+  @@index([subjectId])
+}
+
+model ClassSubjectTeacher {
+  id             String   @id @default(uuid())
+  organizationId String
+  classId        String
+  subjectId      String
+  userId         String   
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  class        Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, subjectId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([classId])
 }

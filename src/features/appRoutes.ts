@@ -40,6 +40,8 @@ import authRoutes from "./auth/auth.routes";
 import schoolRoutes from "./schools/school.routes";
 import classRoutes from "./classes/class.routes";
 import studentRoutes from "./students/student.routes";
+import teacherRoutes from "./teachers/teacher.routes";
+import subjectRoutes from "./subjects/subject.routes";
 
 appRouter.use("/auth", authRoutes);
 
@@ -48,6 +50,10 @@ appRouter.use("/schools", schoolRoutes);
 appRouter.use("/classes", classRoutes);
 
 appRouter.use("/students", studentRoutes);
+
+appRouter.use("/teachers", teacherRoutes);
+
+appRouter.use("/subjects", subjectRoutes);
 
 appRouter.use(notFound);
 appRouter.use(errorHandler);

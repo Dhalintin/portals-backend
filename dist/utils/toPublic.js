@@ -40,6 +40,7 @@ function toClassPublic(row) {
         displayName: (0, displayName_1.displayClassName)(row.name, row.arm),
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
+        classTeacher: row?.classTeacher ?? null,
     };
 }
 function toSchoolPublic(org) {

@@ -47,7 +47,7 @@ export function toPublicUser(
   };
 }
 
-export function toClassPublic(row: Class): ClassPublic {
+export function toClassPublic(row: any): ClassPublic {
   return {
     id: row.id,
     organizationId: row.organizationId,
@@ -58,6 +58,7 @@ export function toClassPublic(row: Class): ClassPublic {
     displayName: displayClassName(row.name, row.arm),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    classTeacher: row?.classTeacher ?? null,
   };
 }
 
