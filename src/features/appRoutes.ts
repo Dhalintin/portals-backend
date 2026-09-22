@@ -48,6 +48,7 @@ import pinRoutes, { publicPinsRouter } from "./pins/pins.routes";
 import settingsRoutes, {
   publicSettingsRouter,
 } from "./settings/settings.routes";
+import platformAdminRoutes from "./platform-admin/platform-admin.routes";
 
 appRouter.use("/auth", authRoutes);
 
@@ -74,6 +75,8 @@ appRouter.use("/public/pins", publicPinsRouter);
 appRouter.use("/public", publicSettingsRouter);
 
 appRouter.use("/settings", settingsRoutes);
+
+appRouter.use("/platform", platformAdminRoutes);
 
 appRouter.use(notFound);
 appRouter.use(errorHandler);

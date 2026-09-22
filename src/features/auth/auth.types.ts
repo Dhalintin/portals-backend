@@ -1,5 +1,6 @@
 // src/features/auth/auth.types.ts
 export type AppRole =
+  | "SUPER_ADMIN"
   | "PLATFORM_ADMIN"
   | "SCHOOL_ADMIN"
   | "TEACHER"
@@ -25,7 +26,7 @@ export type PublicUser = {
   schoolId: string | null;
   schoolSlug: string | null;
   schoolName: string | null;
-  globalRole: "SUPER_ADMIN" | "USER";
+  globalRole: "SUPER_ADMIN" | "PLATFORM_ADMIN" | "USER";
   memberships: Array<{
     id: string;
     organizationId: string;

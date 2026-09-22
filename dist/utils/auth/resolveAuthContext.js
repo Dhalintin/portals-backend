@@ -5,9 +5,11 @@ const client_1 = require("@prisma/client");
 const AppError_1 = require("../../common/errors/AppError");
 const mapOrgRole_1 = require("./mapOrgRole");
 function resolveAuthContext(user, organizationId) {
-    if (user.globalRole === client_1.GlobalRole.SUPER_ADMIN) {
+    console.log(user.globalRole);
+    if (user.globalRole === client_1.GlobalRole.SUPER_ADMIN ||
+        user.globalRole === client_1.GlobalRole.PLATFORM_ADMIN) {
         return {
-            role: "PLATFORM_ADMIN",
+            role: user.globalRole,
             schoolId: null,
             schoolSlug: null,
             schoolName: null,

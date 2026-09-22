@@ -15,9 +15,13 @@ export function resolveAuthContext(
   schoolName: string | null;
   membershipId: string | null;
 } {
-  if (user.globalRole === GlobalRole.SUPER_ADMIN) {
+  console.log(user.globalRole);
+  if (
+    user.globalRole === GlobalRole.SUPER_ADMIN ||
+    user.globalRole === GlobalRole.PLATFORM_ADMIN
+  ) {
     return {
-      role: "PLATFORM_ADMIN",
+      role: user.globalRole,
       schoolId: null,
       schoolSlug: null,
       schoolName: null,
