@@ -11,7 +11,6 @@ type Schemas = {
 
 export function validate(schemas: Schemas): RequestHandler {
   return (req, _res, next) => {
-    console.log("Validating..");
     try {
       if (schemas.body) {
         req.body = schemas.body.parse(req.body);

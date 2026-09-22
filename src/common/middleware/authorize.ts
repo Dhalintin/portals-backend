@@ -9,8 +9,6 @@ export function authorize(...roles: Role[]): RequestHandler {
       return next(new UnauthorizedError());
     }
 
-    console.log(req.user.role);
-
     if (roles.length && !roles.includes(req.user.role)) {
       return next(new ForbiddenError("Insufficient permissions"));
     }

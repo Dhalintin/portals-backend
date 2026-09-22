@@ -45,6 +45,9 @@ import subjectRoutes from "./subjects/subject.routes";
 import resultRoutes, { publicResultsRouter } from "./results/results.routes";
 import academicSessionRoutes from "./academic-sessions/academic-sessions.routes";
 import pinRoutes, { publicPinsRouter } from "./pins/pins.routes";
+import settingsRoutes, {
+  publicSettingsRouter,
+} from "./settings/settings.routes";
 
 appRouter.use("/auth", authRoutes);
 
@@ -67,6 +70,10 @@ appRouter.use("/academic-sessions", academicSessionRoutes);
 appRouter.use("/pins", pinRoutes);
 
 appRouter.use("/public/pins", publicPinsRouter);
+
+appRouter.use("/public", publicSettingsRouter);
+
+appRouter.use("/settings", settingsRoutes);
 
 appRouter.use(notFound);
 appRouter.use(errorHandler);

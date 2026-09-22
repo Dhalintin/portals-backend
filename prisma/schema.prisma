@@ -14,6 +14,7 @@ generator client {
 
 enum GlobalRole {
   SUPER_ADMIN   // Platform owner
+  PLATFORM_ADMIN
   USER
 }
 
@@ -70,6 +71,9 @@ model User {
   classTeacherOf      Class[]               @relation("ClassTeacher")
   classSubjectTeaching ClassSubjectTeacher[]
 
+  platformAdminAssignments PlatformAdminAssignment[] @relation("PlatformAdminAssignments")
+  platformAdminAssignedBy  PlatformAdminAssignment[] @relation("PlatformAdminAssigner")
+
   @@index([email])
   @@index([globalRole])
   @@index([googleId])
@@ -114,6 +118,9 @@ model Organization {
 
   classSubjects          ClassSubject[]
   classSubjectTeachers ClassSubjectTeacher[]
+
+  site            OrganizationSite?
+  platformAdminAssignments PlatformAdminAssignment[]
 
 
   @@index([slug])
@@ -405,4 +412,52 @@ model ClassSubjectTeacher {
   @@index([organizationId])
   @@index([userId])
   @@index([classId])
+}
+
+
+model OrganizationSite {
+  id             String   @id @default(uuid())
+  organizationId String   @unique
+
+  // Public site
+  heroTitle      String?
+  heroSubtitle   String?
+  aboutText      String?  // plain or markdown; keep simple for MVP
+  footerText     String?
+
+  // Contact extras (beyond org email/phone/address)
+  whatsapp       String?
+  websiteUrl     String?  // external site if any
+  facebookUrl    String?
+  instagramUrl   String?
+  twitterUrl     String?
+
+  // Feature flags / display
+  showResultsCta Boolean  @default(true)
+  showAbout      Boolean  @default(true)
+  showContact    Boolean  @default(true)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+// Schools a platform admin is responsible for
+model PlatformAdminAssignment {
+  id              String        @id @default(uuid())
+  userId          String
+  organizationId  String
+  assignedById    String?     // SUPER_ADMIN who assigned
+  note            String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user            User          @relation("PlatformAdminAssignments", fields: [userId], references: [id], onDelete: Cascade)
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedBy      User?         @relation("PlatformAdminAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, organizationId])
+  @@index([userId])
+  @@index([organizationId])
 }

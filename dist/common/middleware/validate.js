@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.validate = validate;
 function validate(schemas) {
     return (req, _res, next) => {
-        console.log("Validating..");
         try {
             if (schemas.body) {
                 req.body = schemas.body.parse(req.body);

@@ -8,7 +8,6 @@ function authorize(...roles) {
         if (!req.user) {
             return next(new AppError_1.UnauthorizedError());
         }
-        console.log(req.user.role);
         if (roles.length && !roles.includes(req.user.role)) {
             return next(new AppError_1.ForbiddenError("Insufficient permissions"));
         }
