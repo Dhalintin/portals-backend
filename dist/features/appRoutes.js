@@ -77,6 +77,7 @@ const academic_sessions_routes_1 = __importDefault(require("./academic-sessions/
 const pins_routes_1 = __importStar(require("./pins/pins.routes"));
 const settings_routes_1 = __importStar(require("./settings/settings.routes"));
 const platform_admin_routes_1 = __importDefault(require("./platform-admin/platform-admin.routes"));
+const staff_routes_1 = __importDefault(require("./staff/staff.routes"));
 appRouter.use("/auth", auth_routes_1.default);
 appRouter.use("/schools", school_routes_1.default);
 appRouter.use("/classes", class_routes_1.default);
@@ -91,6 +92,7 @@ appRouter.use("/public/pins", pins_routes_1.publicPinsRouter);
 appRouter.use("/public", settings_routes_1.publicSettingsRouter);
 appRouter.use("/settings", settings_routes_1.default);
 appRouter.use("/platform", platform_admin_routes_1.default);
+appRouter.use("/staff", staff_routes_1.default);
 appRouter.use(notFound_1.notFound);
 appRouter.use(errorHandler_1.errorHandler);
 exports.default = appRouter;

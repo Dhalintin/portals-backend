@@ -15,4 +15,6 @@ router.post("/reset-password", (0, validate_1.validate)({ body: auth_dto_1.reset
 router.get("/me", authenticate_1.authenticate, auth_controller_1.authController.me);
 router.post("/logout", authenticate_1.authenticate, auth_controller_1.authController.logout);
 router.post("/change-password", authenticate_1.authenticate, (0, validate_1.validate)({ body: auth_dto_1.changePasswordBodySchema }), auth_controller_1.authController.changePassword);
+router.post("/organizations", authenticate_1.authenticate, (0, validate_1.validate)({ body: auth_dto_1.createOrganizationBodySchema }), auth_controller_1.authController.createOrganization);
+router.post("/switch-organization", authenticate_1.authenticate, (0, validate_1.validate)({ body: auth_dto_1.switchOrganizationBodySchema }), auth_controller_1.authController.switchOrganization);
 exports.default = router;

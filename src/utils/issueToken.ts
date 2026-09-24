@@ -1,10 +1,10 @@
 import { User } from "@prisma/client";
-import { resolveAuthContext } from "./auth/resolveAuthContext";
+import { ResolvedAuthContext } from "./auth/resolveAuthContext";
 import { AuthTokenPayload, signAccessToken } from "../lib/jwt";
 
 export function issueToken(
   user: User,
-  ctx: ReturnType<typeof resolveAuthContext>
+  ctx: ResolvedAuthContext
 ): { token: string; payload: AuthTokenPayload } {
   const payload: AuthTokenPayload = {
     sub: user.id,

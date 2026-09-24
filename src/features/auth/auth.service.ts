@@ -7,7 +7,6 @@ import {
 } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { hashPassword, verifyPassword } from "../../lib/password";
-
 import { randomToken, sha256 } from "../../lib/crypto";
 import {
   BadRequestError,
@@ -27,8 +26,10 @@ import type {
   SwitchOrganizationBody,
 } from "./auth.dto";
 import { verifyGoogleIdToken } from "../../lib/goggle";
-
-import { resolveAuthContext } from "../../utils/auth/resolveAuthContext";
+import {
+  resolvePlatformContext,
+  resolveSchoolContext,
+} from "../../utils/auth/resolveAuthContext";
 import { issueToken } from "../../utils/issueToken";
 import { slugify } from "../../utils/slugify";
 import { toPublicUser } from "../../utils/toPublic";
@@ -72,37 +73,32 @@ async function ensureUniqueSlug(base: string): Promise<string> {
   }
 }
 
+/**
+ * After password/Google is valid, enforce surface rules:
+ * - platform → globalRole SUPER_ADMIN | PLATFORM_ADMIN
+ * - school   → active Membership in target org (id or slug)
+ */
+function resolveLoginContext(
+  user: NonNullable<Awaited<ReturnType<typeof loadUserWithMemberships>>>,
+  input: {
+    surface: "platform" | "school";
+    organizationId?: string;
+    organizationSlug?: string;
+  }
+) {
+  if (input.surface === "platform") {
+    // localhost:3000/login — platform staff only
+    return resolvePlatformContext(user);
+  }
+
+  // grace-international.localhost:3000/login — that school only
+  return resolveSchoolContext(user, {
+    organizationId: input.organizationId,
+    organizationSlug: input.organizationSlug,
+  });
+}
+
 export const authService = {
-  // async login(input: LoginBody) {
-  //   const user = await loadUserWithMemberships(input.email);
-
-  //   if (!user || !user.isActive) {
-  //     throw new UnauthorizedError("Invalid email or password");
-  //   }
-
-  //   if (!user.passwordHash) {
-  //     throw new UnauthorizedError(
-  //       "Account has no password set. Use invite/reset flow."
-  //     );
-  //   }
-
-  //   const valid = await verifyPassword(input.password, user.passwordHash);
-  //   if (!valid) {
-  //     throw new UnauthorizedError("Invalid email or password");
-  //   }
-
-  //   const ctx = resolveAuthContext(user, input.organizationId);
-  //   const { token } = issueToken(user, ctx);
-
-  //   await prisma.user.update({
-  //     where: { id: user.id },
-  //     data: { lastLoginAt: new Date() },
-  //   });
-
-  //   const publicUser = toPublicUser(user, user.memberships, ctx);
-
-  //   return { user: publicUser, token };
-  // },
   async login(input: LoginBody) {
     const user = await loadUserWithMemberships(input.email);
 
@@ -121,7 +117,12 @@ export const authService = {
       throw new UnauthorizedError("Invalid email or password");
     }
 
-    const ctx = resolveAuthContext(user, input.organizationId);
+    const ctx = resolveLoginContext(user, {
+      surface: input.surface,
+      organizationId: input.organizationId,
+      organizationSlug: input.organizationSlug,
+    });
+
     const { token } = issueToken(user, ctx);
 
     await prisma.user.update({
@@ -135,85 +136,6 @@ export const authService = {
     };
   },
 
-  // inside authService object:
-  // async register(input: RegisterBody) {
-  //   const existing = await prisma.user.findUnique({
-  //     where: { email: input.email },
-  //   });
-  //   if (existing) {
-  //     throw new ConflictError("An account with this email already exists");
-  //   }
-
-  //   if (input.phone) {
-  //     const phoneTaken = await prisma.user.findUnique({
-  //       where: { phone: input.phone },
-  //     });
-  //     if (phoneTaken) {
-  //       throw new ConflictError("An account with this phone already exists");
-  //     }
-  //   }
-
-  //   const baseSlug = input.slug ?? slugify(input.organizationName);
-  //   const slug = await ensureUniqueSlug(baseSlug);
-  //   const passwordHash = await hashPassword(input.password);
-
-  //   const { user, memberships, ctx } = await prisma.$transaction(async (tx) => {
-  //     const user = await tx.user.create({
-  //       data: {
-  //         email: input.email,
-  //         passwordHash,
-  //         firstName: input.firstName,
-  //         lastName: input.lastName,
-  //         phone: input.phone,
-  //         globalRole: GlobalRole.USER,
-  //         isActive: true,
-  //       },
-  //     });
-
-  //     const organization = await tx.organization.create({
-  //       data: {
-  //         name: input.organizationName,
-  //         slug,
-  //         email: input.email,
-  //         phone: input.phone,
-  //         createdById: user.id,
-  //         onBoarded: false,
-  //         isActive: true,
-  //       },
-  //     });
-
-  //     const membership = await tx.membership.create({
-  //       data: {
-  //         userId: user.id,
-  //         organizationId: organization.id,
-  //         role: OrgRole.SCHOOL_ADMIN,
-  //         isActive: true,
-  //       },
-  //       include: { organization: true },
-  //     });
-
-  //     const memberships = [membership];
-  //     const ctx = {
-  //       role: "school_admin" as const,
-  //       schoolId: organization.id,
-  //       schoolSlug: organization.slug,
-  //       schoolName: organization.name,
-  //       membershipId: membership.id,
-  //     };
-
-  //     return { user, memberships, ctx };
-  //   });
-
-  //   await prisma.user.update({
-  //     where: { id: user.id },
-  //     data: { lastLoginAt: new Date() },
-  //   });
-
-  //   const { token } = issueToken(user, ctx);
-  //   const publicUser = toPublicUser(user, memberships, ctx);
-
-  //   return { user: publicUser, token };
-  // },
   async register(input: RegisterBody) {
     const existing = await prisma.user.findUnique({
       where: { email: input.email },
@@ -293,18 +215,17 @@ export const authService = {
     };
   },
 
-  /**
-   * Logged-in user creates another school and becomes its SCHOOL_ADMIN.
-   * Returns a new token scoped to the new school.
-   */
   async createOrganization(userId: string, input: CreateOrganizationBody) {
     const user = await loadUserById(userId);
     if (!user || !user.isActive) {
       throw new UnauthorizedError();
     }
-    if (user.globalRole === GlobalRole.SUPER_ADMIN) {
+    if (
+      user.globalRole === GlobalRole.SUPER_ADMIN ||
+      user.globalRole === GlobalRole.PLATFORM_ADMIN
+    ) {
       throw new BadRequestError(
-        "Platform admins should create schools via the admin API"
+        "Platform staff should create schools via the admin API"
       );
     }
 
@@ -361,7 +282,7 @@ export const authService = {
   },
 
   /**
-   * Issue a new JWT for another membership the user already has.
+   * Switch JWT to another school the user is already a member of.
    */
   async switchOrganization(userId: string, input: SwitchOrganizationBody) {
     const user = await loadUserById(userId);
@@ -369,7 +290,10 @@ export const authService = {
       throw new UnauthorizedError();
     }
 
-    const ctx = resolveAuthContext(user, input.organizationId);
+    // Must be a member of the target school — not “any school on the platform”
+    const ctx = resolveSchoolContext(user, {
+      organizationId: input.organizationId,
+    });
     const { token } = issueToken(user, ctx);
 
     return {
@@ -378,14 +302,6 @@ export const authService = {
     };
   },
 
-  /**
-   * Google Sign-In / Sign-Up.
-   * - New email → create user (no password) only; client must then createOrganization
-   *   OR we require organizationId only when memberships exist.
-   * - Existing email → link googleId if missing, then same org resolution as login.
-   * - Brand-new Google user with zero memberships → token with role placeholder:
-   *   we use schoolId null and role school_admin is wrong. Better: return needsOnboarding.
-   */
   async googleAuth(input: GoogleAuthBody) {
     let profile;
     try {
@@ -416,46 +332,17 @@ export const authService = {
     }
 
     if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email: profile.email,
-          googleId: profile.googleId,
-          firstName: profile.firstName,
-          lastName: profile.lastName || "User",
-          avatarUrl: profile.avatarUrl,
-          passwordHash: null,
-          globalRole: GlobalRole.USER,
-          isActive: true,
-          lastLoginAt: new Date(),
-        },
-        include: {
-          memberships: {
-            where: { isActive: true },
-            include: { organization: true },
-          },
-        },
-      });
-
-      // No school yet — client should call createOrganization after storing token
-      const onboardingCtx = {
-        role: "SCHOOL_ADMIN" as const,
-        schoolId: null as string | null,
-        schoolSlug: null as string | null,
-        schoolName: null as string | null,
-        membershipId: null as string | null,
-      };
-
-      // Token without school: use a dedicated onboard role or allow null schoolId
-      const { token } = issueToken(user, onboardingCtx);
-
-      return {
-        user: toPublicUser(user, user.memberships, onboardingCtx),
-        token,
-        needsOrganization: true as const,
-      };
+      // New Google user: cannot use platform URL; cannot use school URL without membership
+      if (input.surface === "platform") {
+        throw new ForbiddenError(
+          "No platform staff account exists for this Google user"
+        );
+      }
+      throw new ForbiddenError(
+        "You are not a staff member of this school. Ask your school admin to invite you."
+      );
     }
 
-    // Link Google if user registered with email/password first
     if (!user.googleId) {
       user = await prisma.user.update({
         where: { id: user.id },
@@ -480,40 +367,15 @@ export const authService = {
         where: { id: user.id },
         data: { lastLoginAt: new Date() },
       });
+      user = (await loadUserById(user.id))!;
     }
 
-    // Platform admin
-    if (user.globalRole === GlobalRole.SUPER_ADMIN) {
-      const ctx = resolveAuthContext(user, input.organizationId);
-      const { token } = issueToken(user, ctx);
-      return {
-        user: toPublicUser(user, user.memberships, ctx),
-        token,
-        needsOrganization: false as const,
-      };
-    }
+    const ctx = resolveLoginContext(user, {
+      surface: input.surface,
+      organizationId: input.organizationId,
+      organizationSlug: input.organizationSlug,
+    });
 
-    const activeMemberships = user.memberships.filter(
-      (m) => m.isActive && m.organization.isActive
-    );
-
-    if (activeMemberships.length === 0) {
-      const onboardingCtx = {
-        role: "SCHOOL_ADMIN" as const,
-        schoolId: null as string | null,
-        schoolSlug: null as string | null,
-        schoolName: null as string | null,
-        membershipId: null as string | null,
-      };
-      const { token } = issueToken(user, onboardingCtx);
-      return {
-        user: toPublicUser(user, user.memberships, onboardingCtx),
-        token,
-        needsOrganization: true as const,
-      };
-    }
-
-    const ctx = resolveAuthContext(user, input.organizationId);
     const { token } = issueToken(user, ctx);
 
     return {
@@ -529,43 +391,40 @@ export const authService = {
       throw new UnauthorizedError("User not found or inactive");
     }
 
-    // Re-validate membership still active when school-scoped
-    if (tokenCtx.schoolId) {
-      const membership = user.memberships.find(
-        (m) =>
-          m.organizationId === tokenCtx.schoolId &&
-          m.isActive &&
-          m.organization.isActive
-      );
-      if (!membership && user.globalRole !== GlobalRole.SUPER_ADMIN) {
-        throw new ForbiddenError("School membership no longer active");
+    if (tokenCtx.role === "SUPER_ADMIN" || tokenCtx.role === "PLATFORM_ADMIN") {
+      if (
+        user.globalRole !== GlobalRole.SUPER_ADMIN &&
+        user.globalRole !== GlobalRole.PLATFORM_ADMIN
+      ) {
+        throw new ForbiddenError("Platform role revoked");
       }
+      return toPublicUser(user, user.memberships, resolvePlatformContext(user));
     }
 
-    const ctx = {
+    if (!tokenCtx.schoolId) {
+      throw new ForbiddenError("Invalid school session");
+    }
+
+    const membership = user.memberships.find(
+      (m) =>
+        m.organizationId === tokenCtx.schoolId &&
+        m.isActive &&
+        m.organization.isActive
+    );
+
+    if (!membership) {
+      throw new ForbiddenError("You are no longer a member of this school");
+    }
+
+    return toPublicUser(user, user.memberships, {
       role: tokenCtx.role,
       schoolId: tokenCtx.schoolId,
-      schoolSlug:
-        user.memberships.find((m) => m.organizationId === tokenCtx.schoolId)
-          ?.organization.slug ?? null,
-      schoolName:
-        user.memberships.find((m) => m.organizationId === tokenCtx.schoolId)
-          ?.organization.name ?? null,
-      membershipId: tokenCtx.membershipId ?? null,
-    };
-
-    if (tokenCtx.role === "PLATFORM_ADMIN") {
-      ctx.schoolSlug = null;
-      ctx.schoolName = null;
-    }
-
-    return toPublicUser(user, user.memberships, ctx);
+      schoolSlug: membership.organization.slug,
+      schoolName: membership.organization.name,
+      membershipId: membership.id,
+    });
   },
 
-  /**
-   * Stateless JWT: client discards token.
-   * Hook for future refresh-token revoke / audit.
-   */
   async logout(_userId: string) {
     return { ok: true as const };
   },
@@ -575,7 +434,6 @@ export const authService = {
       where: { email: input.email },
     });
 
-    // Always same response (no email enumeration)
     const generic = {
       message: "If that email exists, a reset link has been sent.",
     };
@@ -586,7 +444,7 @@ export const authService = {
 
     const rawToken = randomToken(32);
     const tokenHash = sha256(rawToken);
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60);
 
     await prisma.passwordResetToken.create({
       data: {
@@ -596,8 +454,6 @@ export const authService = {
       },
     });
 
-    // TODO: send email with link `${FRONTEND_URL}/reset-password?token=${rawToken}`
-    // Dev only — remove or gate behind env flag:
     if (process.env.NODE_ENV !== "production") {
       return { ...generic, devResetToken: rawToken };
     }
@@ -632,7 +488,6 @@ export const authService = {
         where: { id: record.id },
         data: { usedAt: new Date() },
       }),
-      // invalidate other outstanding tokens
       prisma.passwordResetToken.updateMany({
         where: {
           userId: record.userId,

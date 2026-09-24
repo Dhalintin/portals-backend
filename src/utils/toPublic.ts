@@ -21,6 +21,7 @@ export function toPublicUser(
     schoolId: string | null;
     schoolSlug: string | null;
     schoolName: string | null;
+    membershipId?: string | null;
   }
 ): PublicUser {
   return {

@@ -12,6 +12,7 @@ export type AuthTokenPayload = {
   role: AppRole;
   schoolId: string | null;
   membershipId?: string | null;
+  globalRole?: "SUPER_ADMIN" | "PLATFORM_ADMIN" | "USER";
 };
 
 export type PublicUser = {

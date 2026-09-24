@@ -30,7 +30,6 @@ export const authController = {
     try {
       const body = req.body as RegisterBody;
       const result = await authService.register(body);
-      // 201 Created
       sendSuccess(res, result, 201);
     } catch (err) {
       next(err);
@@ -83,6 +82,9 @@ export const authController = {
         schoolId: req.user.schoolId ?? null,
         membershipId:
           (req.user as { membershipId?: string | null }).membershipId ?? null,
+        globalRole: (
+          req.user as { globalRole?: AuthTokenPayload["globalRole"] }
+        ).globalRole,
       };
 
       const user = await authService.me(req.user.sub, tokenCtx);

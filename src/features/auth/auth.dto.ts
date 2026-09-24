@@ -1,18 +1,52 @@
 // src/features/auth/auth.dto.ts
 import { z } from "zod";
 
-export const loginBodySchema = z.object({
-  email: z
-    .string()
-    .email()
-    .transform((v) => v.toLowerCase().trim()),
-  password: z.string().min(1, "Password is required"),
-  /** Required when the user belongs to more than one active school */
-  surface: z.enum(["platform", "school"]).optional().default("school"),
-  organizationId: z.string().uuid().optional(),
-  organizationSlug: z.string().min(1).max(80).optional(),
-  // organizationId: z.string().uuid().optional(),
-});
+/**
+ * Client rules:
+ * - Host WITHOUT school slug (localhost:3000, app.portals.com)
+ *     → surface: "platform" (or omit org fields)
+ * - Host WITH school slug (grace-international.localhost:3000)
+ *     → surface: "school" + organizationSlug from host (required)
+ */
+export const loginBodySchema = z
+  .object({
+    email: z
+      .string()
+      .email()
+      .transform((v) => v.toLowerCase().trim()),
+    password: z.string().min(1, "Password is required"),
+    surface: z.enum(["platform", "school"]),
+    organizationId: z.string().uuid().optional(),
+    organizationSlug: z
+      .string()
+      .min(1)
+      .max(80)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.surface === "platform") {
+      if (val.organizationId || val.organizationSlug) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "Platform sign-in must not include organizationId or organizationSlug",
+          path: ["organizationSlug"],
+        });
+      }
+      return;
+    }
+
+    // surface === "school"
+    if (!val.organizationId && !val.organizationSlug) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "School sign-in requires organizationSlug (from subdomain) or organizationId",
+        path: ["organizationSlug"],
+      });
+    }
+  });
 
 export const registerBodySchema = z.object({
   email: z
@@ -76,11 +110,37 @@ export const switchOrganizationBodySchema = z.object({
   organizationId: z.string().uuid(),
 });
 
-export const googleAuthBodySchema = z.object({
-  idToken: z.string().min(1),
-  /** Same as login: required when user has multiple active memberships */
-  organizationId: z.string().uuid().optional(),
-});
+export const googleAuthBodySchema = z
+  .object({
+    idToken: z.string().min(1),
+    surface: z.enum(["platform", "school"]),
+    organizationId: z.string().uuid().optional(),
+    organizationSlug: z
+      .string()
+      .min(1)
+      .max(80)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.surface === "platform") {
+      if (val.organizationId || val.organizationSlug) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Platform sign-in must not include organization fields",
+          path: ["organizationSlug"],
+        });
+      }
+      return;
+    }
+    if (!val.organizationId && !val.organizationSlug) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "School sign-in requires organizationSlug or organizationId",
+        path: ["organizationSlug"],
+      });
+    }
+  });
 
 export type LoginBody = z.infer<typeof loginBodySchema>;
 export type RegisterBody = z.infer<typeof registerBodySchema>;

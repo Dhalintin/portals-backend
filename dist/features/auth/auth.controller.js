@@ -19,7 +19,6 @@ exports.authController = {
         try {
             const body = req.body;
             const result = await auth_service_1.authService.register(body);
-            // 201 Created
             (0, response_1.sendSuccess)(res, result, 201);
         }
         catch (err) {
@@ -67,6 +66,7 @@ exports.authController = {
                 role: req.user.role,
                 schoolId: req.user.schoolId ?? null,
                 membershipId: req.user.membershipId ?? null,
+                globalRole: req.user.globalRole,
             };
             const user = await auth_service_1.authService.me(req.user.sub, tokenCtx);
             (0, response_1.sendSuccess)(res, { user });
