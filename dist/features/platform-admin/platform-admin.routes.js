@@ -36,6 +36,7 @@ platformAdminRoutes.post("/schools/:organizationId/pins/generate", (0, authorize
 }), platform_admin_controller_1.platformAdminController.generatePins);
 /** Support: term publish snapshot */
 platformAdminRoutes.get("/schools/:organizationId/terms/:termId/publish-state", (0, authorizeGlobal_1.authorizeGlobal)(platformStaff), platform_admin_controller_1.platformAdminController.termPublishState);
+platformAdminRoutes.use("/schools/:organizationId/pins/mark-printed", (0, authorizeGlobal_1.authorizeGlobal)(platformStaff), platform_admin_controller_1.platformAdminController.markPrinted);
 /** ── SUPER_ADMIN: manage platform admins ── */
 platformAdminRoutes.get("/admins", (0, authorizeGlobal_1.authorizeGlobal)(superOnly), (0, validate_1.validate)({ query: platform_admin_dto_1.listPlatformAdminsQuerySchema }), platform_admin_controller_1.platformAdminController.listPlatformAdmins);
 platformAdminRoutes.post("/admins", (0, authorizeGlobal_1.authorizeGlobal)(superOnly), (0, validate_1.validate)({ body: platform_admin_dto_1.createPlatformAdminBodySchema }), platform_admin_controller_1.platformAdminController.createPlatformAdmin);

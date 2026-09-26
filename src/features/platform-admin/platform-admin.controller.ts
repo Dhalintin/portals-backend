@@ -1,11 +1,13 @@
 import { Request, Response, NextFunction } from "express";
 import { platformAdminService } from "./platform-admin.service";
 import { sendSuccess } from "../../common/http/response";
-import type {
-  AssignSchoolsBody,
-  CreatePlatformAdminBody,
-  GeneratePinsForSchoolBody,
-  ListSchoolsQuery,
+import {
+  markPinsPrintedParamsSchema,
+  markPinsPrintedSchema,
+  type AssignSchoolsBody,
+  type CreatePlatformAdminBody,
+  type GeneratePinsForSchoolBody,
+  type ListSchoolsQuery,
 } from "./platform-admin.dto";
 import { GlobalRole } from "@prisma/client";
 
@@ -86,6 +88,18 @@ export class PlatformAdminController {
       return sendSuccess(res, data);
     } catch (e) {
       next(e);
+    }
+  };
+
+  markPrinted = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { organizationId } = markPinsPrintedParamsSchema.parse(req.params);
+      const body = markPinsPrintedSchema.parse(req.body);
+
+      const data = await platformAdminService.markPrinted(organizationId, body);
+      return sendSuccess(res, data);
+    } catch (err) {
+      return next(err);
     }
   };
 

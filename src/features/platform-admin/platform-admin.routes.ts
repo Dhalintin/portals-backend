@@ -93,6 +93,12 @@ platformAdminRoutes.get(
   platformAdminController.termPublishState
 );
 
+platformAdminRoutes.use(
+  "/schools/:organizationId/pins/mark-printed",
+  authorizeGlobal(platformStaff),
+  platformAdminController.markPrinted
+);
+
 /** ── SUPER_ADMIN: manage platform admins ── */
 platformAdminRoutes.get(
   "/admins",

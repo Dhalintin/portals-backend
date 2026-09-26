@@ -369,7 +369,7 @@ class PlatformAdminService {
         const codeSet = new Set();
         let guard = 0;
         while (codeSet.size < quantity && guard < quantity * 5) {
-            codeSet.add((0, pins_codes_1.generatePinCode)());
+            codeSet.add((0, pins_codes_1.normalizePinCode)((0, pins_codes_1.generatePinCode)()));
             guard++;
         }
         if (codeSet.size < quantity) {
@@ -425,10 +425,15 @@ class PlatformAdminService {
     }
     async listPinsForSchool(actor, organizationId, query) {
         await this.assertCanAccessOrg(actor, organizationId);
+        const isPrinted = query.isPrinted;
+        const isPrintedFilter = isPrinted === undefined || isPrinted === null || isPrinted === ""
+            ? undefined
+            : isPrinted === true || isPrinted === "true" || isPrinted === "1";
         const pageSize = Math.min(query.pageSize, 100);
         const where = {
             organizationId,
             termId: query.termId,
+            ...(isPrintedFilter !== undefined ? { printed: isPrintedFilter } : {}),
             ...(query.status ? { status: query.status } : {}),
         };
         const [total, rows] = await Promise.all([
@@ -474,6 +479,41 @@ class PlatformAdminService {
                 total,
                 totalPages: Math.ceil(total / pageSize) || 0,
             },
+        };
+    }
+    async markPrinted(organizationId, body) {
+        const { pinIds } = body;
+        const uniqueIds = [...new Set(pinIds)];
+        // Ensure all requested pins exist on this org (optional strictness)
+        const found = await prisma_1.prisma.pin.findMany({
+            where: {
+                organizationId,
+                id: { in: uniqueIds },
+            },
+            select: { id: true, printed: true },
+        });
+        if (found.length === 0) {
+            throw new AppError_1.AppError(404, "No matching pins found for this school");
+        }
+        const foundIds = found.map((p) => p.id);
+        const missing = uniqueIds.filter((id) => !foundIds.includes(id));
+        const result = await prisma_1.prisma.pin.updateMany({
+            where: {
+                organizationId,
+                id: { in: foundIds },
+                printed: false,
+            },
+            data: {
+                printed: true,
+                printedAt: new Date(),
+            },
+        });
+        return {
+            requested: uniqueIds.length,
+            matched: foundIds.length,
+            updated: result.count,
+            alreadyPrinted: found.filter((p) => p.printed).length,
+            missingIds: missing,
         };
     }
     async getPinStatsForSchool(actor, organizationId, termId) {

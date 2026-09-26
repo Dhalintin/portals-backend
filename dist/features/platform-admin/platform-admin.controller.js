@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.platformAdminController = exports.PlatformAdminController = void 0;
 const platform_admin_service_1 = require("./platform-admin.service");
 const response_1 = require("../../common/http/response");
+const platform_admin_dto_1 = require("./platform-admin.dto");
 function actorFromReq(req) {
     const user = req.user;
     const globalRole = (user.globalRole ?? user.role);
@@ -63,6 +64,17 @@ class PlatformAdminController {
         }
         catch (e) {
             next(e);
+        }
+    };
+    markPrinted = async (req, res, next) => {
+        try {
+            const { organizationId } = platform_admin_dto_1.markPinsPrintedParamsSchema.parse(req.params);
+            const body = platform_admin_dto_1.markPinsPrintedSchema.parse(req.body);
+            const data = await platform_admin_service_1.platformAdminService.markPrinted(organizationId, body);
+            return (0, response_1.sendSuccess)(res, data);
+        }
+        catch (err) {
+            return next(err);
         }
     };
     pinStats = async (req, res, next) => {

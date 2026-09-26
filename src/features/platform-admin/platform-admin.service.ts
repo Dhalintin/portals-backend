@@ -1,16 +1,22 @@
 import { GlobalRole, OrgRole, PinStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import {
+  AppError,
   BadRequestError,
   ForbiddenError,
   NotFoundError,
 } from "../../common/errors/AppError";
-import { generatePinCode, maskPinCode } from "../pins/pins.codes";
+import {
+  generatePinCode,
+  maskPinCode,
+  normalizePinCode,
+} from "../pins/pins.codes";
 import type {
   AssignSchoolsBody,
   CreatePlatformAdminBody,
   GeneratePinsForSchoolBody,
   ListSchoolsQuery,
+  MarkPinsPrintedBody,
 } from "./platform-admin.dto";
 import bcrypt from "bcryptjs";
 
@@ -421,7 +427,7 @@ export class PlatformAdminService {
     const codeSet = new Set<string>();
     let guard = 0;
     while (codeSet.size < quantity && guard < quantity * 5) {
-      codeSet.add(generatePinCode());
+      codeSet.add(normalizePinCode(generatePinCode()));
       guard++;
     }
     if (codeSet.size < quantity) {
@@ -501,14 +507,23 @@ export class PlatformAdminService {
       pageSize: number;
       status?: PinStatus;
       includeCodes: boolean;
+      isPrinted: any;
     }
   ) {
     await this.assertCanAccessOrg(actor, organizationId);
+
+    const isPrinted = query.isPrinted;
+
+    const isPrintedFilter =
+      isPrinted === undefined || isPrinted === null || isPrinted === ""
+        ? undefined
+        : isPrinted === true || isPrinted === "true" || isPrinted === "1";
 
     const pageSize = Math.min(query.pageSize, 100);
     const where: Prisma.PinWhereInput = {
       organizationId,
       termId: query.termId,
+      ...(isPrintedFilter !== undefined ? { printed: isPrintedFilter } : {}),
       ...(query.status ? { status: query.status } : {}),
     };
 
@@ -556,6 +571,47 @@ export class PlatformAdminService {
         total,
         totalPages: Math.ceil(total / pageSize) || 0,
       },
+    };
+  }
+
+  async markPrinted(organizationId: string, body: MarkPinsPrintedBody) {
+    const { pinIds } = body;
+    const uniqueIds = [...new Set(pinIds)];
+
+    // Ensure all requested pins exist on this org (optional strictness)
+    const found = await prisma.pin.findMany({
+      where: {
+        organizationId,
+        id: { in: uniqueIds },
+      },
+      select: { id: true, printed: true },
+    });
+
+    if (found.length === 0) {
+      throw new AppError(404, "No matching pins found for this school");
+    }
+
+    const foundIds = found.map((p) => p.id);
+    const missing = uniqueIds.filter((id) => !foundIds.includes(id));
+
+    const result = await prisma.pin.updateMany({
+      where: {
+        organizationId,
+        id: { in: foundIds },
+        printed: false,
+      },
+      data: {
+        printed: true,
+        printedAt: new Date(),
+      },
+    });
+
+    return {
+      requested: uniqueIds.length,
+      matched: foundIds.length,
+      updated: result.count,
+      alreadyPrinted: found.filter((p) => p.printed).length,
+      missingIds: missing,
     };
   }
 

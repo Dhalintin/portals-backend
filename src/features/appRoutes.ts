@@ -50,6 +50,7 @@ import settingsRoutes, {
 } from "./settings/settings.routes";
 import platformAdminRoutes from "./platform-admin/platform-admin.routes";
 import staffRoutes from "./staff/staff.routes";
+import publicResultRoutes from "./public/results/public-results.routes";
 
 appRouter.use("/auth", authRoutes);
 
@@ -65,7 +66,7 @@ appRouter.use("/subjects", subjectRoutes);
 
 appRouter.use("/results", resultRoutes);
 
-appRouter.use("/public/results", publicResultsRouter);
+// appRouter.use("/public/results", publicResultsRouter);
 
 appRouter.use("/academic-sessions", academicSessionRoutes);
 
@@ -80,6 +81,8 @@ appRouter.use("/settings", settingsRoutes);
 appRouter.use("/platform", platformAdminRoutes);
 
 appRouter.use("/staff", staffRoutes);
+
+appRouter.use("/public", publicResultRoutes);
 
 appRouter.use(notFound);
 appRouter.use(errorHandler);

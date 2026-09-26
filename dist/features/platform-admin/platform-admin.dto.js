@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.listPlatformAdminsQuerySchema = exports.listPinsForSchoolQuerySchema = exports.generatePinsForSchoolBodySchema = exports.unassignSchoolBodySchema = exports.assignSchoolsBodySchema = exports.createPlatformAdminBodySchema = exports.orgIdParamSchema = exports.listSchoolsQuerySchema = void 0;
+exports.markPinsPrintedParamsSchema = exports.markPinsPrintedSchema = exports.listPlatformAdminsQuerySchema = exports.listPinsForSchoolQuerySchema = exports.generatePinsForSchoolBodySchema = exports.unassignSchoolBodySchema = exports.assignSchoolsBodySchema = exports.createPlatformAdminBodySchema = exports.orgIdParamSchema = exports.listSchoolsQuerySchema = void 0;
 const zod_1 = require("zod");
 const client_1 = require("@prisma/client");
 exports.listSchoolsQuerySchema = zod_1.z.object({
@@ -43,9 +43,29 @@ exports.listPinsForSchoolQuerySchema = zod_1.z.object({
         .enum(["true", "false"])
         .default("true")
         .transform((v) => v === "true"),
+    // e.g. in listPinsQuerySchema
+    isPrinted: zod_1.z
+        .union([zod_1.z.boolean(), zod_1.z.enum(["true", "false", "1", "0"])])
+        .optional()
+        .transform((v) => {
+        if (v === undefined)
+            return undefined;
+        if (typeof v === "boolean")
+            return v;
+        return v === "true" || v === "1";
+    }),
 });
 exports.listPlatformAdminsQuerySchema = zod_1.z.object({
     page: zod_1.z.coerce.number().int().min(1).default(1),
     pageSize: zod_1.z.coerce.number().int().min(1).max(50).default(20),
     search: zod_1.z.string().trim().max(120).optional(),
+});
+exports.markPinsPrintedSchema = zod_1.z.object({
+    pinIds: zod_1.z
+        .array(zod_1.z.string().min(1))
+        .min(1, "At least one pin id is required")
+        .max(500, "Cannot mark more than 500 pins at once"),
+});
+exports.markPinsPrintedParamsSchema = zod_1.z.object({
+    organizationId: zod_1.z.string().min(1),
 });

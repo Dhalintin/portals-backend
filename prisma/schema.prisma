@@ -334,7 +334,9 @@ model Pin {
   usedAt         DateTime?
   usedByIp       String?
   expiresAt      DateTime?
-  createdAt      DateTime  @default(now())
+  createdAt      DateTime     @default(now())
+  printed        Boolean      @default(false)
+  printedAt      DateTime?    
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   term           Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
