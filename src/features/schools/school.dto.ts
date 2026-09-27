@@ -26,6 +26,7 @@ export const updateSchoolBodySchema = z
     country: z.string().max(100).trim().optional(),
     motto: z.string().max(300).trim().nullable().optional(),
     schoolType: z.string().max(100).trim().nullable().optional(),
+    onBoarded: z.boolean().optional(),
     // slug / isActive: not editable here (platform or dedicated flow later)
   })
   .strict();

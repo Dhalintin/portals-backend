@@ -1,4 +1,7 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const platform_admin_controller_1 = require("./platform-admin.controller");
@@ -8,16 +11,23 @@ const zod_1 = require("zod");
 const authenticate_1 = require("../../common/middleware/authenticate");
 const authorizeGlobal_1 = require("../../common/middleware/authorizeGlobal");
 const validate_1 = require("../../common/middleware/validate");
+const platform_billing_routes_1 = __importDefault(require("./billing/platform-billing.routes"));
+const school_dto_1 = require("../schools/school.dto");
 const platformAdminRoutes = (0, express_1.Router)();
 const platformStaff = [client_1.GlobalRole.SUPER_ADMIN, client_1.GlobalRole.PLATFORM_ADMIN];
 const superOnly = [client_1.GlobalRole.SUPER_ADMIN];
 platformAdminRoutes.use(authenticate_1.authenticate);
+platformAdminRoutes.use("/billing", platform_billing_routes_1.default);
 /** GET /platform/overview */
 platformAdminRoutes.get("/overview", (0, authorizeGlobal_1.authorizeGlobal)(platformStaff), platform_admin_controller_1.platformAdminController.overview);
 /** GET /platform/schools */
 platformAdminRoutes.get("/schools", (0, authorizeGlobal_1.authorizeGlobal)(platformStaff), (0, validate_1.validate)({ query: platform_admin_dto_1.listSchoolsQuerySchema }), platform_admin_controller_1.platformAdminController.listSchools);
 /** GET /platform/schools/:organizationId */
 platformAdminRoutes.get("/schools/:organizationId", (0, authorizeGlobal_1.authorizeGlobal)(platformStaff), (0, validate_1.validate)({ params: platform_admin_dto_1.orgIdParamSchema }), platform_admin_controller_1.platformAdminController.getSchool);
+platformAdminRoutes.patch("/schools/:organizationId/", (0, authorizeGlobal_1.authorizeGlobal)(superOnly), (0, validate_1.validate)({
+    params: platform_admin_dto_1.orgIdParamSchema,
+    body: school_dto_1.updateSchoolBodySchema,
+}), platform_admin_controller_1.platformAdminController.updateSchool);
 /** PATCH /platform/schools/:organizationId/active — SUPER only */
 platformAdminRoutes.patch("/schools/:organizationId/active", (0, authorizeGlobal_1.authorizeGlobal)(superOnly), (0, validate_1.validate)({
     params: platform_admin_dto_1.orgIdParamSchema,

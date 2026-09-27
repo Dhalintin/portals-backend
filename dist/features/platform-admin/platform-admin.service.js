@@ -9,6 +9,7 @@ const prisma_1 = require("../../lib/prisma");
 const AppError_1 = require("../../common/errors/AppError");
 const pins_codes_1 = require("../pins/pins.codes");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const toPublic_1 = require("../../utils/toPublic");
 function assertPlatformStaff(actor) {
     if (actor.globalRole !== client_1.GlobalRole.SUPER_ADMIN &&
         actor.globalRole !== client_1.GlobalRole.PLATFORM_ADMIN) {
@@ -342,6 +343,33 @@ class PlatformAdminService {
             data: { isActive },
             select: { id: true, name: true, slug: true, isActive: true },
         });
+    }
+    async updateSchool(actor, organizationId, input) {
+        assertSuperAdmin(actor);
+        const updated = await prisma_1.prisma.organization.update({
+            where: { id: organizationId },
+            data: {
+                ...(input.name !== undefined ? { name: input.name } : {}),
+                ...(input.email !== undefined ? { email: input.email } : {}),
+                ...(input.phone !== undefined ? { phone: input.phone } : {}),
+                ...(input.logoUrl !== undefined ? { logoUrl: input.logoUrl } : {}),
+                ...(input.primaryColor !== undefined
+                    ? { primaryColor: input.primaryColor }
+                    : {}),
+                ...(input.accentColor !== undefined
+                    ? { accentColor: input.accentColor }
+                    : {}),
+                ...(input.address !== undefined ? { address: input.address } : {}),
+                ...(input.city !== undefined ? { city: input.city } : {}),
+                ...(input.state !== undefined ? { state: input.state } : {}),
+                ...(input.country !== undefined ? { country: input.country } : {}),
+                ...(input.motto !== undefined ? { motto: input.motto } : {}),
+                ...(input.schoolType !== undefined
+                    ? { schoolType: input.schoolType }
+                    : {}),
+            },
+        });
+        return (0, toPublic_1.toSchoolPublic)(updated);
     }
     // ─── PIN cards ───────────────────────────────────────────────────────────
     /**

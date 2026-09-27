@@ -15,6 +15,8 @@ import { z } from "zod";
 import { authenticate } from "../../common/middleware/authenticate";
 import { authorizeGlobal } from "../../common/middleware/authorizeGlobal";
 import { validate } from "../../common/middleware/validate";
+import billingRoutes from "./billing/platform-billing.routes";
+import { updateSchoolBodySchema } from "../schools/school.dto";
 
 const platformAdminRoutes = Router();
 
@@ -22,6 +24,7 @@ const platformStaff = [GlobalRole.SUPER_ADMIN, GlobalRole.PLATFORM_ADMIN];
 const superOnly = [GlobalRole.SUPER_ADMIN];
 
 platformAdminRoutes.use(authenticate);
+platformAdminRoutes.use("/billing", billingRoutes);
 
 /** GET /platform/overview */
 platformAdminRoutes.get(
@@ -44,6 +47,16 @@ platformAdminRoutes.get(
   authorizeGlobal(platformStaff),
   validate({ params: orgIdParamSchema }),
   platformAdminController.getSchool
+);
+
+platformAdminRoutes.patch(
+  "/schools/:organizationId/",
+  authorizeGlobal(superOnly),
+  validate({
+    params: orgIdParamSchema,
+    body: updateSchoolBodySchema,
+  }),
+  platformAdminController.updateSchool
 );
 
 /** PATCH /platform/schools/:organizationId/active — SUPER only */

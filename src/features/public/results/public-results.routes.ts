@@ -13,7 +13,7 @@ const publicResultRoutes = Router();
  * No auth.
  */
 publicResultRoutes.post(
-  "/result/verify",
+  "/results/verify",
   // publicResultRateLimit,
   controller.verify
 );

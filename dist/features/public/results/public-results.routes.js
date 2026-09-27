@@ -15,7 +15,7 @@ const publicResultRoutes = (0, express_1.Router)();
  * Body: { organizationSlug, admissionNumber, serial, code }
  * No auth.
  */
-publicResultRoutes.post("/result/verify", 
+publicResultRoutes.post("/results/verify", 
 // publicResultRateLimit,
 controller.verify);
 publicResultRoutes.use("/schools", 

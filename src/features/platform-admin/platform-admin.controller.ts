@@ -52,6 +52,19 @@ export class PlatformAdminController {
     }
   };
 
+  updateSchool = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = await platformAdminService.updateSchool(
+        actorFromReq(req),
+        req.params.organizationId as string,
+        req.body
+      );
+      return sendSuccess(res, data);
+    } catch (e) {
+      next(e);
+    }
+  };
+
   setSchoolActive = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = await platformAdminService.setSchoolActive(

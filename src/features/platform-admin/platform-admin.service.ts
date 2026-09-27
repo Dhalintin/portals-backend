@@ -19,6 +19,8 @@ import type {
   MarkPinsPrintedBody,
 } from "./platform-admin.dto";
 import bcrypt from "bcryptjs";
+import { UpdateSchoolBody } from "../schools/school.dto";
+import { toSchoolPublic } from "../../utils/toPublic";
 
 type Actor = {
   userId: string;
@@ -392,6 +394,40 @@ export class PlatformAdminService {
       data: { isActive },
       select: { id: true, name: true, slug: true, isActive: true },
     });
+  }
+
+  async updateSchool(
+    actor: Actor,
+    organizationId: string,
+    input: UpdateSchoolBody
+  ) {
+    assertSuperAdmin(actor);
+
+    const updated = await prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.email !== undefined ? { email: input.email } : {}),
+        ...(input.phone !== undefined ? { phone: input.phone } : {}),
+        ...(input.logoUrl !== undefined ? { logoUrl: input.logoUrl } : {}),
+        ...(input.primaryColor !== undefined
+          ? { primaryColor: input.primaryColor }
+          : {}),
+        ...(input.accentColor !== undefined
+          ? { accentColor: input.accentColor }
+          : {}),
+        ...(input.address !== undefined ? { address: input.address } : {}),
+        ...(input.city !== undefined ? { city: input.city } : {}),
+        ...(input.state !== undefined ? { state: input.state } : {}),
+        ...(input.country !== undefined ? { country: input.country } : {}),
+        ...(input.motto !== undefined ? { motto: input.motto } : {}),
+        ...(input.schoolType !== undefined
+          ? { schoolType: input.schoolType }
+          : {}),
+      },
+    });
+
+    return toSchoolPublic(updated);
   }
 
   // ─── PIN cards ───────────────────────────────────────────────────────────

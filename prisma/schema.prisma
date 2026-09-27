@@ -73,6 +73,7 @@ model User {
 
   platformAdminAssignments PlatformAdminAssignment[] @relation("PlatformAdminAssignments")
   platformAdminAssignedBy  PlatformAdminAssignment[] @relation("PlatformAdminAssigner")
+  recordedPayments OrganizationPayment[] @relation("PaymentRecorder")
 
   @@index([email])
   @@index([globalRole])
@@ -121,6 +122,7 @@ model Organization {
 
   site            OrganizationSite?
   platformAdminAssignments PlatformAdminAssignment[]
+  payments        OrganizationPayment[]
 
 
   @@index([slug])
@@ -467,4 +469,23 @@ model PlatformAdminAssignment {
   @@unique([userId, organizationId])
   @@index([userId])
   @@index([organizationId])
+}
+
+// Manual / future automated payments from a school toward PIN debt
+model OrganizationPayment {
+  id             String   @id @default(uuid())
+  organizationId String
+  amountNgn      Int      // whole naira; card price is ₦1000
+  note           String?
+  paidAt         DateTime @default(now())
+  recordedById   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recordedBy   User?        @relation("PaymentRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([paidAt])
+  @@index([organizationId, paidAt])
 }

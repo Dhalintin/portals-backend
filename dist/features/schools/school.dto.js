@@ -28,6 +28,7 @@ exports.updateSchoolBodySchema = zod_1.z
     country: zod_1.z.string().max(100).trim().optional(),
     motto: zod_1.z.string().max(300).trim().nullable().optional(),
     schoolType: zod_1.z.string().max(100).trim().nullable().optional(),
+    onBoarded: zod_1.z.boolean().optional(),
     // slug / isActive: not editable here (platform or dedicated flow later)
 })
     .strict();
