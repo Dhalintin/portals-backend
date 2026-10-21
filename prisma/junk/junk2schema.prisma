@@ -1,0 +1,919 @@
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ─────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────
+
+enum GlobalRole {
+  SUPER_ADMIN
+  PLATFORM_ADMIN
+  USER
+}
+
+/// School-scoped role (SchoolOS V1)
+enum OrgRole {
+  PROPRIETOR
+  PRINCIPAL
+  BURSAR
+  SCHOOL_ADMIN   // legacy Portals — treat as PRINCIPAL-equivalent in RBAC seed
+  TEACHER
+  EXAM_OFFICER   // legacy — map permissions to results approve/publish
+  PARENT
+  STAFF          // non-teaching staff if needed
+}
+
+enum TermName {
+  FIRST
+  SECOND
+  THIRD
+}
+
+enum PinStatus {
+  UNUSED
+  USED
+  EXPIRED
+  DISABLED
+}
+
+enum GenderType {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum ResultWorkflowStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  PUBLISHED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  VOID
+  OVERDUE
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  ONLINE
+  BANK_TRANSFER
+  CASH
+  POS
+  OTHER
+}
+
+enum PaymentSource {
+  PAYSTACK
+  MANUAL
+  OTHER
+}
+
+enum SponsorshipModel {
+  SCHOOL
+  PARENT
+  SHARED
+}
+
+enum SubscriptionPlanCode {
+  FREE
+  STARTER
+  GROWTH
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  TRIAL
+}
+
+// ─────────────────────────────────────────────────────────────
+// PLATFORM USER
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String?
+  googleId     String?    @unique
+  firstName    String
+  lastName     String
+  phone        String?    @unique
+  avatarUrl    String?
+  lastLoginAt  DateTime?
+  globalRole   GlobalRole @default(USER)
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  memberships              Membership[]
+  createdOrgs              Organization[]          @relation("OrgCreator")
+  passwordResetTokens      PasswordResetToken[]
+  classTeacherOf           Class[]                 @relation("ClassTeacher")
+  classSubjectTeaching     ClassSubjectTeacher[]
+  platformAdminAssignments PlatformAdminAssignment[] @relation("PlatformAdminAssignments")
+  platformAdminAssignedBy  PlatformAdminAssignment[] @relation("PlatformAdminAssigner")
+  recordedPayments         OrganizationPayment[]   @relation("PaymentRecorder")
+  parentProfile            Parent?
+  teacherProfile           Teacher?
+  attendanceRecorded       AttendanceRecord[]      @relation("AttendanceRecorder")
+  auditLogs                AuditLog[]
+  uploadedFiles            File[]                  @relation("FileUploader")
+  userRoles                UserRole[]
+
+  @@index([email])
+  @@index([globalRole])
+  @@index([googleId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// RBAC (school-scoped via Membership + optional fine-grained perms)
+// ─────────────────────────────────────────────────────────────
+
+model Permission {
+  id          String @id @default(uuid())
+  code        String @unique // e.g. "students:read", "fees:write"
+  module      String // students | fees | results | ...
+  description String?
+
+  rolePermissions RolePermission[]
+}
+
+model RolePermission {
+  id           String @id @default(uuid())
+  role         OrgRole
+  permissionId String
+
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([role, permissionId])
+  @@index([role])
+}
+
+/// Optional extra roles beyond Membership.role (future multi-role)
+model UserRole {
+  id             String  @id @default(uuid())
+  userId         String
+  organizationId String
+  role           OrgRole
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId, role])
+  @@index([organizationId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// SCHOOL (Organization) + branding + website
+// ─────────────────────────────────────────────────────────────
+
+model Organization {
+  id           String   @id @default(uuid())
+  name         String
+  slug         String   @unique
+  email        String?  @unique
+  phone        String?
+  logoUrl      String?
+  primaryColor String?  @default("#1e3a5f")
+  accentColor  String?  @default("#0f766e")
+  address      String?
+  city         String?
+  state        String?
+  country      String   @default("Nigeria")
+  isActive     Boolean  @default(true)
+  onBoarded    Boolean  @default(false)
+  createdById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  motto        String?
+  schoolType   String?
+
+  creator                  User?                     @relation("OrgCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  memberships              Membership[]
+  academicSessions         AcademicSession[]
+  classes                  Class[]
+  subjects                 Subject[]
+  students                 Student[]
+  results                  Result[]
+  pins                     Pin[]
+  announcements            Announcement[]
+  classSubjects            ClassSubject[]
+  classSubjectTeachers     ClassSubjectTeacher[]
+  site                     OrganizationSite?
+  platformAdminAssignments PlatformAdminAssignment[]
+  payments                 OrganizationPayment[]
+  parents                  Parent[]
+  teachers                 Teacher[]
+  staff                    Staff[]
+  attendanceRecords        AttendanceRecord[]
+  feeCategories            FeeCategory[]
+  feeStructures            FeeStructure[]
+  invoices                 Invoice[]
+  schoolPayments           Payment[]
+  receipts                 Receipt[]
+  auditLogs                AuditLog[]
+  files                    File[]
+  subscription             Subscription?
+  gradeScales              GradeScale[]
+  userRoles                UserRole[]
+  enrollments              StudentEnrollment[]
+
+  @@index([slug])
+  @@index([isActive])
+  @@index([name])
+  @@index([isActive, name])
+}
+
+model Membership {
+  id             String   @id @default(uuid())
+  userId         String
+  organizationId String
+  role           OrgRole
+  isActive       Boolean  @default(true)
+  joinedAt       DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([role])
+}
+
+/// Inbuilt public website + CMS fields (KEEP / extend)
+model OrganizationSite {
+  id             String  @id @default(uuid())
+  organizationId String  @unique
+
+  heroTitle    String?
+  heroSubtitle String?
+  aboutText    String?
+  footerText   String?
+  whatsapp     String?
+  websiteUrl   String?
+  facebookUrl  String?
+  instagramUrl String?
+  twitterUrl   String?
+
+  showResultsCta Boolean @default(true)
+  showAbout      Boolean @default(true)
+  showContact    Boolean @default(true)
+
+  // Why-us section (SchoolOS site customization)
+  whyEyebrow  String?
+  whyTitle    String?
+  whyFeatures Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model PlatformAdminAssignment {
+  id             String   @id @default(uuid())
+  userId         String
+  organizationId String
+  assignedById   String?
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User         @relation("PlatformAdminAssignments", fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedBy   User?        @relation("PlatformAdminAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, organizationId])
+  @@index([userId])
+  @@index([organizationId])
+}
+
+/// Manual / platform PIN wholesale payments (existing Portals billing)
+model OrganizationPayment {
+  id             String   @id @default(uuid())
+  organizationId String
+  amountNgn      Int
+  note           String?
+  paidAt         DateTime @default(now())
+  recordedById   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recordedBy   User?        @relation("PaymentRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([paidAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// ACADEMIC STRUCTURE
+// ─────────────────────────────────────────────────────────────
+
+model AcademicSession {
+  id             String    @id @default(uuid())
+  organizationId String
+  name           String
+  startDate      DateTime?
+  endDate        DateTime?
+  isCurrent      Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  terms        Term[]
+  enrollments  StudentEnrollment[]
+  feeStructures FeeStructure[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@index([isCurrent])
+}
+
+model Term {
+  id        String    @id @default(uuid())
+  sessionId String
+  name      TermName
+  isCurrent Boolean   @default(false)
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+
+  session   AcademicSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  results   Result[]
+  pins      Pin[]
+  invoices  Invoice[]
+  feeStructures FeeStructure[]
+
+  @@unique([sessionId, name])
+  @@index([sessionId])
+}
+
+model Class {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  arm            String?
+  level          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  students         Student[]
+  results          Result[]
+  classTeacherId   String?
+  classTeacher     User?                 @relation("ClassTeacher", fields: [classTeacherId], references: [id], onDelete: SetNull)
+  subjects         ClassSubject[]
+  subjectTeachers  ClassSubjectTeacher[]
+  attendanceRecords AttendanceRecord[]
+  enrollments      StudentEnrollment[]
+
+  @@unique([organizationId, name, arm])
+  @@unique([organizationId, classTeacherId])
+  @@index([organizationId])
+  @@index([classTeacherId])
+}
+
+model Subject {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  code           String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  scores          Score[]
+  classSubjects   ClassSubject[]
+  classTeachers   ClassSubjectTeacher[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model ClassSubject {
+  id             String   @id @default(uuid())
+  organizationId String
+  classId        String
+  subjectId      String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  class        Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, subjectId])
+  @@index([organizationId])
+}
+
+model ClassSubjectTeacher {
+  id             String   @id @default(uuid())
+  organizationId String
+  classId        String
+  subjectId      String
+  userId         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  class        Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, subjectId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// PEOPLE
+// ─────────────────────────────────────────────────────────────
+
+model Student {
+  id              String      @id @default(uuid())
+  organizationId  String
+  admissionNumber String
+  firstName       String
+  lastName        String
+  otherNames      String?
+  gender          GenderType?
+  classId         String?
+  parentPhone     String?
+  parentEmail     String?
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  class             Class?             @relation(fields: [classId], references: [id], onDelete: SetNull)
+  results           Result[]
+  pins              Pin[]
+  parentLinks       ParentStudent[]
+  attendanceRecords AttendanceRecord[]
+  enrollments       StudentEnrollment[]
+  invoices          Invoice[]
+
+  @@unique([organizationId, admissionNumber])
+  @@index([organizationId])
+  @@index([classId])
+  @@index([organizationId, isActive])
+}
+
+model Parent {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String?  @unique // linked login account
+  firstName      String
+  lastName       String
+  phone          String?
+  email          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  children     ParentStudent[]
+
+  @@index([organizationId])
+  @@index([phone])
+  @@index([email])
+}
+
+model ParentStudent {
+  id        String @id @default(uuid())
+  parentId  String
+  studentId String
+  relationship String? // father | mother | guardian
+
+  parent  Parent  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, studentId])
+  @@index([studentId])
+}
+
+model Teacher {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String   @unique
+  staffNo        String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, staffNo])
+  @@index([organizationId])
+}
+
+model Staff {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String?
+  firstName      String
+  lastName       String
+  phone          String?
+  jobTitle       String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+/// Historical / multi-session class membership
+model StudentEnrollment {
+  id             String   @id @default(uuid())
+  organizationId String
+  studentId      String
+  classId        String
+  sessionId      String
+  createdAt      DateTime @default(now())
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student      Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class        Class           @relation(fields: [classId], references: [id], onDelete: Cascade)
+  session      AcademicSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, sessionId])
+  @@index([organizationId])
+  @@index([classId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// ATTENDANCE
+// ─────────────────────────────────────────────────────────────
+
+model AttendanceRecord {
+  id             String           @id @default(uuid())
+  organizationId String
+  studentId      String
+  classId        String
+  date           DateTime         @db.Date
+  status         AttendanceStatus
+  note           String?
+  recordedById   String?
+  clientMutationId String?        // offline sync dedupe
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class        Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  recordedBy   User?        @relation("AttendanceRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, date])
+  @@unique([organizationId, clientMutationId])
+  @@index([organizationId, date])
+  @@index([classId, date])
+}
+
+// ─────────────────────────────────────────────────────────────
+// RESULTS (Portals core — extended workflow)
+// ─────────────────────────────────────────────────────────────
+
+model GradeScale {
+  id             String @id @default(uuid())
+  organizationId String
+  name           String
+  rules          Json // [{ min, max, grade, remark }]
+  isDefault      Boolean @default(false)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+}
+
+model Result {
+  id             String               @id @default(uuid())
+  organizationId String
+  studentId      String
+  termId         String
+  classId        String?
+  totalScore     Float?
+  percentage     Float?
+  position       Int?
+  grade          String?
+  remark         String?
+  isPublished    Boolean              @default(false)
+  publishedAt    DateTime?
+  workflowStatus ResultWorkflowStatus @default(DRAFT)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term         Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
+  class        Class?       @relation(fields: [classId], references: [id], onDelete: SetNull)
+  scores       Score[]
+
+  @@unique([studentId, termId])
+  @@index([organizationId, termId])
+  @@index([organizationId, termId, isPublished])
+  @@index([classId, termId])
+}
+
+model Score {
+  id        String  @id @default(uuid())
+  resultId  String
+  subjectId String
+  ca1       Float?  @default(0)
+  ca2       Float?  @default(0)
+  exam      Float?  @default(0)
+  total     Float?
+  grade     String?
+  remark    String?
+
+  result  Result  @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  @@unique([resultId, subjectId])
+  @@index([resultId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// PIN (keep — result cards / monetization)
+// ─────────────────────────────────────────────────────────────
+
+model Pin {
+  id             String    @id @default(uuid())
+  code           String    @unique
+  organizationId String
+  termId         String
+  studentId      String?
+  status         PinStatus @default(UNUSED)
+  usedAt         DateTime?
+  usedByIp       String?
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  printed        Boolean   @default(false)
+  printedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  term         Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
+  student      Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
+
+  @@index([code])
+  @@index([organizationId, termId, status])
+  @@index([organizationId, termId, printed])
+}
+
+// ─────────────────────────────────────────────────────────────
+// FINANCE
+// ─────────────────────────────────────────────────────────────
+
+model FeeCategory {
+  id             String  @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  isActive       Boolean @default(true)
+  createdAt      DateTime @default(now())
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  structureItems FeeStructureItem[]
+  invoiceItems   InvoiceItem[]
+
+  @@unique([organizationId, name])
+}
+
+model FeeStructure {
+  id             String  @id @default(uuid())
+  organizationId String
+  name           String
+  sessionId      String?
+  termId         String?
+  classId        String? // optional: structure per class
+  isActive       Boolean @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  session      AcademicSession?   @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  term         Term?              @relation(fields: [termId], references: [id], onDelete: SetNull)
+  items        FeeStructureItem[]
+
+  @@index([organizationId])
+}
+
+model FeeStructureItem {
+  id             String @id @default(uuid())
+  feeStructureId String
+  feeCategoryId  String
+  amountNgn      Int
+
+  feeStructure FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+  feeCategory  FeeCategory  @relation(fields: [feeCategoryId], references: [id], onDelete: Restrict)
+
+  @@unique([feeStructureId, feeCategoryId])
+}
+
+model Invoice {
+  id             String        @id @default(uuid())
+  organizationId String
+  studentId      String
+  termId         String?
+  number         String
+  status         InvoiceStatus @default(ISSUED)
+  totalNgn       Int           @default(0)
+  paidNgn        Int           @default(0)
+  outstandingNgn Int           @default(0)
+  dueDate        DateTime?
+  issuedAt       DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student      Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term         Term?             @relation(fields: [termId], references: [id], onDelete: SetNull)
+  items        InvoiceItem[]
+  allocations  PaymentAllocation[]
+  receipts     Receipt[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status])
+  @@index([studentId])
+}
+
+model InvoiceItem {
+  id            String  @id @default(uuid())
+  invoiceId     String
+  feeCategoryId String?
+  description   String
+  amountNgn     Int
+
+  invoice     Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  feeCategory FeeCategory? @relation(fields: [feeCategoryId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+}
+
+model Payment {
+  id                String         @id @default(uuid())
+  organizationId    String
+  amountNgn         Int
+  status            PaymentStatus  @default(PENDING)
+  method            PaymentMethod  @default(OTHER)
+  source            PaymentSource  @default(MANUAL)
+  providerReference String? // Paystack reference — unique when present
+  channel           String?
+  paidAt            DateTime?
+  metadata          Json?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  allocations  PaymentAllocation[]
+  receipt      Receipt?
+
+  @@unique([providerReference])
+  @@index([organizationId, status])
+  @@index([organizationId, paidAt])
+}
+
+model PaymentAllocation {
+  id          String @id @default(uuid())
+  paymentId   String
+  invoiceId   String
+  amountNgn   Int
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([invoiceId])
+}
+
+model Receipt {
+  id             String   @id @default(uuid())
+  organizationId String
+  paymentId      String   @unique
+  invoiceId      String?
+  number         String
+  issuedAt       DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  payment      Payment      @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice      Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, number])
+}
+
+// ─────────────────────────────────────────────────────────────
+// COMMS / FILES / AUDIT / SUBSCRIPTION
+// ─────────────────────────────────────────────────────────────
+
+model Announcement {
+  id             String    @id @default(uuid())
+  organizationId String
+  title          String
+  body           String
+  isPinned       Boolean   @default(false)
+  isActive       Boolean   @default(true)
+  publishedAt    DateTime  @default(now())
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+model File {
+  id             String   @id @default(uuid())
+  organizationId String
+  uploaderId     String?
+  key            String
+  url            String
+  mimeType       String?
+  sizeBytes      Int?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploader     User?        @relation("FileUploader", fields: [uploaderId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  organizationId String?
+  actorId        String?
+  action         String
+  entity         String?
+  entityId       String?
+  metadata       Json?
+  requestId      String?
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  actor        User?         @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([actorId])
+}
+
+model Subscription {
+  id               String               @id @default(uuid())
+  organizationId   String               @unique
+  planCode         SubscriptionPlanCode @default(FREE)
+  status           SubscriptionStatus   @default(ACTIVE)
+  studentCap       Int                  @default(100)
+  sponsorship      SponsorshipModel     @default(SCHOOL)
+  currentPeriodEnd DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}

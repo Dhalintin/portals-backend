@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const authenticate_1 = require("../../middlewares/authenticate");
+const requireSchool_1 = require("../../middlewares/requireSchool");
+const subscriptions_controller_1 = require("./subscriptions.controller");
+const c = new subscriptions_controller_1.SubscriptionsController();
+const subscriptionRoutes = (0, express_1.Router)();
+subscriptionRoutes.use(authenticate_1.authenticate, requireSchool_1.requireSchool);
+subscriptionRoutes.get("/", c.get);
+exports.default = subscriptionRoutes;

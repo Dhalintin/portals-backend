@@ -1,10 +1,7 @@
 import { Router } from "express";
-import { authenticate } from "../../common/middleware/authenticate";
-import {
-  authorize,
-  requireSchoolContext,
-} from "../../common/middleware/authorize";
-import { validate } from "../../common/middleware/validate";
+import { validate as validateSource } from "../../middlewares/validate";
+import { requireSchool } from "../../middlewares/requireSchool";
+import { requireStaff } from "../../middlewares/requireStaff";
 import { teacherController } from "./teacher.controller";
 import {
   inviteTeacherBodySchema,
@@ -16,40 +13,46 @@ import {
   updateTeacherBodySchema,
 } from "./teacher.dto";
 import { z } from "zod";
-import { Role } from "../../common/types/auth";
+import { invitationLimiter } from "../../middlewares/rateLimit";
+import { authenticate } from "../../middlewares/authenticate";
+import { PERMISSIONS } from "../../auth/permissions";
+import { requirePermission } from "../../middlewares/requirePermission";
 
 const classIdParams = z.object({ classId: z.string().uuid() });
 
-const platformUsers = ["SCHOOL_ADMIN", "TEACHER", "EXAM_OFFICER"] as Role[];
 
+
+const validate = (schemas: { body?: z.ZodTypeAny; query?: z.ZodTypeAny; params?: z.ZodTypeAny }) =>
+  Object.entries(schemas).map(([source, schema]) => validateSource(schema, source as "body" | "query" | "params"));
 const teacherRoutes = Router();
 
-teacherRoutes.use(authenticate, requireSchoolContext);
+teacherRoutes.use(authenticate, requireSchool, requireStaff);
 
 teacherRoutes.get(
   "/",
-  authorize("SCHOOL_ADMIN", "EXAM_OFFICER"),
+  requirePermission(PERMISSIONS["staff:read"]),
   validate({ query: listTeachersQuerySchema }),
   teacherController.list
 );
 
 teacherRoutes.post(
   "/invite",
-  authorize("SCHOOL_ADMIN"),
+  requirePermission("staff:write"),
+  invitationLimiter,
   validate({ body: inviteTeacherBodySchema }),
   teacherController.invite
 );
 
 teacherRoutes.get(
   "/me/assignments",
-  authorize(...platformUsers),
+  requirePermission("classes:read"),
   teacherController.myAssignments
 );
 
 // Class staffing (used by class detail Teachers tab)
 teacherRoutes.put(
   "/classes/:classId/class-teacher",
-  authorize("SCHOOL_ADMIN"),
+  requirePermission("staff:write"),
   validate({
     params: classIdParams,
     body: setClassTeacherBodySchema,
@@ -59,14 +62,14 @@ teacherRoutes.put(
 
 teacherRoutes.get(
   "/classes/:classId/subject-teachers",
-  authorize("SCHOOL_ADMIN", "EXAM_OFFICER"),
+  requirePermission("staff:read"),
   validate({ params: classIdParams }),
   teacherController.listClassSubjectTeachers
 );
 
 teacherRoutes.put(
   "/classes/:classId/subject-teachers",
-  authorize("SCHOOL_ADMIN"),
+  requirePermission("staff:write"),
   validate({
     params: classIdParams,
     body: setClassSubjectTeacherBodySchema,
@@ -76,30 +79,33 @@ teacherRoutes.put(
 
 teacherRoutes.get(
   "/:id",
-  authorize("SCHOOL_ADMIN", "EXAM_OFFICER"),
+  requirePermission("staff:read"),
   validate({ params: teacherIdParamsSchema }),
   teacherController.getById
 );
 
 teacherRoutes.patch(
   "/:id",
-  authorize("SCHOOL_ADMIN"),
+  requirePermission("staff:write"),
   validate({ params: teacherIdParamsSchema, body: updateTeacherBodySchema }),
   teacherController.update
 );
 
 teacherRoutes.delete(
   "/:id",
-  authorize("SCHOOL_ADMIN"),
+  requirePermission("staff:write"),
   validate({ params: teacherIdParamsSchema }),
   teacherController.remove
 );
 
 teacherRoutes.put(
   "/:id/assignments",
-  authorize("SCHOOL_ADMIN"),
+  requirePermission("staff:write"),
   validate({ params: teacherIdParamsSchema, body: setAssignmentsBodySchema }),
   teacherController.setAssignments
 );
 
 export default teacherRoutes;
+
+
+

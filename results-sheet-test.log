@@ -1,0 +1,407 @@
+
+> portals-backend@1.0.0 test
+> node scripts/legacy-retirement.cjs --clean && prisma generate && prisma validate && tsc --outDir .test-build && node --test tests/regression.test.cjs tests/auth-session.test.cjs tests/test-runner.test.cjs tests/auth-email.test.cjs tests/dependency-security.test.cjs
+
+[legacy] Retired module checks passed.
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+
+✔ Generated Prisma Client (v7.9.1) to .\node_modules\@prisma\client in 7.30s
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+The schema at prisma\schema.prisma is valid 🚀
+TAP version 13
+# Subtest: queued authentication links are encrypted and tampering is rejected
+ok 1 - queued authentication links are encrypted and tampering is rejected
+  ---
+  duration_ms: 25.6153
+  type: 'test'
+  ...
+# Subtest: authentication links keep tokens in the fragment rather than URL query strings
+ok 2 - authentication links keep tokens in the fragment rather than URL query strings
+  ---
+  duration_ms: 2.9201
+  type: 'test'
+  ...
+# Subtest: SMTP uses verified TLS and closes its connection after sending
+ok 3 - SMTP uses verified TLS and closes its connection after sending
+  ---
+  duration_ms: 5.7368
+  type: 'test'
+  ...
+# Subtest: Resend requests have a bounded timeout and stable provider idempotency key
+ok 4 - Resend requests have a bounded timeout and stable provider idempotency key
+  ---
+  duration_ms: 5.0242
+  type: 'test'
+  ...
+# Subtest: provider failures are reported without exposing response bodies or credentials
+ok 5 - provider failures are reported without exposing response bodies or credentials
+  ---
+  duration_ms: 2.4229
+  type: 'test'
+  ...
+# Subtest: disabled email delivery never attempts a network request
+ok 6 - disabled email delivery never attempts a network request
+  ---
+  duration_ms: 1.3084
+  type: 'test'
+  ...
+# Subtest: misconfigured delivery cannot consume queued jobs
+ok 7 - misconfigured delivery cannot consume queued jobs
+  ---
+  duration_ms: 1.1628
+  type: 'test'
+  ...
+# Subtest: new passwords reject bcrypt truncation aliases, including multibyte text
+ok 8 - new passwords reject bcrypt truncation aliases, including multibyte text
+  ---
+  duration_ms: 134.8334
+  type: 'test'
+  ...
+# Subtest: session issuance stores only a refresh-token hash and binds access tokens to the session
+ok 9 - session issuance stores only a refresh-token hash and binds access tokens to the session
+  ---
+  duration_ms: 70.9453
+  type: 'test'
+  ...
+# Subtest: refresh rotates the token with a new jti and preserves the absolute session expiry
+ok 10 - refresh rotates the token with a new jti and preserves the absolute session expiry
+  ---
+  duration_ms: 36.595
+  type: 'test'
+  ...
+# Subtest: reuse of a rotated token commits session revocation before returning 401
+ok 11 - reuse of a rotated token commits session revocation before returning 401
+  ---
+  duration_ms: 45.2272
+  type: 'test'
+  ...
+# Subtest: simultaneous refreshes cannot create two valid successor sessions
+ok 12 - simultaneous refreshes cannot create two valid successor sessions
+  ---
+  duration_ms: 19.5252
+  type: 'test'
+  ...
+# Subtest: logout immediately rejects both access and refresh for the selected session
+ok 13 - logout immediately rejects both access and refresh for the selected session
+  ---
+  duration_ms: 34.9727
+  type: 'test'
+  ...
+# Subtest: logout affects one session, while logout-all revokes the user across school workspaces
+ok 14 - logout affects one session, while logout-all revokes the user across school workspaces
+  ---
+  duration_ms: 28.1414
+  type: 'test'
+  ...
+# Subtest: refresh rejects a token bound to a different school without revoking the valid session
+ok 15 - refresh rejects a token bound to a different school without revoking the valid session
+  ---
+  duration_ms: 52.0335
+  type: 'test'
+  ...
+# Subtest: database session expiry rejects an otherwise unexpired signed JWT
+ok 16 - database session expiry rejects an otherwise unexpired signed JWT
+  ---
+  duration_ms: 17.6335
+  type: 'test'
+  ...
+# Subtest: unknown and legacy stateless tokens are rejected
+ok 17 - unknown and legacy stateless tokens are rejected
+  ---
+  duration_ms: 25.6643
+  type: 'test'
+  ...
+# Subtest: suspended users, schools and memberships cannot refresh sessions
+ok 18 - suspended users, schools and memberships cannot refresh sessions
+  ---
+  duration_ms: 17.3748
+  type: 'test'
+  ...
+# Subtest: platform sessions are persisted with no school and use current platform roles
+ok 19 - platform sessions are persisted with no school and use current platform roles
+  ---
+  duration_ms: 32.9887
+  type: 'test'
+  ...
+# Subtest: credentials verified before logout-all or a reset cannot issue a new session afterwards
+ok 20 - credentials verified before logout-all or a reset cannot issue a new session afterwards
+  ---
+  duration_ms: 2.1704
+  type: 'test'
+  ...
+# Subtest: password reset consumes the link, invalidates other reset links and revokes all sessions atomically
+ok 21 - password reset consumes the link, invalidates other reset links and revokes all sessions atomically
+  ---
+  duration_ms: 26.2131
+  type: 'test'
+  ...
+# Subtest: simultaneous password resets consume at most one reset link
+ok 22 - simultaneous password resets consume at most one reset link
+  ---
+  duration_ms: 1.9513
+  type: 'test'
+  ...
+# Subtest: a failed reset transaction preserves the old password and leaves the reset link unused
+ok 23 - a failed reset transaction preserves the old password and leaves the reset link unused
+  ---
+  duration_ms: 2.4156
+  type: 'test'
+  ...
+# Subtest: password reset cannot change an inactive account
+ok 24 - password reset cannot change an inactive account
+  ---
+  duration_ms: 1.3577
+  type: 'test'
+  ...
+# Subtest: an invalid signature cannot revoke a valid session
+ok 25 - an invalid signature cannot revoke a valid session
+  ---
+  duration_ms: 60.58
+  type: 'test'
+  ...
+# Subtest: an expired signed refresh token is rejected before changing session state
+ok 26 - an expired signed refresh token is rejected before changing session state
+  ---
+  duration_ms: 27.4484
+  type: 'test'
+  ...
+# Subtest: login rejects a password that was verified immediately before its credential version changed
+ok 27 - login rejects a password that was verified immediately before its credential version changed
+  ---
+  duration_ms: 15.6937
+  type: 'test'
+  ...
+# Subtest: HTTP login, refresh, logout and logout-all use the persisted session lifecycle
+ok 28 - HTTP login, refresh, logout and logout-all use the persisted session lifecycle
+  ---
+  duration_ms: 1139.234
+  type: 'test'
+  ...
+# Subtest: IPv4-mapped trust prefixes cannot trust arbitrary public IPv4 clients
+ok 29 - IPv4-mapped trust prefixes cannot trust arbitrary public IPv4 clients
+  ---
+  duration_ms: 6.0823
+  type: 'test'
+  ...
+# Subtest: untrusted forwarded addresses cannot replace the socket address used for rate limiting
+ok 30 - untrusted forwarded addresses cannot replace the socket address used for rate limiting
+  ---
+  duration_ms: 385.3052
+  type: 'test'
+  ...
+# Subtest: native Node watch restarts compiled JavaScript after a file change
+ok 31 - native Node watch restarts compiled JavaScript after a file change
+  ---
+  duration_ms: 5508.6902
+  type: 'test'
+  ...
+# Subtest: legacy authorization uses the current session role and never a conflicting older user role
+ok 32 - legacy authorization uses the current session role and never a conflicting older user role
+  ---
+  duration_ms: 11.6023
+  type: 'test'
+  ...
+# Subtest: validation preserves body transforms, query defaults and separately validated params
+ok 33 - validation preserves body transforms, query defaults and separately validated params
+  ---
+  duration_ms: 3.4269
+  type: 'test'
+  ...
+# Subtest: authentication recomputes current permissions instead of trusting stale owner claims
+ok 34 - authentication recomputes current permissions instead of trusting stale owner claims
+  ---
+  duration_ms: 33.738
+  type: 'test'
+  ...
+# Subtest: a revoked membership rejects an unexpired access token
+ok 35 - a revoked membership rejects an unexpired access token
+  ---
+  duration_ms: 11.4515
+  type: 'test'
+  ...
+# Subtest: parents cannot use staff APIs and child ownership is scoped to the school and user
+ok 36 - parents cannot use staff APIs and child ownership is scoped to the school and user
+  ---
+  duration_ms: 2.1383
+  type: 'test'
+  ...
+# Subtest: parent result and fee lists remain reachable while general lists return 403
+ok 37 - parent result and fee lists remain reachable while general lists return 403
+  ---
+  duration_ms: 458.304
+  type: 'test'
+  ...
+# Subtest: class teachers cannot enter scores for subjects assigned to someone else
+ok 38 - class teachers cannot enter scores for subjects assigned to someone else
+  ---
+  duration_ms: 4.5635
+  type: 'test'
+  ...
+# Subtest: offline sync rejects foreign-school students before touching attendance
+ok 39 - offline sync rejects foreign-school students before touching attendance
+  ---
+  duration_ms: 1.9238
+  type: 'test'
+  ...
+# Subtest: offline sync rejects reused client keys for different students
+ok 40 - offline sync rejects reused client keys for different students
+  ---
+  duration_ms: 1.2324
+  type: 'test'
+  ...
+# Subtest: partial score edits retain old components and decimal marks receive the correct grade
+ok 41 - partial score edits retain old components and decimal marks receive the correct grade
+  ---
+  duration_ms: 4.0104
+  type: 'test'
+  ...
+# Subtest: teachers cannot approve or publish a result through the transition service
+ok 42 - teachers cannot approve or publish a result through the transition service
+  ---
+  duration_ms: 1.8246
+  type: 'test'
+  ...
+# Subtest: Paystack signatures verify exact bytes and reject malformed signatures
+ok 43 - Paystack signatures verify exact bytes and reject malformed signatures
+  ---
+  duration_ms: 1.2302
+  type: 'test'
+  ...
+# 127.0.0.1 - - [18/Oct/2026:19:08:02 +0000] "POST /api/v1/payments/webhook HTTP/1.1" 200 43 "-" "node"
+# Subtest: the mounted webhook receives original bytes before the general JSON parser
+ok 44 - the mounted webhook receives original bytes before the general JSON parser
+  ---
+  duration_ms: 792.4046
+  type: 'test'
+  ...
+# Subtest: a successful provider charge with a mismatched amount is never credited
+ok 45 - a successful provider charge with a mismatched amount is never credited
+  ---
+  duration_ms: 1.3719
+  type: 'test'
+  ...
+# Subtest: finalization rechecks successful status after acquiring the school lock
+ok 46 - finalization rechecks successful status after acquiring the school lock
+  ---
+  duration_ms: 1.2571
+  type: 'test'
+  ...
+# Subtest: allocation rejects amounts beyond the remaining payment balance
+ok 47 - allocation rejects amounts beyond the remaining payment balance
+  ---
+  duration_ms: 1.683
+  type: 'test'
+  ...
+# Subtest: notification previews are school-scoped and do not mark messages as delivered
+ok 48 - notification previews are school-scoped and do not mark messages as delivered
+  ---
+  duration_ms: 3.0391
+  type: 'test'
+  ...
+# Subtest: teacher result reads include an assignment filter even through report card services
+ok 49 - teacher result reads include an assignment filter even through report card services
+  ---
+  duration_ms: 6.8436
+  type: 'test'
+  ...
+# Subtest: score edits above 100 are rejected before persisting
+ok 50 - score edits above 100 are rejected before persisting
+  ---
+  duration_ms: 2.1444
+  type: 'test'
+  ...
+# Subtest: submitted and approved result scores must return to draft before edits
+ok 51 - submitted and approved result scores must return to draft before edits
+  ---
+  duration_ms: 0.7355
+  type: 'test'
+  ...
+# Subtest: invoice generation rejects explicit students from another school
+ok 52 - invoice generation rejects explicit students from another school
+  ---
+  duration_ms: 4.249
+  type: 'test'
+  ...
+# Subtest: pending Paystack verification does not turn a pending payment into failure
+ok 53 - pending Paystack verification does not turn a pending payment into failure
+  ---
+  duration_ms: 2.6139
+  type: 'test'
+  ...
+# Subtest: closed payments cannot be revived by a repeated provider notification
+ok 54 - closed payments cannot be revived by a repeated provider notification
+  ---
+  duration_ms: 1.3871
+  type: 'test'
+  ...
+# Subtest: student cap is rechecked inside the school transaction after the initial precheck
+ok 55 - student cap is rechecked inside the school transaction after the initial precheck
+  ---
+  duration_ms: 1.9839
+  type: 'test'
+  ...
+# Subtest: proxy trust accepts explicit networks and refuses blanket trust or hop counts
+ok 56 - proxy trust accepts explicit networks and refuses blanket trust or hop counts
+  ---
+  duration_ms: 1.9545
+  type: 'test'
+  ...
+# Subtest: read-only entry sheets include unmarked students and scope all reads to school, term and subject
+ok 57 - read-only entry sheets include unmarked students and scope all reads to school, term and subject
+  ---
+  duration_ms: 2.113
+  type: 'test'
+  ...
+# Subtest: entry sheets reject an unassigned subject before reading student data
+ok 58 - entry sheets reject an unassigned subject before reading student data
+  ---
+  duration_ms: 0.7605
+  type: 'test'
+  ...
+# Subtest: entry sheets reject a term from another school before reading the roster
+ok 59 - entry sheets reject a term from another school before reading the roster
+  ---
+  duration_ms: 0.7618
+  type: 'test'
+  ...
+# Subtest: database helpers require an explicit test URL and never fall back to DATABASE_URL
+ok 60 - database helpers require an explicit test URL and never fall back to DATABASE_URL
+  ---
+  duration_ms: 3.3771
+  type: 'test'
+  ...
+# Subtest: database helpers reject host redirection through URL parameters
+ok 61 - database helpers reject host redirection through URL parameters
+  ---
+  duration_ms: 0.7874
+  type: 'test'
+  ...
+# Subtest: test environment replaces configured database and token/provider secrets with test values
+ok 62 - test environment replaces configured database and token/provider secrets with test values
+  ---
+  duration_ms: 32.4042
+  type: 'test'
+  ...
+# Subtest: release config checks reject placeholders and unsafe origins without returning secret values
+ok 63 - release config checks reject placeholders and unsafe origins without returning secret values
+  ---
+  duration_ms: 7.9867
+  type: 'test'
+  ...
+1..63
+# tests 63
+# suites 0
+# pass 63
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8621.2811

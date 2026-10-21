@@ -10,7 +10,9 @@ import { ZodError } from "zod";
 import { sendError } from "../http/response";
 import { env } from "../../config/env";
 import { HttpStatus } from "../http/status";
-import { AppError } from "../errors/AppError";
+import { AppError } from "../../lib/errors";
+import { AppError as LegacyAppError } from "../errors/AppError";
+// import { AppError } from "../errors/AppError";
 
 export const errorHandler: ErrorRequestHandler = (
   err: unknown,
@@ -18,7 +20,17 @@ export const errorHandler: ErrorRequestHandler = (
   res: Response,
   _next: NextFunction
 ) => {
-  if (err instanceof AppError) {
+  // Express body parsers attach these types before route validation runs.
+  if (err && typeof err === "object" && "type" in err) {
+    if (err.type === "entity.parse.failed") {
+      return sendError(res, 400, "INVALID_JSON", "Request body must contain valid JSON");
+    }
+    if (err.type === "entity.too.large") {
+      return sendError(res, 413, "PAYLOAD_TOO_LARGE", "Request body exceeds the allowed size");
+    }
+  }
+
+  if (err instanceof AppError || err instanceof LegacyAppError) {
     return sendError(res, err.statusCode, err.code, err.message, err.details);
   }
 

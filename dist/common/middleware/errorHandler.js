@@ -6,9 +6,20 @@ const zod_1 = require("zod");
 const response_1 = require("../http/response");
 const env_1 = require("../../config/env");
 const status_1 = require("../http/status");
+const errors_1 = require("../../lib/errors");
 const AppError_1 = require("../errors/AppError");
+// import { AppError } from "../errors/AppError";
 const errorHandler = (err, _req, res, _next) => {
-    if (err instanceof AppError_1.AppError) {
+    // Express body parsers attach these types before route validation runs.
+    if (err && typeof err === "object" && "type" in err) {
+        if (err.type === "entity.parse.failed") {
+            return (0, response_1.sendError)(res, 400, "INVALID_JSON", "Request body must contain valid JSON");
+        }
+        if (err.type === "entity.too.large") {
+            return (0, response_1.sendError)(res, 413, "PAYLOAD_TOO_LARGE", "Request body exceeds the allowed size");
+        }
+    }
+    if (err instanceof errors_1.AppError || err instanceof AppError_1.AppError) {
         return (0, response_1.sendError)(res, err.statusCode, err.code, err.message, err.details);
     }
     if (err instanceof zod_1.ZodError) {

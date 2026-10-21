@@ -1,90 +1,60 @@
-import express, { Request, Response } from "express";
+import express from "express";
 import { errorHandler } from "../common/middleware/errorHandler";
 import { notFound } from "../common/middleware/notFound";
-
-// import authRoute from "./auth/auth.route";
-// import { OrganizationAuthService } from "./auth/services/authOrg.service";
-import { customResponse } from "../utils/customResponse";
-
-const appRouter = express.Router();
-
-appRouter.use("/health", (req, res) => {
-  res.status(200).json({ status: "ok", message: "Service is healthy" });
-});
-
-// appRouter.get("/load/:custom", async (req: Request, res: Response) => {
-//   try {
-//     const customDomain = req.params.custom as string;
-//     const config = await OrganizationAuthService.getOrganizationByCustom(
-//       customDomain
-//     );
-//     customResponse({
-//       status: 200,
-//       res,
-//       success: true,
-//       message: "Successful",
-//       data: config,
-//     });
-//   } catch (error: any) {
-//     return customResponse({
-//       status: 500,
-//       res,
-//       success: false,
-//       message: "Failed to fetch data",
-//       error: error.message,
-//     });
-//   }
-// });
-
 import authRoutes from "./auth/auth.routes";
-import schoolRoutes from "./schools/school.routes";
-import classRoutes from "./classes/class.routes";
+import schoolRoutes from "./schools/schools.routes";
+import classRoutes from "./classes/classes.routes";
 import studentRoutes from "./students/student.routes";
-import teacherRoutes from "./teachers/teacher.routes";
-import subjectRoutes from "./subjects/subject.routes";
-import resultRoutes, { publicResultsRouter } from "./results/results.routes";
-import academicSessionRoutes from "./academic-sessions/academic-sessions.routes";
-import pinRoutes, { publicPinsRouter } from "./pins/pins.routes";
-import settingsRoutes, {
-  publicSettingsRouter,
-} from "./settings/settings.routes";
-import platformAdminRoutes from "./platform-admin/platform-admin.routes";
+import resultRoutes from "./results/results.routes";
 import staffRoutes from "./staff/staff.routes";
-import publicResultRoutes from "./public/results/public-results.routes";
-
+import membershipRoutes from "./memberships/memberships.routes";
+import siteRoutes from "./site/site.routes";
+import academicRoutes from "./academic/academic.routes";
+import subscriptionRoutes from "./subscriptions/subscriptions.routes";
+import subjectsRoutes from "./subjects/subjects.routes";
+import parentsRoutes from "./parents/parents.routes";
+import importsRoutes from "./imports/imports.routes";
+import attendanceRoutes from "./attendance/attendance.routes";
+import feesRoutes from "./fees/fees.routes";
+import dashboardRoutes from "./dashboard/dashboard.routes";
+import platformRoutes from "./platform/platform.routes";
+import publicRoutes from "./public/public.routes";
+import communicationRoutes from "./communication/communication.routes";
+import teacherRoutes from "./teachers/teacher.routes";
+import { publicLimiter, apiLimiter } from "../middlewares/rateLimit";
+import { readiness } from "../lib/readiness";
+const appRouter = express.Router();
+appRouter.get("/health", (_req, res) => res.status(200).json({ status: "ok", message: "Service is healthy" }));
+appRouter.get("/health/ready", async (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    await readiness.checkDatabase();
+    res.status(200).json({ status: "ready" });
+  } catch {
+    res.status(503).json({ status: "unavailable" });
+  }
+});
 appRouter.use("/auth", authRoutes);
-
+appRouter.use("/public", publicLimiter, publicRoutes);
+appRouter.use(apiLimiter);
+appRouter.use("/memberships", membershipRoutes);
 appRouter.use("/schools", schoolRoutes);
-
+appRouter.use("/academic", academicRoutes);
+appRouter.use("/site", siteRoutes);
+appRouter.use("/subscription", subscriptionRoutes);
 appRouter.use("/classes", classRoutes);
-
+appRouter.use("/subjects", subjectsRoutes);
 appRouter.use("/students", studentRoutes);
-
-appRouter.use("/teachers", teacherRoutes);
-
-appRouter.use("/subjects", subjectRoutes);
-
-appRouter.use("/results", resultRoutes);
-
-// appRouter.use("/public/results", publicResultsRouter);
-
-appRouter.use("/academic-sessions", academicSessionRoutes);
-
-appRouter.use("/pins", pinRoutes);
-
-appRouter.use("/public/pins", publicPinsRouter);
-
-appRouter.use("/public", publicSettingsRouter);
-
-appRouter.use("/settings", settingsRoutes);
-
-appRouter.use("/platform", platformAdminRoutes);
-
+appRouter.use("/parents", parentsRoutes);
 appRouter.use("/staff", staffRoutes);
-
-appRouter.use("/public", publicResultRoutes);
-
+appRouter.use("/teachers", teacherRoutes);
+appRouter.use("/imports", importsRoutes);
+appRouter.use("/attendance", attendanceRoutes);
+appRouter.use("/results", resultRoutes);
+appRouter.use("/fees", feesRoutes);
+appRouter.use("/dashboard", dashboardRoutes);
+appRouter.use("/platform", platformRoutes);
+appRouter.use("/communication", communicationRoutes);
 appRouter.use(notFound);
 appRouter.use(errorHandler);
-
 export default appRouter;

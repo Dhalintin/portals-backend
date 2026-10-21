@@ -1,19 +1,79 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-// src/features/students/student.routes.ts
 const express_1 = require("express");
-const authenticate_1 = require("../../common/middleware/authenticate");
-const authorize_1 = require("../../common/middleware/authorize");
-const validate_1 = require("../../common/middleware/validate");
-const student_controller_1 = require("./student.controller");
-const student_dto_1 = require("./student.dto");
+const authenticate_1 = require("../../middlewares/authenticate");
+const requireSchool_1 = require("../../middlewares/requireSchool");
+const requirePermission_1 = require("../../middlewares/requirePermission");
+const validate_1 = require("../../middlewares/validate");
+const permissions_1 = require("../../auth/permissions");
+const students_validation_1 = require("./students.validation");
+const students_controller_1 = require("./students.controller");
+const c = new students_controller_1.StudentsController();
 const studentRoutes = (0, express_1.Router)();
-const platformUsers = ["SCHOOL_ADMIN", "TEACHER", "EXAM_OFFICER"];
-studentRoutes.use(authenticate_1.authenticate, authorize_1.requireSchoolContext);
-studentRoutes.get("/", (0, authorize_1.authorize)(...platformUsers), (0, validate_1.validate)({ query: student_dto_1.listStudentsQuerySchema }), student_controller_1.studentController.list);
-studentRoutes.post("/", (0, authorize_1.authorize)("SCHOOL_ADMIN", "EXAM_OFFICER"), (0, validate_1.validate)({ body: student_dto_1.createStudentBodySchema }), student_controller_1.studentController.create);
-studentRoutes.post("/bulk", (0, authorize_1.authorize)("SCHOOL_ADMIN", "EXAM_OFFICER"), (0, validate_1.validate)({ body: student_dto_1.bulkCreateStudentsBodySchema }), student_controller_1.studentController.bulkCreate);
-studentRoutes.get("/:id", (0, authorize_1.authorize)(...platformUsers), (0, validate_1.validate)({ params: student_dto_1.studentIdParamsSchema }), student_controller_1.studentController.getById);
-studentRoutes.patch("/:id", (0, authorize_1.authorize)("SCHOOL_ADMIN", "EXAM_OFFICER"), (0, validate_1.validate)({ params: student_dto_1.studentIdParamsSchema, body: student_dto_1.updateStudentBodySchema }), student_controller_1.studentController.update);
-studentRoutes.delete("/:id", (0, authorize_1.authorize)("SCHOOL_ADMIN"), (0, validate_1.validate)({ params: student_dto_1.studentIdParamsSchema }), student_controller_1.studentController.remove);
+studentRoutes.use(authenticate_1.authenticate, requireSchool_1.requireSchool);
+studentRoutes.get("/", (0, requirePermission_1.requirePermission)(permissions_1.PERMISSIONS["students:read"]), (0, validate_1.validate)(students_validation_1.listStudentsQuerySchema, "query"), c.list);
+studentRoutes.get("/export", (0, requirePermission_1.requirePermission)(permissions_1.PERMISSIONS["students:read"]), c.exportRows);
+studentRoutes.post("/", (0, requirePermission_1.requirePermission)(permissions_1.PERMISSIONS["students:write"]), (0, validate_1.validate)(students_validation_1.createStudentSchema), c.create);
+studentRoutes.post("/bulk", (0, requirePermission_1.requirePermission)(permissions_1.PERMISSIONS["students:write"]), (0, validate_1.validate)(students_validation_1.bulkCreateStudentsSchema), c.bulkCreate);
+studentRoutes.get("/:studentId", (0, requirePermission_1.requirePermission)(permissions_1.PERMISSIONS["students:read"]), (0, validate_1.validate)(students_validation_1.studentIdParamsSchema, "params"), c.get);
+studentRoutes.patch("/:studentId", (0, requirePermission_1.requirePermission)(permissions_1.PERMISSIONS["students:write"]), (0, validate_1.validate)(students_validation_1.studentIdParamsSchema, "params"), (0, validate_1.validate)(students_validation_1.updateStudentSchema), c.update);
+studentRoutes.post("/:studentId/archive", (0, requirePermission_1.requirePermission)(permissions_1.PERMISSIONS["students:write"]), (0, validate_1.validate)(students_validation_1.studentIdParamsSchema, "params"), c.archive);
+studentRoutes.post("/:studentId/enroll", (0, requirePermission_1.requirePermission)(permissions_1.PERMISSIONS["students:write"]), (0, validate_1.validate)(students_validation_1.studentIdParamsSchema, "params"), (0, validate_1.validate)(students_validation_1.enrollStudentSchema), c.enroll);
 exports.default = studentRoutes;
+// // src/features/students/student.routes.ts
+// import { Router } from "express";
+// import { authenticate } from "../../common/middleware/authenticate";
+// import {
+//   authorize,
+//   requireSchoolContext,
+// } from "../../common/middleware/authorize";
+// import { validate } from "../../common/middleware/validate";
+// import { studentController } from "./student.controller";
+// import {
+//   bulkCreateStudentsBodySchema,
+//   createStudentBodySchema,
+//   listStudentsQuerySchema,
+//   studentIdParamsSchema,
+//   updateStudentBodySchema,
+// } from "./student.dto";
+// import { Role } from "../../common/types/auth";
+// const studentRoutes = Router();
+// const platformUsers = ["SCHOOL_ADMIN", "TEACHER", "EXAM_OFFICER"] as Role[];
+// studentRoutes.use(authenticate, requireSchoolContext);
+// studentRoutes.get(
+//   "/",
+//   authorize(...platformUsers),
+//   validate({ query: listStudentsQuerySchema }),
+//   studentController.list
+// );
+// studentRoutes.post(
+//   "/",
+//   authorize("SCHOOL_ADMIN", "EXAM_OFFICER"),
+//   validate({ body: createStudentBodySchema }),
+//   studentController.create
+// );
+// studentRoutes.post(
+//   "/bulk",
+//   authorize("SCHOOL_ADMIN", "EXAM_OFFICER"),
+//   validate({ body: bulkCreateStudentsBodySchema }),
+//   studentController.bulkCreate
+// );
+// studentRoutes.get(
+//   "/:id",
+//   authorize(...platformUsers),
+//   validate({ params: studentIdParamsSchema }),
+//   studentController.getById
+// );
+// studentRoutes.patch(
+//   "/:id",
+//   authorize("SCHOOL_ADMIN", "EXAM_OFFICER"),
+//   validate({ params: studentIdParamsSchema, body: updateStudentBodySchema }),
+//   studentController.update
+// );
+// studentRoutes.delete(
+//   "/:id",
+//   authorize("SCHOOL_ADMIN"),
+//   validate({ params: studentIdParamsSchema }),
+//   studentController.remove
+// );
+// export default studentRoutes;

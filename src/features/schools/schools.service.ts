@@ -1,0 +1,264 @@
+import { prisma } from "../../lib/prisma";
+import { AppError } from "../../lib/errors";
+import { auditService } from "../audit/audit.service";
+import { onboardingChecklist } from "./onboarding";
+import { schoolTransaction } from "../../lib/schoolTransaction";
+import type {
+  UpdateSchoolBrandingInput,
+  UpdateSchoolProfileInput,
+} from "./schools.validation";
+
+const schoolSelect = {
+  id: true,
+  name: true,
+  slug: true,
+  email: true,
+  phone: true,
+  logoUrl: true,
+  primaryColor: true,
+  accentColor: true,
+  address: true,
+  city: true,
+  state: true,
+  country: true,
+  motto: true,
+  schoolType: true,
+  isActive: true,
+  onBoarded: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+export class SchoolsService {
+  async getOnboarding(organizationId: string) {
+    return schoolTransaction(organizationId, tx => onboardingChecklist(tx, organizationId));
+  }
+  async getProfile(organizationId: string) {
+    const school = await prisma.organization.findFirst({
+      where: { id: organizationId, isActive: true },
+      select: schoolSelect,
+    });
+    if (!school) {
+      throw new AppError(404, "SCHOOL_NOT_FOUND", "School not found");
+    }
+    return school;
+  }
+
+  async updateProfile(
+    organizationId: string,
+    actorId: string,
+    input: UpdateSchoolProfileInput,
+    requestId?: string
+  ) {
+    await this.getProfile(organizationId);
+
+    if (input.email) {
+      const taken = await prisma.organization.findFirst({
+        where: {
+          email: input.email,
+          NOT: { id: organizationId },
+        },
+        select: { id: true },
+      });
+      if (taken) {
+        throw new AppError(409, "EMAIL_IN_USE", "School email already in use");
+      }
+    }
+
+    const school = await prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        name: input.name,
+        email: input.email === undefined ? undefined : input.email,
+        phone: input.phone === undefined ? undefined : input.phone,
+        address: input.address === undefined ? undefined : input.address,
+        city: input.city === undefined ? undefined : input.city,
+        state: input.state === undefined ? undefined : input.state,
+        country: input.country,
+        motto: input.motto === undefined ? undefined : input.motto,
+        schoolType:
+          input.schoolType === undefined ? undefined : input.schoolType,
+      },
+      select: schoolSelect,
+    });
+
+    await auditService.write({
+      action: "SETTINGS_CHANGED",
+      actorId,
+      organizationId,
+      entity: "Organization",
+      entityId: organizationId,
+      metadata: { section: "profile", fields: Object.keys(input) },
+      requestId,
+    });
+
+    return school;
+  }
+
+  async updateBranding(
+    organizationId: string,
+    actorId: string,
+    input: UpdateSchoolBrandingInput,
+    requestId?: string
+  ) {
+    await this.getProfile(organizationId);
+
+    const school = await prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        logoUrl: input.logoUrl === undefined ? undefined : input.logoUrl,
+        primaryColor: input.primaryColor,
+        accentColor: input.accentColor,
+      },
+      select: schoolSelect,
+    });
+
+    await auditService.write({
+      action: "SETTINGS_CHANGED",
+      actorId,
+      organizationId,
+      entity: "Organization",
+      entityId: organizationId,
+      metadata: { section: "branding", fields: Object.keys(input) },
+      requestId,
+    });
+
+    return school;
+  }
+
+  async updateSlug(
+    organizationId: string,
+    actorId: string,
+    slug: string,
+    requestId?: string
+  ) {
+    await this.getProfile(organizationId);
+
+    const taken = await prisma.organization.findFirst({
+      where: { slug, NOT: { id: organizationId } },
+      select: { id: true },
+    });
+    if (taken) {
+      throw new AppError(
+        409,
+        "SLUG_IN_USE",
+        "This school URL is already taken"
+      );
+    }
+
+    const school = await prisma.organization.update({
+      where: { id: organizationId },
+      data: { slug },
+      select: schoolSelect,
+    });
+
+    await auditService.write({
+      action: "SETTINGS_CHANGED",
+      actorId,
+      organizationId,
+      entity: "Organization",
+      entityId: organizationId,
+      metadata: { section: "slug", slug },
+      requestId,
+    });
+
+    return school;
+  }
+
+  async completeOnboarding(organizationId: string, actorId: string) {
+    return schoolTransaction(organizationId, async tx => {
+      const checklist = await onboardingChecklist(tx, organizationId);
+      if (!checklist.readyForCompletion) {
+        throw new AppError(400, "ONBOARDING_INCOMPLETE", "Complete the missing onboarding steps", checklist);
+      }
+      const school = await tx.organization.update({ where: { id: organizationId },
+        data: { onBoarded: true }, select: schoolSelect });
+      if (!checklist.completed) await tx.auditLog.create({ data: { action: "SETTINGS_CHANGED", actorId, organizationId,
+        entity: "Organization", entityId: organizationId, metadata: { section: "onboarding", onBoarded: true } } });
+      return school;
+    });
+  }
+}
+
+export const schoolsService = new SchoolsService();
+
+// // src/features/schools/school.service.ts
+// import { prisma } from "../../lib/prisma";
+// import {
+//   ForbiddenError,
+//   NotFoundError,
+//   UnauthorizedError,
+// } from "../../common/errors/AppError";
+// import type { UpdateSchoolBody } from "./school.dto";
+// import type { SchoolPublic } from "./school.types";
+// import type { Organization } from "@prisma/client";
+// import { toSchoolPublic } from "../../utils/toPublic";
+
+// function requireSchoolId(schoolId: string | null | undefined): string {
+//   if (!schoolId) {
+//     throw new ForbiddenError(
+//       "No school context. Select or create a school first."
+//     );
+//   }
+//   return schoolId;
+// }
+
+// export const schoolService = {
+//   async getMe(schoolId: string | null | undefined) {
+//     const id = requireSchoolId(schoolId);
+
+//     const org = await prisma.organization.findFirst({
+//       where: { id, isActive: true },
+//     });
+
+//     if (!org) {
+//       throw new NotFoundError("School not found");
+//     }
+
+//     return toSchoolPublic(org);
+//   },
+
+//   async updateMe(
+//     schoolId: string | null | undefined,
+//     userId: string | undefined,
+//     input: UpdateSchoolBody
+//   ) {
+//     if (!userId) throw new UnauthorizedError();
+//     const id = requireSchoolId(schoolId);
+
+//     const org = await prisma.organization.findFirst({
+//       where: { id, isActive: true },
+//     });
+
+//     if (!org) {
+//       throw new NotFoundError("School not found");
+//     }
+
+//     // Only school_admin (and exam_officer if you want) should PATCH — enforced in routes
+//     const updated = await prisma.organization.update({
+//       where: { id },
+//       data: {
+//         ...(input.name !== undefined ? { name: input.name } : {}),
+//         ...(input.email !== undefined ? { email: input.email } : {}),
+//         ...(input.phone !== undefined ? { phone: input.phone } : {}),
+//         ...(input.logoUrl !== undefined ? { logoUrl: input.logoUrl } : {}),
+//         ...(input.primaryColor !== undefined
+//           ? { primaryColor: input.primaryColor }
+//           : {}),
+//         ...(input.accentColor !== undefined
+//           ? { accentColor: input.accentColor }
+//           : {}),
+//         ...(input.address !== undefined ? { address: input.address } : {}),
+//         ...(input.city !== undefined ? { city: input.city } : {}),
+//         ...(input.state !== undefined ? { state: input.state } : {}),
+//         ...(input.country !== undefined ? { country: input.country } : {}),
+//         ...(input.motto !== undefined ? { motto: input.motto } : {}),
+//         ...(input.schoolType !== undefined
+//           ? { schoolType: input.schoolType }
+//           : {}),
+//       },
+//     });
+
+//     return toSchoolPublic(updated);
+//   },
+// };

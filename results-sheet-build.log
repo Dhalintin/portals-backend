@@ -1,0 +1,23 @@
+
+> portals-backend@1.0.0 prebuild
+> node scripts/legacy-retirement.cjs --clean && prisma generate
+
+[legacy] Retired module checks passed.
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+
+✔ Generated Prisma Client (v7.9.1) to .\node_modules\@prisma\client in 1.31s
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+
+
+> portals-backend@1.0.0 build
+> tsc
+
+
+> portals-backend@1.0.0 postbuild
+> node scripts/legacy-retirement.cjs --check
+
+[legacy] Retired module checks passed.

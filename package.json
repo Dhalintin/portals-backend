@@ -1,12 +1,25 @@
 {
   "name": "portals-backend",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/server.js",
   "scripts": {
+    "prebuild": "node scripts/legacy-retirement.cjs --clean && prisma generate",
     "build": "tsc",
-    "dev": "nodemon dist/server.js",
-    "seed": "dotenv -e .env.test ts-node prisma/seeds/index.ts",
-    "test": "mocha --exit --recursive src/tests",
+    "postbuild": "node scripts/legacy-retirement.cjs --check",
+    "legacy:check": "node scripts/legacy-retirement.cjs --check",
+    "prestart": "node scripts/legacy-retirement.cjs --check",
+    "start": "node dist/server.js",
+    "email:worker": "node dist/workers/authEmailWorker.js",
+    "email:worker:all": "node dist/workers/emailWorker.js",
+    "notifications:worker": "node dist/workers/notificationWorker.js",
+    "dev": "node --watch dist/server.js",
+    "security:check": "npm audit --audit-level=moderate",
+    "release:check": "node scripts/release-config.cjs",
+    "seed": "node prisma/seeds/index.cjs",
+    "test:integration": "node scripts/run-integration.cjs",
+    "test:migrations": "node scripts/run-integration.cjs --migrations",
+    "test:restore": "node scripts/run-integration.cjs --restore",
+    "test": "node scripts/legacy-retirement.cjs --clean && prisma generate && prisma validate && tsc --outDir .test-build && node --test tests/regression.test.cjs tests/auth-session.test.cjs tests/test-runner.test.cjs tests/auth-email.test.cjs tests/dependency-security.test.cjs",
     "tsc": "tsc --watch"
   },
   "keywords": [],
@@ -14,24 +27,22 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@prisma/adapter-pg": "^7.9.1",
-    "@prisma/client": "^7.9.1",
+    "@prisma/adapter-pg": "7.9.1",
+    "@prisma/client": "7.9.1",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
     "express-validator": "^7.3.2",
     "google-auth-library": "^11.0.2",
     "helmet": "^8.3.0",
-    "import": "^0.0.6",
-    "jar": "^0.3.4",
+    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
-    "morgan": "^1.11.0",
-    "node-qpdf2": "^6.0.0",
+    "morgan": "^1.12.1",
+    "nodemailer": "^10.1.0",
     "pg": "^8.23.0",
-    "puppeteer": "^25.12.0",
-    "qrcode": "^1.5.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -42,11 +53,23 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
     "@types/node": "^26.1.2",
+    "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.21.0",
-    "@types/qrcode": "^1.5.6",
-    "nodemon": "^3.1.14",
-    "prisma": "^7.9.1",
-    "ts-node-dev": "^2.0.0",
+    "prisma": "7.9.1",
     "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "overrides": {
+    "proxy-addr": "2.0.8",
+    "qs": "6.16.0",
+    "fast-uri": "3.1.8",
+    "@prisma/config": {
+      "deepmerge-ts": "8.0.2"
+    },
+    "prisma": {
+      "mysql2": "^3.24.0"
+    }
   }
 }

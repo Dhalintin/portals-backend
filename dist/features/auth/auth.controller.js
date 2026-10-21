@@ -1,121 +1,205 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.authController = void 0;
-const response_1 = require("../../common/http/response");
-const AppError_1 = require("../../common/errors/AppError");
+exports.AuthController = void 0;
+const http_1 = require("../../lib/http");
 const auth_service_1 = require("./auth.service");
-exports.authController = {
-    async login(req, res, next) {
+class AuthController {
+    register = async (req, res, next) => {
         try {
-            const body = req.body;
-            const result = await auth_service_1.authService.login(body);
-            (0, response_1.sendSuccess)(res, result);
+            const data = await auth_service_1.authService.registerSchoolAdmin(req.body);
+            return (0, http_1.sendSuccess)(res, data, 201);
         }
-        catch (err) {
-            next(err);
+        catch (e) {
+            return next(e);
         }
-    },
-    async register(req, res, next) {
+    };
+    login = async (req, res, next) => {
         try {
-            const body = req.body;
-            const result = await auth_service_1.authService.register(body);
-            (0, response_1.sendSuccess)(res, result, 201);
+            const data = await auth_service_1.authService.login(req.body, {
+                requestId: req.requestId,
+            });
+            return (0, http_1.sendSuccess)(res, data);
         }
-        catch (err) {
-            next(err);
+        catch (e) {
+            return next(e);
         }
-    },
-    async googleAuth(req, res, next) {
+    };
+    refresh = async (req, res, next) => {
         try {
-            const result = await auth_service_1.authService.googleAuth(req.body);
-            (0, response_1.sendSuccess)(res, result);
+            const data = await auth_service_1.authService.refresh(req.body.refreshToken);
+            return (0, http_1.sendSuccess)(res, data);
         }
-        catch (err) {
-            next(err);
+        catch (e) {
+            return next(e);
         }
-    },
-    async createOrganization(req, res, next) {
+    };
+    me = async (req, res, next) => {
         try {
-            if (!req.user)
-                throw new AppError_1.UnauthorizedError();
-            const result = await auth_service_1.authService.createOrganization(req.user.sub, req.body);
-            (0, response_1.sendSuccess)(res, result, 201);
+            const data = await auth_service_1.authService.me(req.auth.userId, req.auth.schoolId);
+            return (0, http_1.sendSuccess)(res, data);
         }
-        catch (err) {
-            next(err);
+        catch (e) {
+            return next(e);
         }
-    },
-    async switchOrganization(req, res, next) {
+    };
+    logout = async (req, res, next) => {
         try {
-            if (!req.user)
-                throw new AppError_1.UnauthorizedError();
-            const result = await auth_service_1.authService.switchOrganization(req.user.sub, req.body);
-            (0, response_1.sendSuccess)(res, result);
+            return (0, http_1.sendSuccess)(res, await auth_service_1.authService.logout(req.auth.userId, req.auth.sessionId));
         }
-        catch (err) {
-            next(err);
+        catch (error) {
+            return next(error);
         }
-    },
-    async me(req, res, next) {
+    };
+    logoutAll = async (req, res, next) => {
         try {
-            if (!req.user)
-                throw new AppError_1.UnauthorizedError();
-            const tokenCtx = {
-                sub: req.user.sub,
-                email: req.user.email ?? "",
-                role: req.user.role,
-                schoolId: req.user.schoolId ?? null,
-                membershipId: req.user.membershipId ?? null,
-                globalRole: req.user.globalRole,
-            };
-            const user = await auth_service_1.authService.me(req.user.sub, tokenCtx);
-            (0, response_1.sendSuccess)(res, { user });
+            return (0, http_1.sendSuccess)(res, await auth_service_1.authService.logoutAll(req.auth.userId));
         }
-        catch (err) {
-            next(err);
+        catch (error) {
+            return next(error);
         }
-    },
-    async logout(req, res, next) {
+    };
+    forgotPassword = async (req, res, next) => {
         try {
-            if (!req.user)
-                throw new AppError_1.UnauthorizedError();
-            const result = await auth_service_1.authService.logout(req.user.sub);
-            (0, response_1.sendSuccess)(res, result);
+            const data = await auth_service_1.authService.forgotPassword(req.body.email);
+            return (0, http_1.sendSuccess)(res, data);
         }
-        catch (err) {
-            next(err);
+        catch (e) {
+            return next(e);
         }
-    },
-    async forgotPassword(req, res, next) {
+    };
+    resetPassword = async (req, res, next) => {
         try {
-            const body = req.body;
-            const result = await auth_service_1.authService.forgotPassword(body);
-            (0, response_1.sendSuccess)(res, result);
+            const data = await auth_service_1.authService.resetPassword(req.body.token, req.body.password);
+            return (0, http_1.sendSuccess)(res, data);
         }
-        catch (err) {
-            next(err);
+        catch (e) {
+            return next(e);
         }
-    },
-    async resetPassword(req, res, next) {
-        try {
-            const body = req.body;
-            const result = await auth_service_1.authService.resetPassword(body);
-            (0, response_1.sendSuccess)(res, result);
-        }
-        catch (err) {
-            next(err);
-        }
-    },
-    async changePassword(req, res, next) {
-        try {
-            if (!req.user)
-                throw new AppError_1.UnauthorizedError();
-            const body = req.body;
-            const result = await auth_service_1.authService.changePassword(req.user.sub, body);
-            (0, response_1.sendSuccess)(res, result);
-        }
-        catch (err) {
-            next(err);
-        }
-    },
-};
+    };
+}
+exports.AuthController = AuthController;
+// // src/features/auth/auth.controller.ts
+// import type { Request, Response, NextFunction } from "express";
+// import { sendSuccess } from "../../common/http/response";
+// import { UnauthorizedError } from "../../common/errors/AppError";
+// import { authService } from "./auth.service";
+// import type {
+//   ChangePasswordBody,
+//   CreateOrganizationBody,
+//   ForgotPasswordBody,
+//   GoogleAuthBody,
+//   LoginBody,
+//   RegisterBody,
+//   ResetPasswordBody,
+//   SwitchOrganizationBody,
+// } from "./auth.dto";
+// import type { AppRole, AuthTokenPayload } from "./auth.types";
+// export const authController = {
+//   async login(req: Request, res: Response, next: NextFunction) {
+//     try {
+//       const body = req.body as LoginBody;
+//       const result = await authService.login(body);
+//       sendSuccess(res, result);
+//     } catch (err) {
+//       next(err);
+//     }
+//   },
+//   async register(req: Request, res: Response, next: NextFunction) {
+//     try {
+//       const body = req.body as RegisterBody;
+//       const result = await authService.register(body);
+//       sendSuccess(res, result, 201);
+//     } catch (err) {
+//       next(err);
+//     }
+//   },
+//   async googleAuth(req: Request, res: Response, next: NextFunction) {
+//     try {
+//       const result = await authService.googleAuth(req.body as GoogleAuthBody);
+//       sendSuccess(res, result);
+//     } catch (err) {
+//       next(err);
+//     }
+//   },
+//   async createOrganization(req: Request, res: Response, next: NextFunction) {
+//     try {
+//       if (!req.user) throw new UnauthorizedError();
+//       const result = await authService.createOrganization(
+//         req.user.sub,
+//         req.body as CreateOrganizationBody
+//       );
+//       sendSuccess(res, result, 201);
+//     } catch (err) {
+//       next(err);
+//     }
+//   },
+//   async switchOrganization(req: Request, res: Response, next: NextFunction) {
+//     try {
+//       if (!req.user) throw new UnauthorizedError();
+//       const result = await authService.switchOrganization(
+//         req.user.sub,
+//         req.body as SwitchOrganizationBody
+//       );
+//       sendSuccess(res, result);
+//     } catch (err) {
+//       next(err);
+//     }
+//   },
+//   async me(req: Request, res: Response, next: NextFunction) {
+//     try {
+//       if (!req.user) throw new UnauthorizedError();
+//       const tokenCtx: AuthTokenPayload = {
+//         sub: req.user.sub,
+//         email: req.user.email ?? "",
+//         role: req.user.role as AppRole,
+//         schoolId: req.user.schoolId ?? null,
+//         membershipId:
+//           (req.user as { membershipId?: string | null }).membershipId ?? null,
+//         globalRole: (
+//           req.user as { globalRole?: AuthTokenPayload["globalRole"] }
+//         ).globalRole,
+//       };
+//       const user = await authService.me(req.user.sub, tokenCtx);
+//       sendSuccess(res, { user });
+//     } catch (err) {
+//       next(err);
+//     }
+//   },
+//   async logout(req: Request, res: Response, next: NextFunction) {
+//     try {
+//       if (!req.user) throw new UnauthorizedError();
+//       const result = await authService.logout(req.user.sub);
+//       sendSuccess(res, result);
+//     } catch (err) {
+//       next(err);
+//     }
+//   },
+//   async forgotPassword(req: Request, res: Response, next: NextFunction) {
+//     try {
+//       const body = req.body as ForgotPasswordBody;
+//       const result = await authService.forgotPassword(body);
+//       sendSuccess(res, result);
+//     } catch (err) {
+//       next(err);
+//     }
+//   },
+//   async resetPassword(req: Request, res: Response, next: NextFunction) {
+//     try {
+//       const body = req.body as ResetPasswordBody;
+//       const result = await authService.resetPassword(body);
+//       sendSuccess(res, result);
+//     } catch (err) {
+//       next(err);
+//     }
+//   },
+//   async changePassword(req: Request, res: Response, next: NextFunction) {
+//     try {
+//       if (!req.user) throw new UnauthorizedError();
+//       const body = req.body as ChangePasswordBody;
+//       const result = await authService.changePassword(req.user.sub, body);
+//       sendSuccess(res, result);
+//     } catch (err) {
+//       next(err);
+//     }
+//   },
+// };

@@ -1,9 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 import { sendSuccess, sendCreated } from "../../common/http/response";
 import { UnauthorizedError } from "../../common/errors/AppError";
+import { invitationsService } from "../auth/invitations.service";
 import { teacherService } from "./teacher.service";
 import type {
-  InviteTeacherBody,
   ListTeachersQuery,
   SetAssignmentsBody,
   SetClassSubjectTeacherBody,
@@ -14,9 +14,10 @@ import type {
 export const teacherController = {
   async list(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.user) throw new UnauthorizedError();
+
+      if (!req.auth) throw new UnauthorizedError();
       const result = await teacherService.list(
-        req.user.schoolId ?? null,
+        req.auth.schoolId ?? null,
         req.query as unknown as ListTeachersQuery
       );
       sendSuccess(res, { items: result.items, meta: result.meta });
@@ -27,9 +28,9 @@ export const teacherController = {
 
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.user) throw new UnauthorizedError();
+      if (!req.auth) throw new UnauthorizedError();
       const teacher = await teacherService.getById(
-        req.user.schoolId ?? null,
+        req.auth.schoolId ?? null,
         req.params.id as string
       );
       sendSuccess(res, { teacher });
@@ -40,12 +41,14 @@ export const teacherController = {
 
   async invite(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.user) throw new UnauthorizedError();
-      const teacher = await teacherService.invite(
-        req.user.schoolId ?? null,
-        req.body as InviteTeacherBody
+      if (!req.auth) throw new UnauthorizedError();
+      const invitation = await invitationsService.create(
+        req.auth.schoolId!,
+        req.auth.userId,
+        { ...req.body, phone: req.body.phone ?? undefined },
+        req.requestId
       );
-      sendCreated(res, { teacher });
+      sendCreated(res, { invitation });
     } catch (err) {
       next(err);
     }
@@ -53,9 +56,9 @@ export const teacherController = {
 
   async update(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.user) throw new UnauthorizedError();
+      if (!req.auth) throw new UnauthorizedError();
       const teacher = await teacherService.update(
-        req.user.schoolId ?? null,
+        req.auth.schoolId ?? null,
         req.params.id as string,
         req.body as UpdateTeacherBody
       );
@@ -67,9 +70,9 @@ export const teacherController = {
 
   async remove(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.user) throw new UnauthorizedError();
+      if (!req.auth) throw new UnauthorizedError();
       const teacher = await teacherService.remove(
-        req.user.schoolId ?? null,
+        req.auth.schoolId ?? null,
         req.params.id as string
       );
       sendSuccess(res, { teacher });
@@ -80,9 +83,9 @@ export const teacherController = {
 
   async setAssignments(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.user) throw new UnauthorizedError();
+      if (!req.auth) throw new UnauthorizedError();
       const teacher = await teacherService.setAssignments(
-        req.user.schoolId ?? null,
+        req.auth.schoolId ?? null,
         req.params.id as string,
         req.body as SetAssignmentsBody
       );
@@ -94,10 +97,10 @@ export const teacherController = {
 
   async myAssignments(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.user) throw new UnauthorizedError();
+      if (!req.auth) throw new UnauthorizedError();
       const teacher = await teacherService.getMyAssignments(
-        req.user.schoolId ?? null,
-        req.user.sub
+        req.auth.schoolId ?? null,
+        req.auth.userId
       );
       sendSuccess(res, { teacher });
     } catch (err) {
@@ -107,9 +110,9 @@ export const teacherController = {
 
   async setClassTeacher(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.user) throw new UnauthorizedError();
+      if (!req.auth) throw new UnauthorizedError();
       const result = await teacherService.setClassTeacher(
-        req.user.schoolId ?? null,
+        req.auth.schoolId ?? null,
         req.params.classId as string,
         req.body as SetClassTeacherBody
       );
@@ -125,9 +128,9 @@ export const teacherController = {
     next: NextFunction
   ) {
     try {
-      if (!req.user) throw new UnauthorizedError();
+      if (!req.auth) throw new UnauthorizedError();
       const result = await teacherService.setClassSubjectTeacher(
-        req.user.schoolId ?? null,
+        req.auth.schoolId ?? null,
         req.params.classId as string,
         req.body as SetClassSubjectTeacherBody
       );
@@ -143,9 +146,9 @@ export const teacherController = {
     next: NextFunction
   ) {
     try {
-      if (!req.user) throw new UnauthorizedError();
+      if (!req.auth) throw new UnauthorizedError();
       const result = await teacherService.listClassSubjectTeachers(
-        req.user.schoolId ?? null,
+        req.auth.schoolId ?? null,
         req.params.classId as string
       );
       sendSuccess(res, result);
@@ -154,3 +157,5 @@ export const teacherController = {
     }
   },
 };
+
+

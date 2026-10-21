@@ -1,7 +1,10 @@
 // src/features/teachers/teacher.service.ts
-import { GlobalRole, OrgRole, type Prisma } from "@prisma/client";
+import { OrgRole, type Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
-import { hashPassword } from "../../lib/password";
+import { schoolTransaction } from "../../lib/schoolTransaction";
+import { requireTeachingMember, requireCurriculum } from "../../lib/staffing";
+import { classesService } from "../classes/classes.service";
+
 import {
   BadRequestError,
   ConflictError,
@@ -9,7 +12,6 @@ import {
   NotFoundError,
 } from "../../common/errors/AppError";
 import type {
-  InviteTeacherBody,
   ListTeachersQuery,
   SetAssignmentsBody,
   SetClassSubjectTeacherBody,
@@ -177,192 +179,28 @@ export const teacherService = {
     return toTeacherPublic(organizationId, userId);
   },
 
-  /**
-   * Invite / add staff:
-   * - Existing user → add membership (or reactivate)
-   * - New user → create User + membership
-   */
-  async invite(schoolId: string | null | undefined, input: InviteTeacherBody) {
-    const organizationId = requireSchoolId(schoolId);
-    const role = (input.role as OrgRole) ?? OrgRole.TEACHER;
-
-    if (input.phone) {
-      const phoneOwner = await prisma.user.findUnique({
-        where: { phone: input.phone },
-      });
-      // allow same user; block if different user has phone
-      // checked after we know user identity
-    }
-
-    let user = await prisma.user.findUnique({ where: { email: input.email } });
-
-    if (user) {
-      if (input.phone && user.phone && user.phone !== input.phone) {
-        const taken = await prisma.user.findFirst({
-          where: { phone: input.phone, NOT: { id: user.id } },
-        });
-        if (taken) throw new ConflictError("Phone already in use");
-      }
-
-      const existingMembership = await prisma.membership.findUnique({
-        where: {
-          userId_organizationId: {
-            userId: user.id,
-            organizationId,
-          },
-        },
-      });
-
-      if (existingMembership) {
-        if (
-          existingMembership.isActive &&
-          STAFF_ROLES.includes(existingMembership.role)
-        ) {
-          throw new ConflictError("This user is already a staff member here");
-        }
-        // Reactivate / set staff role
-        await prisma.membership.update({
-          where: { id: existingMembership.id },
-          data: { isActive: true, role },
-        });
-      } else {
-        // Already SCHOOL_ADMIN membership?
-        if (existingMembership === null) {
-          await prisma.membership.create({
-            data: {
-              userId: user.id,
-              organizationId,
-              role,
-              isActive: true,
-            },
-          });
-        }
-      }
-
-      // If they were only admin, unique constraint means one membership per org —
-      // so we UPDATE role only if we're OK changing SCHOOL_ADMIN → TEACHER (usually not).
-      // Re-fetch membership
-      const mem = await prisma.membership.findUnique({
-        where: {
-          userId_organizationId: { userId: user.id, organizationId },
-        },
-      });
-      if (!mem) throw new BadRequestError("Could not attach membership");
-
-      if (mem.role === OrgRole.SCHOOL_ADMIN) {
-        throw new ConflictError(
-          "This user is already a school admin in this organization"
-        );
-      }
-
-      if (!STAFF_ROLES.includes(mem.role)) {
-        await prisma.membership.update({
-          where: { id: mem.id },
-          data: { role, isActive: true },
-        });
-      }
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          firstName: input.firstName,
-          lastName: input.lastName,
-          ...(input.phone !== undefined ? { phone: input.phone } : {}),
-        },
-      });
-    } else {
-      if (input.phone) {
-        const taken = await prisma.user.findUnique({
-          where: { phone: input.phone },
-        });
-        if (taken) throw new ConflictError("Phone already in use");
-      }
-
-      const passwordHash = input.temporaryPassword
-        ? await hashPassword(input.temporaryPassword)
-        : null;
-
-      user = await prisma.user.create({
-        data: {
-          email: input.email,
-          firstName: input.firstName,
-          lastName: input.lastName,
-          phone: input.phone,
-          passwordHash,
-          globalRole: GlobalRole.USER,
-          isActive: true,
-          memberships: {
-            create: {
-              organizationId,
-              role,
-              isActive: true,
-            },
-          },
-        },
-      });
-    }
-
-    return toTeacherPublic(organizationId, user.id);
-  },
-
   async update(
     schoolId: string | null | undefined,
     userId: string,
     input: UpdateTeacherBody
   ) {
     const organizationId = requireSchoolId(schoolId);
-    const membership = await loadTeacherInOrg(organizationId, userId);
-
-    if (input.phone !== undefined && input.phone) {
-      const taken = await prisma.user.findFirst({
-        where: { phone: input.phone, NOT: { id: userId } },
-      });
-      if (taken) throw new ConflictError("Phone already in use");
-    }
-
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: userId },
-        data: {
-          ...(input.firstName !== undefined
-            ? { firstName: input.firstName }
-            : {}),
-          ...(input.lastName !== undefined ? { lastName: input.lastName } : {}),
-          ...(input.phone !== undefined ? { phone: input.phone } : {}),
-        },
-      }),
-      prisma.membership.update({
-        where: { id: membership.id },
-        data: {
-          ...(input.role !== undefined ? { role: input.role as OrgRole } : {}),
-          ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
-        },
-      }),
-    ]);
-
+    await schoolTransaction(organizationId, async tx => {
+      const membership = await tx.membership.findFirst({ where: { organizationId, userId, role: { in: STAFF_ROLES } } });
+      if (!membership) throw new NotFoundError("Teacher not found in this school");
+      await tx.membership.update({ where: { id: membership.id }, data: input });
+      if (input.isActive === false) {
+        await tx.class.updateMany({ where: { organizationId, classTeacherId: userId }, data: { classTeacherId: null } });
+        await tx.classSubjectTeacher.deleteMany({ where: { organizationId, userId } });
+      }
+    });
     return toTeacherPublic(organizationId, userId);
   },
 
   /** Soft-remove from school staff */
   async remove(schoolId: string | null | undefined, userId: string) {
     const organizationId = requireSchoolId(schoolId);
-    const membership = await loadTeacherInOrg(organizationId, userId);
-
-    await prisma.$transaction([
-      prisma.membership.update({
-        where: { id: membership.id },
-        data: { isActive: false },
-      }),
-      prisma.class.updateMany({
-        where: { organizationId, classTeacherId: userId },
-        data: { classTeacherId: null },
-      }),
-      prisma.classSubjectTeacher.deleteMany({
-        where: { organizationId, userId },
-      }),
-    ]);
-
-    return toTeacherPublic(organizationId, userId);
+    return this.update(organizationId, userId, { isActive: false });
   },
 
   /** Replace subject-teacher rows for this teacher */
@@ -372,38 +210,19 @@ export const teacherService = {
     input: SetAssignmentsBody
   ) {
     const organizationId = requireSchoolId(schoolId);
-    await loadTeacherInOrg(organizationId, userId);
-
-    for (const a of input.assignments) {
-      const cls = await prisma.class.findFirst({
-        where: { id: a.classId, organizationId },
-      });
-      if (!cls) throw new BadRequestError(`Invalid class: ${a.classId}`);
-
-      const sub = await prisma.subject.findFirst({
-        where: { id: a.subjectId, organizationId, isActive: true },
-      });
-      if (!sub) throw new BadRequestError(`Invalid subject: ${a.subjectId}`);
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await tx.classSubjectTeacher.deleteMany({
-        where: { organizationId, userId },
-      });
-
-      if (input.assignments.length) {
-        await tx.classSubjectTeacher.createMany({
-          data: input.assignments.map((a: any) => ({
-            organizationId,
-            userId,
-            classId: a.classId,
-            subjectId: a.subjectId,
-          })),
-          skipDuplicates: true,
-        });
+    await schoolTransaction(organizationId, async tx => {
+      const member = await requireTeachingMember(tx, organizationId, userId);
+      if (!STAFF_ROLES.includes(member.role)) throw new NotFoundError("Teacher not found in this school");
+      for (const assignment of input.assignments) {
+        await requireCurriculum(tx, organizationId, assignment.classId, assignment.subjectId);
+        const current = await tx.classSubjectTeacher.findUnique({ where: { classId_subjectId: assignment } });
+        if (current && current.userId !== userId) {
+          throw new ConflictError("A requested class subject already has another teacher; use the class assignment endpoint to replace them");
+        }
       }
+      await tx.classSubjectTeacher.deleteMany({ where: { organizationId, userId } });
+      if (input.assignments.length) await tx.classSubjectTeacher.createMany({ data: input.assignments.map(a => ({ ...a, organizationId, userId })) });
     });
-
     return toTeacherPublic(organizationId, userId);
   },
 
@@ -421,43 +240,9 @@ export const teacherService = {
   ) {
     const organizationId = requireSchoolId(schoolId);
 
-    const cls = await prisma.class.findFirst({
-      where: { id: classId, organizationId },
-    });
-    if (!cls) throw new NotFoundError("Class not found");
-
-    if (input.teacherId) {
-      await loadTeacherInOrg(organizationId, input.teacherId);
-    }
-
-    const updated = await prisma.class.update({
-      where: { id: classId },
-      data: { classTeacherId: input.teacherId },
-      include: {
-        classTeacher: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-      },
-    });
-
-    return {
-      classId: updated.id,
-      classTeacher: updated.classTeacher
-        ? {
-            id: updated.classTeacher.id,
-            firstName: updated.classTeacher.firstName,
-            lastName: updated.classTeacher.lastName,
-            email: updated.classTeacher.email,
-          }
-        : null,
-    };
+    const updated = await classesService.assignClassTeacher(organizationId, classId, { classTeacherId: input.teacherId });
+    return { classId: updated.id, classTeacher: updated.classTeacher };
   },
-
   /** One subject teacher for one class */
   async setClassSubjectTeacher(
     schoolId: string | null | undefined,
@@ -466,61 +251,13 @@ export const teacherService = {
   ) {
     const organizationId = requireSchoolId(schoolId);
 
-    const cls = await prisma.class.findFirst({
-      where: { id: classId, organizationId },
-    });
-    if (!cls) throw new NotFoundError("Class not found");
-
-    const subject = await prisma.subject.findFirst({
-      where: { id: input.subjectId, organizationId },
-    });
-    if (!subject) throw new BadRequestError("Subject not found");
-
-    const offered = await prisma.classSubject.findFirst({
-      where: { classId, subjectId: input.subjectId, organizationId },
-    });
-    if (!offered) {
-      throw new BadRequestError(
-        "This subject is not on the class curriculum. Add it to the class first."
-      );
-    }
-
     if (input.teacherId === null) {
-      await prisma.classSubjectTeacher.deleteMany({
-        where: { classId, subjectId: input.subjectId },
-      });
-      return {
-        classId,
-        subjectId: input.subjectId,
-        teacherId: null,
-      };
+      await classesService.clearSubjectTeacher(organizationId, classId, input.subjectId);
+    } else {
+      await classesService.assignSubjectTeacher(organizationId, classId, input.subjectId, { userId: input.teacherId });
     }
-
-    await loadTeacherInOrg(organizationId, input.teacherId);
-
-    const row = await prisma.classSubjectTeacher.upsert({
-      where: {
-        classId_subjectId: {
-          classId,
-          subjectId: input.subjectId,
-        },
-      },
-      create: {
-        organizationId,
-        classId,
-        subjectId: input.subjectId,
-        userId: input.teacherId,
-      },
-      update: { userId: input.teacherId },
-    });
-
-    return {
-      classId,
-      subjectId: row.subjectId,
-      teacherId: row.userId,
-    };
+    return { classId, subjectId: input.subjectId, teacherId: input.teacherId };
   },
-
   async listClassSubjectTeachers(
     schoolId: string | null | undefined,
     classId: string
@@ -533,7 +270,7 @@ export const teacherService = {
     if (!cls) throw new NotFoundError("Class not found");
 
     const subjects = await prisma.subject.findMany({
-      where: { organizationId, isActive: true },
+      where: { organizationId, isActive: true, classSubjects: { some: { organizationId, classId } } },
       orderBy: { name: "asc" },
     });
 

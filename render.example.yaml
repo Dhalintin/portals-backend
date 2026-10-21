@@ -1,0 +1,22 @@
+# Review/import manually. Creating these services incurs Render compute charges.
+# First create an environment group named schoolos-staging with the values in
+# RENDER_ENV.example. Select a region close to your Supabase project in Render.
+services:
+  - type: web
+    name: schoolos-api-staging
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --include=dev && npm run build
+    preDeployCommand: npx prisma migrate deploy
+    startCommand: npm start
+    healthCheckPath: /api/v1/health/ready
+    envVars:
+      - fromGroup: schoolos-staging
+  - type: worker
+    name: schoolos-email-staging
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run email:worker:all
+    envVars:
+      - fromGroup: schoolos-staging

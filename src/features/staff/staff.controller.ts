@@ -1,106 +1,18 @@
-import { Request, Response, NextFunction } from "express";
+import type { Request, Response, NextFunction } from "express";
+import { sendSuccess } from "../../lib/http";
+import { getSchoolId } from "../../middlewares/requireSchool";
 import { staffService } from "./staff.service";
-import { sendSuccess } from "../../common/http/response";
-import type { BulkScoresBody } from "./staff.dto";
-import { OrgRole } from "@prisma/client";
-
-function staffActor(req: Request) {
-  const user = req.user as {
-    sub: string;
-    orgRole?: string;
-    schoolId?: string;
-  };
-  const organizationId = (req as any).schoolId ?? user.schoolId;
-  if (!user?.sub || !organizationId) {
-    throw new Error("Missing staff school context");
-  }
-  return {
-    userId: user.sub,
-    organizationId,
-    orgRole: (user.orgRole ?? OrgRole.TEACHER) as OrgRole,
-  };
-}
-
+import { membershipsService } from "../memberships/memberships.service";
 export class StaffController {
-  dashboard = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const data = await staffService.getMyDashboard(staffActor(req));
-      return sendSuccess(res, data);
-    } catch (e) {
-      next(e);
-    }
+  list = async (req: Request, res: Response, next: NextFunction) => {
+    try { return sendSuccess(res, await staffService.list(getSchoolId(req))); }
+    catch (error) { next(error); }
   };
-
-  assignments = async (req: Request, res: Response, next: NextFunction) => {
+  invite = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await staffService.listMyAssignments(staffActor(req));
-      return sendSuccess(res, data);
-    } catch (e) {
-      next(e);
-    }
-  };
-
-  classDetail = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const data = await staffService.getClassDetail(
-        staffActor(req),
-        req.params.classId as string
-      );
-      return sendSuccess(res, data);
-    } catch (e) {
-      next(e);
-    }
-  };
-
-  classRoster = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const data = await staffService.getClassRoster(
-        staffActor(req),
-        req.params.classId as string
-      );
-      return sendSuccess(res, data);
-    } catch (e) {
-      next(e);
-    }
-  };
-
-  entrySheet = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const data = await staffService.getEntrySheet(staffActor(req), {
-        termId: String(req.query.termId),
-        classId: String(req.query.classId),
-        subjectId: String(req.query.subjectId),
-      });
-      return sendSuccess(res, data);
-    } catch (e) {
-      next(e);
-    }
-  };
-
-  bulkScores = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const data = await staffService.bulkUpsertScores(
-        staffActor(req),
-        req.body as BulkScoresBody
-      );
-      return sendSuccess(res, data);
-    } catch (e) {
-      next(e);
-    }
-  };
-
-  progress = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const data = await staffService.getAssignmentProgress(staffActor(req), {
-        termId: String(req.query.termId),
-        classId: String(req.query.classId),
-        subjectId: String(req.query.subjectId),
-      });
-      return sendSuccess(res, data);
-    } catch (e) {
-      next(e);
-    }
+      const invitation = await membershipsService.create(getSchoolId(req),
+        { userId: req.auth!.userId, orgRole: req.auth!.orgRole }, req.body, req.requestId);
+      return sendSuccess(res, invitation, 201);
+    } catch (error) { next(error); }
   };
 }
-
-export const staffController = new StaffController();

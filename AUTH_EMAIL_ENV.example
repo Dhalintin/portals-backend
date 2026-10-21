@@ -1,0 +1,18 @@
+# Copy the selected settings into your environment; do not commit credentials.
+# Supported delivery modes: disabled, smtp, resend. One provider is selected.
+EMAIL_PROVIDER=disabled
+WEB_URL=https://your-school-portal.example
+EMAIL_FROM=no-reply@your-school-portal.example
+# Generate 32 random bytes, encoded as base64, and store the result securely.
+AUTH_EMAIL_KEY=
+
+# SMTP: select EMAIL_PROVIDER=smtp
+SMTP_HOST=smtp.your-provider.example
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASSWORD=
+# Port 587 uses required STARTTLS; use port 465 with SMTP_SECURE=true for TLS.
+
+# Resend: select EMAIL_PROVIDER=resend
+RESEND_API_KEY=

@@ -28,15 +28,10 @@ export const inviteTeacherBodySchema = z.object({
     .nullable()
     .transform((v) => (v === "" || v === undefined ? null : v)),
   role: orgStaffRole.optional().default("TEACHER"),
-  /** If omitted, user is created without password (invite/Google/reset later) */
-  temporaryPassword: z.string().min(8).max(128).optional(),
-});
+}).strict();
 
 export const updateTeacherBodySchema = z
   .object({
-    firstName: z.string().min(1).max(100).trim().optional(),
-    lastName: z.string().min(1).max(100).trim().optional(),
-    phone: z.string().min(7).max(20).trim().nullable().optional(),
     role: orgStaffRole.optional(),
     isActive: z.boolean().optional(), // membership isActive
   })
@@ -53,7 +48,8 @@ export const setAssignmentsBodySchema = z.object({
       classId: z.string().uuid(),
       subjectId: z.string().uuid(),
     })
-  ),
+  ).max(500).refine(rows => new Set(rows.map(row => `${row.classId}:${row.subjectId}`)).size === rows.length,
+    "Duplicate class/subject assignments are not allowed"),
 });
 
 export const setClassTeacherBodySchema = z.object({

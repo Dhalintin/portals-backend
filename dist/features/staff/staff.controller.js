@@ -1,93 +1,27 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.staffController = exports.StaffController = void 0;
+exports.StaffController = void 0;
+const http_1 = require("../../lib/http");
+const requireSchool_1 = require("../../middlewares/requireSchool");
 const staff_service_1 = require("./staff.service");
-const response_1 = require("../../common/http/response");
-const client_1 = require("@prisma/client");
-function staffActor(req) {
-    const user = req.user;
-    const organizationId = req.schoolId ?? user.schoolId;
-    if (!user?.sub || !organizationId) {
-        throw new Error("Missing staff school context");
-    }
-    return {
-        userId: user.sub,
-        organizationId,
-        orgRole: (user.orgRole ?? client_1.OrgRole.TEACHER),
-    };
-}
+const memberships_service_1 = require("../memberships/memberships.service");
 class StaffController {
-    dashboard = async (req, res, next) => {
+    list = async (req, res, next) => {
         try {
-            const data = await staff_service_1.staffService.getMyDashboard(staffActor(req));
-            return (0, response_1.sendSuccess)(res, data);
+            return (0, http_1.sendSuccess)(res, await staff_service_1.staffService.list((0, requireSchool_1.getSchoolId)(req)));
         }
-        catch (e) {
-            next(e);
+        catch (error) {
+            next(error);
         }
     };
-    assignments = async (req, res, next) => {
+    invite = async (req, res, next) => {
         try {
-            const data = await staff_service_1.staffService.listMyAssignments(staffActor(req));
-            return (0, response_1.sendSuccess)(res, data);
+            const invitation = await memberships_service_1.membershipsService.create((0, requireSchool_1.getSchoolId)(req), { userId: req.auth.userId, orgRole: req.auth.orgRole }, req.body, req.requestId);
+            return (0, http_1.sendSuccess)(res, invitation, 201);
         }
-        catch (e) {
-            next(e);
-        }
-    };
-    classDetail = async (req, res, next) => {
-        try {
-            const data = await staff_service_1.staffService.getClassDetail(staffActor(req), req.params.classId);
-            return (0, response_1.sendSuccess)(res, data);
-        }
-        catch (e) {
-            next(e);
-        }
-    };
-    classRoster = async (req, res, next) => {
-        try {
-            const data = await staff_service_1.staffService.getClassRoster(staffActor(req), req.params.classId);
-            return (0, response_1.sendSuccess)(res, data);
-        }
-        catch (e) {
-            next(e);
-        }
-    };
-    entrySheet = async (req, res, next) => {
-        try {
-            const data = await staff_service_1.staffService.getEntrySheet(staffActor(req), {
-                termId: String(req.query.termId),
-                classId: String(req.query.classId),
-                subjectId: String(req.query.subjectId),
-            });
-            return (0, response_1.sendSuccess)(res, data);
-        }
-        catch (e) {
-            next(e);
-        }
-    };
-    bulkScores = async (req, res, next) => {
-        try {
-            const data = await staff_service_1.staffService.bulkUpsertScores(staffActor(req), req.body);
-            return (0, response_1.sendSuccess)(res, data);
-        }
-        catch (e) {
-            next(e);
-        }
-    };
-    progress = async (req, res, next) => {
-        try {
-            const data = await staff_service_1.staffService.getAssignmentProgress(staffActor(req), {
-                termId: String(req.query.termId),
-                classId: String(req.query.classId),
-                subjectId: String(req.query.subjectId),
-            });
-            return (0, response_1.sendSuccess)(res, data);
-        }
-        catch (e) {
-            next(e);
+        catch (error) {
+            next(error);
         }
     };
 }
 exports.StaffController = StaffController;
-exports.staffController = new StaffController();

@@ -28,14 +28,9 @@ exports.inviteTeacherBodySchema = zod_1.z.object({
         .nullable()
         .transform((v) => (v === "" || v === undefined ? null : v)),
     role: orgStaffRole.optional().default("TEACHER"),
-    /** If omitted, user is created without password (invite/Google/reset later) */
-    temporaryPassword: zod_1.z.string().min(8).max(128).optional(),
-});
+}).strict();
 exports.updateTeacherBodySchema = zod_1.z
     .object({
-    firstName: zod_1.z.string().min(1).max(100).trim().optional(),
-    lastName: zod_1.z.string().min(1).max(100).trim().optional(),
-    phone: zod_1.z.string().min(7).max(20).trim().nullable().optional(),
     role: orgStaffRole.optional(),
     isActive: zod_1.z.boolean().optional(), // membership isActive
 })
@@ -48,7 +43,7 @@ exports.setAssignmentsBodySchema = zod_1.z.object({
     assignments: zod_1.z.array(zod_1.z.object({
         classId: zod_1.z.string().uuid(),
         subjectId: zod_1.z.string().uuid(),
-    })),
+    })).max(500).refine(rows => new Set(rows.map(row => `${row.classId}:${row.subjectId}`)).size === rows.length, "Duplicate class/subject assignments are not allowed"),
 });
 exports.setClassTeacherBodySchema = zod_1.z.object({
     teacherId: zod_1.z.string().uuid().nullable(), // userId or null to clear
