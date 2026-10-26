@@ -29,8 +29,9 @@ class AuthService {
         if (existing) {
             throw new errors_1.AppError(409, "EMAIL_IN_USE", "An account with this email already exists");
         }
+        const schoolSlug = input.schoolSlug ?? ((input.schoolName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "school") + "-" + (0, token_1.randomToken)(6));
         const slugTaken = await prisma_1.prisma.organization.findUnique({
-            where: { slug: input.schoolSlug },
+            where: { slug: schoolSlug },
             select: { id: true },
         });
         if (slugTaken) {
@@ -51,7 +52,7 @@ class AuthService {
             const org = await tx.organization.create({
                 data: {
                     name: input.schoolName,
-                    slug: input.schoolSlug,
+                    slug: schoolSlug,
                     createdById: user.id,
                     site: { create: {} },
                     subscription: {
@@ -86,23 +87,25 @@ class AuthService {
         if (!valid) {
             throw new errors_1.AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
         }
-        // Platform staff: apex login (no schoolSlug)
+        // Verify credentials before disclosing any school memberships.
         if (!input.schoolSlug) {
-            if (user.globalRole !== "SUPER_ADMIN" &&
-                user.globalRole !== "PLATFORM_ADMIN") {
-                throw new errors_1.AppError(403, "SCHOOL_LOGIN_REQUIRED", "Sign in from your school workspace");
+            if (user.globalRole === "SUPER_ADMIN" || user.globalRole === "PLATFORM_ADMIN") {
+                await prisma_1.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+                await audit_service_1.auditService.write({ action: "LOGIN", actorId: user.id, metadata: { surface: "platform" }, requestId: meta?.requestId });
+                return this.issueTokens(user, null);
             }
-            await prisma_1.prisma.user.update({
-                where: { id: user.id },
-                data: { lastLoginAt: new Date() },
+            const memberships = await prisma_1.prisma.membership.findMany({
+                where: { userId: user.id, isActive: true, organization: { isActive: true } },
+                include: { organization: { select: { id: true, name: true, slug: true, logoUrl: true } } },
+                orderBy: { organization: { name: "asc" } },
             });
-            await audit_service_1.auditService.write({
-                action: "LOGIN",
-                actorId: user.id,
-                metadata: { surface: "platform" },
-                requestId: meta?.requestId,
-            });
-            return this.issueTokens(user, null);
+            if (!memberships.length)
+                throw new errors_1.AppError(403, "NO_ACTIVE_SCHOOL", "Your account has no active school access. Ask your school to invite you.");
+            if (memberships.length > 1)
+                throw new errors_1.AppError(409, "SCHOOL_SELECTION_REQUIRED", "Choose your school to continue.", {
+                    schools: memberships.map(member => ({ ...member.organization, role: member.role })),
+                });
+            input = { ...input, schoolSlug: memberships[0].organization.slug };
         }
         const org = await prisma_1.prisma.organization.findFirst({
             where: { slug: input.schoolSlug, isActive: true },

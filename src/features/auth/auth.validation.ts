@@ -87,7 +87,7 @@ export const registerSchoolAdminSchema = z.object({
       /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
 
       "Slug must be lowercase letters, numbers, hyphens"
-    ),
+    ).optional(),
 });
 
 export const refreshSchema = z.object({

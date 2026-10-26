@@ -55,7 +55,7 @@ exports.registerSchoolAdminSchema = zod_1.z.object({
         .trim()
         .min(2, "Must be at least 2 characters long.")
         .max(60, "Must not exceed 60 characters.")
-        .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase letters, numbers, hyphens"),
+        .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase letters, numbers, hyphens").optional(),
 });
 exports.refreshSchema = zod_1.z.object({
     refreshToken: zod_1.z.string().min(20, "Must be at least 20 characters long."),

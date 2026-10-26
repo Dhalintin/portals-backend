@@ -34,7 +34,7 @@ Run cold-offline tests on a production frontend build over HTTPS (or localhost f
 
 - New passwords: at least 8 characters, at least one letter and one number, at most 128 characters and 72 UTF-8 bytes. ASCII passwords are limited to 72 characters by the byte limit. Symbols and both letter cases are allowed but are not required by the current backend.
 - Login uses the existing password; it does not impose new-password complexity rules.
-- Registration workspace name: 2–60 characters; lowercase letters/numbers, with single hyphens between groups. No spaces, underscores, leading hyphens or trailing hyphens.
+- Users do not enter school workspace names. New schools receive an internal identifier automatically. Email/password opens one active school automatically; accounts in multiple schools choose a school by name.
 - Current score-entry screen: CA1 0–20, CA2 0–20, Exam 0–60. Blank is not the same as zero.
 - Manual fee amounts: positive whole naira. Do not use decimals or negative values.
 - Offline support is for prepared attendance work. Fees, invitations, result submission/publication and settings need a connection. A saved score draft is not a server submission.
@@ -46,17 +46,17 @@ Run cold-offline tests on a production frontend build over HTTPS (or localhost f
 - Open `/register` while signed out.
 - Enter first name, last name, email, optional phone, password and matching confirmation.
 - Continue to school details.
-- Enter the school name and review the generated workspace name.
+- Enter the school name. No workspace name or URL identifier is required.
 - Submit registration.
 - **Expect:** one school and owner account are created; the owner enters the school dashboard/setup flow.
-- Sign out; sign in using the new workspace and credentials.
+- Sign out; sign in using only the new email and password.
 - **Expect:** the same school opens; registration did not create a duplicate.
 
 ### AUTH-02 — Reject invalid registration
 
 - Repeat registration with each of: empty required field, invalid email, mismatched passwords, seven-character password, letters-only password, numbers-only password, and password over the byte limit.
-- Try a one-character school name and an invalid workspace name.
-- Try an email/workspace already registered.
+- Try a one-character school name.
+- Try an email already registered. A school name shared by another school must not force users to invent a URL identifier.
 - **Expect:** the invalid request fails with an understandable message; no partial or duplicate school is created.
 - Correct the invalid field and retry.
 - **Expect:** valid input can be submitted without restarting the form.
@@ -64,7 +64,7 @@ Run cold-offline tests on a production frontend build over HTTPS (or localhost f
 ### AUTH-03 — Login
 
 - Open `/login`.
-- Enter the school workspace name, email and existing password.
+- Enter the email and existing password.
 - Click **Sign in**.
 - **Expect:** school staff enter their permitted dashboard; a parent enters the parent workspace.
 - Reload the page.
@@ -72,7 +72,7 @@ Run cold-offline tests on a production frontend build over HTTPS (or localhost f
 
 ### AUTH-04 — Reject incorrect login
 
-- Try a wrong password, unknown email, wrong workspace and blank fields separately.
+- Try a wrong password, unknown email and blank fields separately.
 - Try an account that has no active membership in the requested school.
 - **Expect:** sign-in fails; no school data or dashboard access is granted.
 - Enter correct credentials afterward.
@@ -82,9 +82,9 @@ Run cold-offline tests on a production frontend build over HTTPS (or localhost f
 
 - Sign in to School A with an account that also belongs to School B.
 - Confirm School A's name and records.
-- Sign out; sign in explicitly to School B.
+- Sign out; sign in with email/password and choose School B by its displayed name.
 - **Expect:** School B's role, name and records replace School A's context.
-- Do not assume the MVP includes an in-app school switcher or multiple roles in one school.
+- Expect school choices only after valid credentials. No active school means contact-school guidance; inactive schools/memberships must not appear. The MVP does not assume an in-app switcher or multiple roles in one school.
 
 ### AUTH-06 — Sign out
 
@@ -159,7 +159,7 @@ Run cold-offline tests on a production frontend build over HTTPS (or localhost f
 - Select **I'm creating a new account**.
 - Choose a valid password; click **Accept invitation**.
 - **Expect:** acceptance is confirmed and **Go to sign in** is available.
-- Sign in using the invited email and school workspace.
+- Sign in using the invited email and password.
 - **Expect:** the invited role is active; only that role's features appear.
 
 ### STAFF-05 — Accept with an existing account
@@ -220,22 +220,24 @@ Run cold-offline tests on a production frontend build over HTTPS (or localhost f
 - Submit invalid email, required blank values or oversized text.
 - **Expect:** validation fails without losing unrelated valid input or showing false success.
 
-### SETUP-03 — Branding
+### SETUP-03 — Default palette and school identity
 
-- Update the supported logo/colour fields in Settings.
-- Save and reload the dashboard and public school page.
-- **Expect:** supported branding persists; text and controls remain readable.
-- Try malformed colour/URL values through the API if the input control prevents entry.
-- **Expect:** invalid values are rejected according to the backend schema.
-- Logo upload is not assumed; use the input type actually provided.
+- Open Settings → Branding.
+- Expect the default navy/gold palette and no colour pickers. Update the supported school logo field; save and reload.
+- **Expect:** logo changes persist; the portal colours remain navy `#0A1628` and gold `#C9A227`.
+- Switch the device appearance between light and dark; reopen login, dashboard, forms and parent workspace.
+- **Expect:** the same portal colours, readable inputs and unchanged layouts in both settings.
+- Test a school with previously saved custom colours.
+- **Expect:** its legacy colours do not override the default palette.
 
-### SETUP-04 — Workspace name
+### SETUP-04 — Automatic school selection
 
-- Change the school's workspace name through its supported settings control.
-- **Expect:** the new value persists and resolves to the correct school; sign-in works with the current name.
-- Try a duplicate or invalid value.
-- **Expect:** it is rejected without changing another school's name.
-- Record whether the old URL redirects or becomes unavailable; do not require an unimplemented alias.
+- Sign in with an account belonging to one active school.
+- **Expect:** the correct school opens without a school-name or slug field.
+- Sign in with an account belonging to two schools; select each by name in separate runs.
+- **Expect:** the chosen school's role, records and logo/name are used. No session is issued before choosing.
+- Try a wrong password for the same account.
+- **Expect:** no school list is disclosed.
 
 ### SETUP-05 — Academic and account settings
 

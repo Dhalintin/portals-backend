@@ -10,6 +10,8 @@ const http_1 = require("http");
 const index_middleware_1 = __importDefault(require("./middlewares/index.middleware"));
 const notFound_1 = require("./common/middleware/notFound");
 const errorHandler_1 = require("./common/middleware/errorHandler");
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
 const app = (0, express_1.default)();
 exports.app = app;
 const httpServer = (0, http_1.createServer)(app);

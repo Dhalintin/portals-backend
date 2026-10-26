@@ -11,7 +11,9 @@ export const PORT = env.PORT;
     await startServer(httpServer, PORT, readiness.checkDatabase);
     console.log(`Listening on port ${PORT}`);
   } catch {
-    console.error("Server startup failed; check database connectivity and listen configuration");
+    console.error(
+      "Server startup failed; check database connectivity and listen configuration"
+    );
     await prisma.$disconnect().finally(() => process.exit(1));
   }
 })();
@@ -23,8 +25,16 @@ function shutdown() {
   const deadline = setTimeout(() => process.exit(1), 10_000);
   deadline.unref();
   httpServer.close(() => {
-    void prisma.$disconnect().then(() => { clearTimeout(deadline); process.exit(0); })
-      .catch((error) => { console.error("Shutdown failed", error); process.exit(1); });
+    void prisma
+      .$disconnect()
+      .then(() => {
+        clearTimeout(deadline);
+        process.exit(0);
+      })
+      .catch((error) => {
+        console.error("Shutdown failed", error);
+        process.exit(1);
+      });
   });
 }
 process.once("SIGTERM", shutdown);

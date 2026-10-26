@@ -1438,3 +1438,22 @@ check('startup propagates asynchronous listen failures and never listens when da
   await assert.rejects(startServer(unavailable, 0, async () => { throw new Error('Database unavailable'); }), /Database unavailable/);
   assert.equal(unavailable.listening, false);
 });
+
+
+check('email/password login auto-selects one school and reveals multiple choices only after valid credentials', async()=>{
+ const limits=require('../.test-build/middlewares/rateLimit');await limits.authLimiter.resetKey('127.0.0.1');await limits.apiLimiter.resetKey('127.0.0.1');
+ const email='simple-'+crypto.randomUUID()+'@example.test',password='SimpleLogin123!';
+ const created=await request('POST','/auth/register',undefined,{email,password,firstName:'Simple',lastName:'Owner',schoolName:'Simple School'});
+ assert.equal(created.status,201);const userId=created.body.data.user.id,school=created.body.data.school;
+ assert.match(school.slug,/^simple-school-[0-9a-f]+$/);
+ let login=await request('POST','/auth/login',undefined,{email,password});assert.equal(login.status,200);assert.equal(login.body.data.school.id,school.id);
+ await prisma.membership.create({data:{organizationId:b.id,userId,role:'TEACHER'}});
+ const before=await prisma.authSession.count({where:{userId}});
+ const wrong=await request('POST','/auth/login',undefined,{email,password:'WrongPassword123'});assert.equal(wrong.status,401);assert.equal(wrong.body.error.details,undefined);
+ login=await request('POST','/auth/login',undefined,{email,password});assert.equal(login.status,409);assert.equal(login.body.error.code,'SCHOOL_SELECTION_REQUIRED');assert.equal(login.body.error.details.schools.length,2);assert.equal(login.body.data,undefined);assert.equal(await prisma.authSession.count({where:{userId}}),before);
+ const chosen=await request('POST','/auth/login',undefined,{email,password,schoolSlug:b.slug});assert.equal(chosen.status,200);assert.equal(chosen.body.data.school.id,b.id);assert.equal(chosen.body.data.orgRole,'TEACHER');
+ await prisma.membership.updateMany({where:{userId,organizationId:b.id},data:{isActive:false}});
+ login=await request('POST','/auth/login',undefined,{email,password});assert.equal(login.status,200);assert.equal(login.body.data.school.id,school.id);
+ await prisma.organization.update({where:{id:school.id},data:{isActive:false}});
+ login=await request('POST','/auth/login',undefined,{email,password});assert.equal(login.status,403);assert.equal(login.body.error.code,'NO_ACTIVE_SCHOOL');
+});

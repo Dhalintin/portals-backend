@@ -4,6 +4,9 @@ import { createServer } from "http";
 import indexMiddleware from "./middlewares/index.middleware";
 import { notFound } from "./common/middleware/notFound";
 import { errorHandler } from "./common/middleware/errorHandler";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app: Application = express();
 const httpServer = createServer(app);

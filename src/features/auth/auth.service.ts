@@ -35,8 +35,9 @@ export class AuthService {
       );
     }
 
+    const schoolSlug = input.schoolSlug ?? ((input.schoolName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "school") + "-" + randomToken(6));
     const slugTaken = await prisma.organization.findUnique({
-      where: { slug: input.schoolSlug },
+      where: { slug: schoolSlug },
       select: { id: true },
     });
     if (slugTaken) {
@@ -64,7 +65,7 @@ export class AuthService {
       const org = await tx.organization.create({
         data: {
           name: input.schoolName,
-          slug: input.schoolSlug,
+          slug: schoolSlug,
           createdById: user.id,
           site: { create: {} },
           subscription: {
@@ -113,32 +114,23 @@ export class AuthService {
       );
     }
 
-    // Platform staff: apex login (no schoolSlug)
+    // Verify credentials before disclosing any school memberships.
     if (!input.schoolSlug) {
-      if (
-        user.globalRole !== "SUPER_ADMIN" &&
-        user.globalRole !== "PLATFORM_ADMIN"
-      ) {
-        throw new AppError(
-          403,
-          "SCHOOL_LOGIN_REQUIRED",
-          "Sign in from your school workspace"
-        );
+      if (user.globalRole === "SUPER_ADMIN" || user.globalRole === "PLATFORM_ADMIN") {
+        await prisma.user.update({where:{id:user.id},data:{lastLoginAt:new Date()}});
+        await auditService.write({action:"LOGIN",actorId:user.id,metadata:{surface:"platform"},requestId:meta?.requestId});
+        return this.issueTokens(user, null);
       }
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { lastLoginAt: new Date() },
+      const memberships = await prisma.membership.findMany({
+        where:{userId:user.id,isActive:true,organization:{isActive:true}},
+        include:{organization:{select:{id:true,name:true,slug:true,logoUrl:true}}},
+        orderBy:{organization:{name:"asc"}},
       });
-
-      await auditService.write({
-        action: "LOGIN",
-        actorId: user.id,
-        metadata: { surface: "platform" },
-        requestId: meta?.requestId,
+      if (!memberships.length) throw new AppError(403,"NO_ACTIVE_SCHOOL","Your account has no active school access. Ask your school to invite you.");
+      if (memberships.length > 1) throw new AppError(409,"SCHOOL_SELECTION_REQUIRED","Choose your school to continue.",{
+        schools:memberships.map(member=>({...member.organization,role:member.role})),
       });
-
-      return this.issueTokens(user, null);
+      input = {...input,schoolSlug:memberships[0].organization.slug};
     }
 
     const org = await prisma.organization.findFirst({

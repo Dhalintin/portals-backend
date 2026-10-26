@@ -25,8 +25,16 @@ function shutdown() {
     const deadline = setTimeout(() => process.exit(1), 10_000);
     deadline.unref();
     app_1.httpServer.close(() => {
-        void prisma_1.prisma.$disconnect().then(() => { clearTimeout(deadline); process.exit(0); })
-            .catch((error) => { console.error("Shutdown failed", error); process.exit(1); });
+        void prisma_1.prisma
+            .$disconnect()
+            .then(() => {
+            clearTimeout(deadline);
+            process.exit(0);
+        })
+            .catch((error) => {
+            console.error("Shutdown failed", error);
+            process.exit(1);
+        });
     });
 }
 process.once("SIGTERM", shutdown);
