@@ -68,8 +68,7 @@ async function enqueueResultPublications(tx, organizationId, results) {
     const names = new Map(terms.map(term => [term.id, term.name]));
     await enqueueStudentEvents(tx, organizationId, results.map(result => ({ organizationId, studentId: result.studentId,
         type: "RESULT_PUBLISHED", entityType: "Result", entityId: result.id, revision: (0, node_crypto_1.randomUUID)(), title: "Results published",
-        summary: `Results for ${names.get(result.termId) ?? "the term"} are now available.`, details: { publishedAt: result.publishedAt?.toISOString() ?? null },
-    })));
+        summary: `Results for ${names.get(result.termId) ?? "the term"} are now available.`, details: { publishedAt: result.publishedAt?.toISOString() ?? null }, })));
 }
 async function enqueueReceipt(tx, organizationId, receipt, studentId) {
     await enqueueStudentEvents(tx, organizationId, [{ organizationId, studentId, type: "RECEIPT", entityType: "Receipt", entityId: receipt.id,

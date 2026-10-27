@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.feesService = exports.FeesService = void 0;
+const bankAccount_1 = require("../schools/bankAccount");
 const prisma_1 = require("../../lib/prisma");
 const errors_1 = require("../../lib/errors");
 const audit_service_1 = require("../audit/audit.service");
@@ -120,7 +121,7 @@ class FeesService {
         return structure;
     }
     async listStructures(organizationId) {
-        return prisma_1.prisma.feeStructure.findMany({
+        const structures = await prisma_1.prisma.feeStructure.findMany({
             where: { organizationId },
             include: {
                 items: { include: { feeCategory: true } },
@@ -129,12 +130,36 @@ class FeesService {
             },
             orderBy: { createdAt: "desc" },
         });
+        const [students, batches] = await Promise.all([
+            prisma_1.prisma.student.groupBy({ by: ['classId'], where: { organizationId, isActive: true }, _count: { _all: true } }),
+            prisma_1.prisma.invoiceBatch.findMany({ where: { organizationId, idempotencyKey: { in: structures.map(s => 'fee-plan-' + s.id) } },
+                select: { id: true, idempotencyKey: true } }),
+        ]);
+        const billed = batches.length ? await prisma_1.prisma.invoice.groupBy({ by: ['batchId'],
+            where: { organizationId, batchId: { in: batches.map(b => b.id) }, status: { notIn: ['CANCELLED', 'DRAFT'] } },
+            _count: { _all: true }, _sum: { totalNgn: true, paidNgn: true } }) : [];
+        const assigned = await prisma_1.prisma.invoice.groupBy({ by: ['feeStructureId'], where: { organizationId, feeStructureId: { in: structures.filter(s => s.autoBill).map(s => s.id) }, status: { notIn: ['CANCELLED', 'DRAFT'] } }, _count: { _all: true }, _sum: { totalNgn: true, paidNgn: true } });
+        return structures.map(structure => {
+            if (structure.autoBill) {
+                const actual = assigned.find(i => i.feeStructureId === structure.id);
+                return { ...structure, recipientCount: actual?._count._all ?? 0, isBilled: true, expectedIncomeNgn: actual?._sum.totalNgn ?? 0, receivedNgn: actual?._sum.paidNgn ?? 0 };
+            }
+            const batch = batches.find(b => b.idempotencyKey === 'fee-plan-' + structure.id);
+            const totals = billed.find(i => i.batchId === batch?.id);
+            const recipientCount = batch ? totals?._count._all ?? 0 : students.filter(s => !structure.classId || s.classId === structure.classId).reduce((sum, s) => sum + s._count._all, 0);
+            const amount = structure.items.reduce((sum, item) => sum + item.amountNgn, 0);
+            return { ...structure, recipientCount, isBilled: !!batch,
+                expectedIncomeNgn: batch ? totals?._sum.totalNgn ?? 0 : recipientCount * amount,
+                receivedNgn: totals?._sum.paidNgn ?? 0 };
+        });
     }
     async updateStructure(organizationId, id, input, actorId, requestId) {
         return (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
             const existing = await tx.feeStructure.findFirst({ where: { id, organizationId } });
             if (!existing)
                 throw new errors_1.AppError(404, "NOT_FOUND", "Fee structure not found");
+            if (existing.autoBill)
+                throw new errors_1.AppError(409, "USE_FEE_ASSIGNMENT", "Edit this fee through the class fee schedule so student bills stay consistent.");
             if (input.items) {
                 const total = input.items.reduce((sum, item) => sum + item.amountNgn, 0);
                 if (!Number.isSafeInteger(total) || total <= 0 || total > 2147483647) {
@@ -190,6 +215,7 @@ class FeesService {
             feeStructureId: input.feeStructureId,
             studentIds: input.studentIds ? [...new Set(input.studentIds)].sort() : null,
             dueDate: input.dueDate ? new Date(input.dueDate).toISOString() : null,
+            ...(input.classIds ? { classIds: [...new Set(input.classIds)].sort() } : {}),
         })).digest("hex");
         return (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
             const previous = await tx.invoiceBatch.findUnique({
@@ -210,8 +236,18 @@ class FeesService {
                 throw new errors_1.AppError(404, "NOT_FOUND", "Fee structure not found");
             if (!structure.isActive)
                 throw new errors_1.AppError(400, "INACTIVE_STRUCTURE", "Fee structure is inactive");
+            if (structure.autoBill)
+                throw new errors_1.AppError(409, "ALREADY_ASSIGNED", "This schedule already creates student bills automatically. Edit the fee schedule instead.");
+            if (input.classIds) {
+                const classIds = [...new Set(input.classIds)];
+                const count = await tx.class.count({ where: { organizationId, isActive: true, id: { in: classIds } } });
+                if (count !== classIds.length || (structure.classId && classIds.some(id => id !== structure.classId))) {
+                    throw new errors_1.AppError(400, "INVALID_CLASSES", "Select active classes from this school that match the fee plan");
+                }
+            }
             const students = await tx.student.findMany({
                 where: { organizationId, isActive: true, ...(structure.classId ? { classId: structure.classId } : {}),
+                    ...(input.classIds ? { classId: { in: [...new Set(input.classIds)] } } : {}),
                     ...(input.studentIds ? { id: { in: [...new Set(input.studentIds)] } } : {}) }, select: { id: true },
                 orderBy: { id: "asc" },
             });
@@ -253,10 +289,32 @@ class FeesService {
             where.status = query.status;
         if (query.outstandingOnly)
             where.outstandingNgn = { gt: 0 };
+        if (query.paymentState && query.paymentState !== 'all') {
+            where.status = { notIn: ['CANCELLED', 'DRAFT'] };
+            if (query.paymentState === 'paid')
+                where.outstandingNgn = 0;
+            else {
+                where.outstandingNgn = { gt: 0 };
+                if (query.paymentState === 'unpaid')
+                    where.paidNgn = 0;
+                if (query.paymentState === 'partial')
+                    where.paidNgn = { gt: 0 };
+            }
+        }
+        if (query.search) {
+            const contains = { contains: query.search, mode: 'insensitive' };
+            where.OR = [
+                { invoiceNumber: contains },
+                { student: { firstName: contains } },
+                { student: { lastName: contains } },
+                { student: { admissionNumber: contains } },
+            ];
+        }
         return prisma_1.prisma.invoice.findMany({
             where,
             take: query.limit ?? 50,
-            orderBy: { issuedAt: "desc" },
+            skip: query.offset ?? 0,
+            orderBy: [{ issuedAt: "desc" }, { id: "desc" }],
             include: {
                 student: {
                     select: {
@@ -536,10 +594,19 @@ class FeesService {
             },
             orderBy: { issuedAt: "desc" },
         });
-        return { invoices };
+        return { invoices, bankAccount: await (0, bankAccount_1.bankTransferInstructions)(organizationId) };
     }
     // ─── Bursar summary ────────────────────────────────────────────
     async bursarSummary(organizationId, opts) {
+        if (opts?.termId) {
+            const where = { organizationId, termId: opts.termId, status: { notIn: ['CANCELLED', 'DRAFT'] } };
+            const [totals, invoiceCount] = await Promise.all([
+                prisma_1.prisma.invoice.aggregate({ where, _sum: { totalNgn: true, paidNgn: true, outstandingNgn: true } }),
+                prisma_1.prisma.invoice.count({ where: { ...where, outstandingNgn: { gt: 0 } } }),
+            ]);
+            return { collectedNgn: totals._sum.paidNgn ?? 0, outstandingNgn: totals._sum.outstandingNgn ?? 0,
+                billedNgn: totals._sum.totalNgn ?? 0, invoicesWithBalance: invoiceCount };
+        }
         const paymentWhere = {
             organizationId,
             status: "SUCCESSFUL",

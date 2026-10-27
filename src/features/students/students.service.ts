@@ -1,3 +1,4 @@
+import {syncStudentAssignedFees} from '../fees/feeAssignments';
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
@@ -74,6 +75,7 @@ export class StudentsService {
             });
           }
 
+          await syncStudentAssignedFees(tx,organizationId,created.id);
           return created;
         });
       } catch (error) {
@@ -520,7 +522,7 @@ export class StudentsService {
     }
 
     try {
-      const student = await prisma.student.update({
+      const student = await schoolTransaction(organizationId,async tx=>{const updated=await tx.student.update({
         where: { id: studentId },
         data: {
           admissionNumber: input.admissionNumber,
@@ -540,6 +542,7 @@ export class StudentsService {
         include: studentInclude,
       });
 
+      await syncStudentAssignedFees(tx,organizationId,studentId);return updated;});
       await auditService.write({
         action: "STUDENT_UPDATED",
         actorId,
@@ -551,7 +554,8 @@ export class StudentsService {
       });
 
       return student;
-    } catch {
+    } catch (error) {
+      if(error instanceof AppError)throw error;
       throw new AppError(
         409,
         "ADMISSION_EXISTS",
@@ -592,8 +596,8 @@ export class StudentsService {
     await this.assertSessionInOrg(organizationId, input.sessionId);
 
     try {
-      const [enrollment] = await prisma.$transaction([
-        prisma.studentEnrollment.upsert({
+      const enrollment = await schoolTransaction(organizationId, async tx=>{const row=await tx.studentEnrollment.upsert(
+{
           where: {
             studentId_sessionId: {
               studentId,
@@ -611,15 +615,16 @@ export class StudentsService {
             class: { select: { id: true, name: true, arm: true } },
             session: { select: { id: true, name: true } },
           },
-        }),
-        prisma.student.update({
+        });
+        await tx.student.update({
           where: { id: studentId },
           data: { classId: input.classId },
-        }),
-      ]);
+        });
+        await syncStudentAssignedFees(tx,organizationId,studentId);return row;});
 
       return enrollment;
-    } catch {
+    } catch (error) {
+      if(error instanceof AppError)throw error;
       throw new AppError(400, "ENROLL_FAILED", "Could not enroll student");
     }
   }

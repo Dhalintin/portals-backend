@@ -249,9 +249,11 @@ export class FeesController {
       const from =
         typeof req.query.from === "string" ? req.query.from : undefined;
       const to = typeof req.query.to === "string" ? req.query.to : undefined;
+      const termId = listInvoicesQuerySchema.pick({ termId: true }).parse(req.query).termId;
       const data = await feesService.bursarSummary(req.auth!.schoolId!, {
         from,
         to,
+        termId,
       });
       sendSuccess(res, data);
     } catch (err) {

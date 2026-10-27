@@ -1,3 +1,6 @@
+import { z } from 'zod';
+import { sendSuccess } from '../../lib/http';
+import { attendanceOverview,resultProgress } from './monitoring.service';
 import { Router } from "express";
 import { authenticate } from "../../middlewares/authenticate";
 import { requireSchool } from "../../middlewares/requireSchool";
@@ -8,6 +11,9 @@ import { requireStaff } from "../../middlewares/requireStaff";
 const dashboardRoutes = Router();
 
 dashboardRoutes.use(authenticate, requireSchool, requireStaff);
+
+dashboardRoutes.get('/attendance-overview',requirePermission('attendance:read'),async(req,res,next)=>{try{const period=z.enum(['day','week','term']).default('day').parse(req.query.period);sendSuccess(res,await attendanceOverview(req.auth!,period));}catch(error){next(error);}});
+dashboardRoutes.get('/result-progress',requirePermission('results:read'),async(req,res,next)=>{try{const termId=z.string().uuid().parse(req.query.termId);sendSuccess(res,await resultProgress(req.auth!,termId));}catch(error){next(error);}});
 
 // Main home dashboard
 dashboardRoutes.get(

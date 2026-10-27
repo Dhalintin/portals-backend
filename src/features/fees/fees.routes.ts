@@ -1,3 +1,6 @@
+import {studentBalances} from './studentBalances';
+import {saveFeeAssignment} from './feeAssignments';
+import {sendSuccess} from '../../lib/http';
 import { Router } from "express";
 import { authenticate } from "../../middlewares/authenticate";
 import { requireSchool } from "../../middlewares/requireSchool";
@@ -11,6 +14,8 @@ feesRoutes.use(authenticate, requireSchool);
 feesRoutes.get("/parent/me", requirePermission("fees:read"), feesController.parentFees);
 feesRoutes.use(requireStaff);
 
+feesRoutes.post('/assignments',requirePermission('fees:write'),async(req,res,next)=>{try{sendSuccess(res,await saveFeeAssignment(req.auth!.schoolId!,req.auth!.userId,req.body));}catch(e){next(e);}});
+feesRoutes.get('/student-balances',requirePermission('fees:read'),async(req,res,next)=>{try{sendSuccess(res,await studentBalances(req.auth!.schoolId!,req.query));}catch(error){next(error);}});
 // Categories
 feesRoutes.post(
   "/categories",

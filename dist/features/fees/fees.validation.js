@@ -66,6 +66,7 @@ exports.correctInvoiceSchema = zod_1.z.object({
     dueDate: zod_1.z.string().datetime().nullable().optional(),
 }).strict().refine(input => input.items !== undefined || input.dueDate !== undefined, "Provide items or dueDate");
 exports.generateInvoicesSchema = zod_1.z.object({
+    classIds: zod_1.z.array(zod_1.z.string().uuid("Please provide a valid class ID.")).min(1).max(200).optional(),
     idempotencyKey: zod_1.z.string().trim().min(16).max(100).regex(/^[A-Za-z0-9_-]+$/),
     feeStructureId: zod_1.z.string().uuid("Please provide a valid ID."),
     studentIds: zod_1.z.array(zod_1.z.string().uuid("Please provide a valid ID.")).min(1).optional(), // omitted selects active students; an empty array is rejected
@@ -76,6 +77,9 @@ exports.generateInvoicesSchema = zod_1.z.object({
         .nullable(),
 });
 exports.listInvoicesQuerySchema = zod_1.z.object({
+    search: zod_1.z.string().trim().max(100).optional(),
+    paymentState: zod_1.z.enum(['owing', 'unpaid', 'partial', 'paid', 'all']).optional(),
+    offset: zod_1.z.coerce.number().int().min(0).default(0),
     studentId: zod_1.z.string().uuid("Please provide a valid ID.").optional(),
     termId: zod_1.z.string().uuid("Please provide a valid ID.").optional(),
     status: zod_1.z

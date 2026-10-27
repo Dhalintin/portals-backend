@@ -15,7 +15,8 @@ class DashboardService {
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0);
         const todayStr = today.toISOString().slice(0, 10);
-        const [studentCount, activeTeachers, attendanceToday, feeSummary, absentToday, incompleteResults, pendingPayments,] = await Promise.all([
+        const currentTerm = await prisma_1.prisma.term.findFirst({ where: { isCurrent: true, session: { organizationId } }, select: { id: true } });
+        const [studentCount, activeTeachers, attendanceToday, feeSummary, absentToday, incompleteResults, pendingPayments, staffCount, parentCount, classCount,] = await Promise.all([
             // 1. Students
             prisma_1.prisma.student.count({
                 where: { organizationId, isActive: true },
@@ -30,7 +31,7 @@ class DashboardService {
                 to: todayStr,
             }),
             // 4. Fees collected / outstanding
-            fees_service_1.feesService.bursarSummary(organizationId),
+            currentTerm ? fees_service_1.feesService.bursarSummary(organizationId, { termId: currentTerm.id }) : Promise.resolve({ collectedNgn: 0, outstandingNgn: 0, invoicesWithBalance: 0, billedNgn: 0 }),
             // 5. Who is absent today
             attendance_service_1.attendanceService.absentToday(organizationId, todayStr),
             // 6. Result sheets still in DRAFT or SUBMITTED for current term
@@ -39,16 +40,21 @@ class DashboardService {
             prisma_1.prisma.payment.count({
                 where: { organizationId, status: "PENDING", source: "PAYSTACK" },
             }),
+            prisma_1.prisma.membership.count({ where: { organizationId, isActive: true, role: { not: "PARENT" } } }),
+            prisma_1.prisma.parent.count({ where: { organizationId, isActive: true } }),
+            prisma_1.prisma.class.count({ where: { organizationId, isActive: true } }),
         ]);
         return {
             students: studentCount,
             teachers: activeTeachers,
+            staff: staffCount, parents: parentCount, classes: classCount, currentTermId: currentTerm?.id ?? null,
             attendance: {
                 percentage: attendanceToday.percentage,
                 present: attendanceToday.present,
                 total: attendanceToday.total,
             },
             finance: {
+                billedNgn: feeSummary.billedNgn,
                 collectedNgn: feeSummary.collectedNgn,
                 outstandingNgn: feeSummary.outstandingNgn,
                 invoicesWithBalance: feeSummary.invoicesWithBalance,

@@ -1,3 +1,6 @@
+import rateLimit from 'express-rate-limit';
+import {readBankAccount,requestBankChange,confirmBankChange} from './bankAccount';
+import {sendSuccess} from '../../lib/http';
 import { Router } from "express";
 // import { authenticate } from "../../middleware/authenticate";
 // import { requireSchool } from "../../middleware/requireSchool";
@@ -20,6 +23,10 @@ const schoolsRoutes = Router();
 
 schoolsRoutes.use(authenticate, requireSchool);
 
+const bankLimit=rateLimit({windowMs:3600000,limit:20,keyGenerator:req=>req.auth!.userId,standardHeaders:true,legacyHeaders:false});
+schoolsRoutes.get('/bank-account',async(req,res,next)=>{try{sendSuccess(res,await readBankAccount(req.auth!));}catch(e){next(e);}});
+schoolsRoutes.post('/bank-account/request',bankLimit,async(req,res,next)=>{try{sendSuccess(res,await requestBankChange(req.auth!,req.body));}catch(e){next(e);}});
+schoolsRoutes.post('/bank-account/confirm',bankLimit,async(req,res,next)=>{try{sendSuccess(res,await confirmBankChange(req.auth!,req.body));}catch(e){next(e);}});
 schoolsRoutes.get("/", c.get);
 schoolsRoutes.get("/onboarding", requirePermission(PERMISSIONS["settings:write"]), c.onboarding);
 

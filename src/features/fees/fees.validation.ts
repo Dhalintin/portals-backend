@@ -95,6 +95,7 @@ export const correctInvoiceSchema = z.object({
 }).strict().refine(input => input.items !== undefined || input.dueDate !== undefined, "Provide items or dueDate");
 
 export const generateInvoicesSchema = z.object({
+  classIds: z.array(z.string().uuid("Please provide a valid class ID.")).min(1).max(200).optional(),
   idempotencyKey: z.string().trim().min(16).max(100).regex(/^[A-Za-z0-9_-]+$/),
   feeStructureId: z.string().uuid("Please provide a valid ID."),
 
@@ -108,6 +109,9 @@ export const generateInvoicesSchema = z.object({
 });
 
 export const listInvoicesQuerySchema = z.object({
+  search: z.string().trim().max(100).optional(),
+  paymentState: z.enum(['owing', 'unpaid', 'partial', 'paid', 'all']).optional(),
+  offset: z.coerce.number().int().min(0).default(0),
   studentId: z.string().uuid("Please provide a valid ID.").optional(),
 
   termId: z.string().uuid("Please provide a valid ID.").optional(),

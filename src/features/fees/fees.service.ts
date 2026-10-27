@@ -1,3 +1,4 @@
+import {bankTransferInstructions} from '../schools/bankAccount';
 import type { InvoiceStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
@@ -165,7 +166,7 @@ export class FeesService {
   }
 
   async listStructures(organizationId: string) {
-    return prisma.feeStructure.findMany({
+    const structures = await prisma.feeStructure.findMany({
       where: { organizationId },
       include: {
         items: { include: { feeCategory: true } },
@@ -174,6 +175,25 @@ export class FeesService {
       },
       orderBy: { createdAt: "desc" },
     });
+    const [students, batches] = await Promise.all([
+      prisma.student.groupBy({ by: ['classId'], where: { organizationId, isActive: true }, _count: { _all: true } }),
+      prisma.invoiceBatch.findMany({ where: { organizationId, idempotencyKey: { in: structures.map(s => 'fee-plan-' + s.id) } },
+        select: { id: true, idempotencyKey: true } }),
+    ]);
+    const billed = batches.length ? await prisma.invoice.groupBy({ by: ['batchId'],
+      where: { organizationId, batchId: { in: batches.map(b => b.id) }, status: { notIn: ['CANCELLED', 'DRAFT'] } },
+      _count: { _all: true }, _sum: { totalNgn: true, paidNgn: true } }) : [];
+    const assigned = await prisma.invoice.groupBy({by:['feeStructureId'],where:{organizationId,feeStructureId:{in:structures.filter(s=>s.autoBill).map(s=>s.id)},status:{notIn:['CANCELLED','DRAFT']}},_count:{_all:true},_sum:{totalNgn:true,paidNgn:true}});
+    return structures.map(structure => {
+      if(structure.autoBill){const actual=assigned.find(i=>i.feeStructureId===structure.id);return {...structure,recipientCount:actual?._count._all??0,isBilled:true,expectedIncomeNgn:actual?._sum.totalNgn??0,receivedNgn:actual?._sum.paidNgn??0};}
+      const batch = batches.find(b => b.idempotencyKey === 'fee-plan-' + structure.id);
+      const totals = billed.find(i => i.batchId === batch?.id);
+      const recipientCount = batch ? totals?._count._all ?? 0 : students.filter(s => !structure.classId || s.classId === structure.classId).reduce((sum, s) => sum + s._count._all, 0);
+      const amount = structure.items.reduce((sum, item) => sum + item.amountNgn, 0);
+      return { ...structure, recipientCount, isBilled: !!batch,
+        expectedIncomeNgn: batch ? totals?._sum.totalNgn ?? 0 : recipientCount * amount,
+        receivedNgn: totals?._sum.paidNgn ?? 0 };
+    });
   }
 
   async updateStructure(organizationId: string, id: string,
@@ -181,6 +201,7 @@ export class FeesService {
     return schoolTransaction(organizationId, async tx => {
       const existing = await tx.feeStructure.findFirst({ where: { id, organizationId } });
       if (!existing) throw new AppError(404, "NOT_FOUND", "Fee structure not found");
+      if(existing.autoBill)throw new AppError(409,"USE_FEE_ASSIGNMENT","Edit this fee through the class fee schedule so student bills stay consistent.");
       if (input.items) {
         const total = input.items.reduce((sum, item) => sum + item.amountNgn, 0);
         if (!Number.isSafeInteger(total) || total <= 0 || total > 2147483647) {
@@ -240,6 +261,7 @@ export class FeesService {
       feeStructureId: input.feeStructureId,
       studentIds: input.studentIds ? [...new Set(input.studentIds)].sort() : null,
       dueDate: input.dueDate ? new Date(input.dueDate).toISOString() : null,
+      ...(input.classIds ? { classIds: [...new Set(input.classIds)].sort() } : {}),
     })).digest("hex");
     return schoolTransaction(organizationId, async (tx) => {
       const previous = await tx.invoiceBatch.findUnique({
@@ -258,8 +280,17 @@ export class FeesService {
         include: { items: { include: { feeCategory: true } } } });
       if (!structure) throw new AppError(404, "NOT_FOUND", "Fee structure not found");
       if (!structure.isActive) throw new AppError(400, "INACTIVE_STRUCTURE", "Fee structure is inactive");
+      if(structure.autoBill)throw new AppError(409,"ALREADY_ASSIGNED","This schedule already creates student bills automatically. Edit the fee schedule instead.");
+      if (input.classIds) {
+        const classIds = [...new Set(input.classIds)];
+        const count = await tx.class.count({ where: { organizationId, isActive: true, id: { in: classIds } } });
+        if (count !== classIds.length || (structure.classId && classIds.some(id => id !== structure.classId))) {
+          throw new AppError(400, "INVALID_CLASSES", "Select active classes from this school that match the fee plan");
+        }
+      }
       const students = await tx.student.findMany({
         where: { organizationId, isActive: true, ...(structure.classId ? { classId: structure.classId } : {}),
+          ...(input.classIds ? { classId: { in: [...new Set(input.classIds)] } } : {}),
           ...(input.studentIds ? { id: { in: [...new Set(input.studentIds)] } } : {}) }, select: { id: true },
         orderBy: { id: "asc" },
       });
@@ -299,6 +330,9 @@ export class FeesService {
       status?: InvoiceStatus;
       outstandingOnly?: boolean;
       limit?: number;
+      offset?: number;
+      search?: string;
+      paymentState?: 'owing' | 'unpaid' | 'partial' | 'paid' | 'all';
     }
   ) {
     const where: Prisma.InvoiceWhereInput = { organizationId };
@@ -306,11 +340,30 @@ export class FeesService {
     if (query.termId) where.termId = query.termId;
     if (query.status) where.status = query.status;
     if (query.outstandingOnly) where.outstandingNgn = { gt: 0 };
+    if (query.paymentState && query.paymentState !== 'all') {
+      where.status = { notIn: ['CANCELLED', 'DRAFT'] };
+      if (query.paymentState === 'paid') where.outstandingNgn = 0;
+      else {
+        where.outstandingNgn = { gt: 0 };
+        if (query.paymentState === 'unpaid') where.paidNgn = 0;
+        if (query.paymentState === 'partial') where.paidNgn = { gt: 0 };
+      }
+    }
+    if (query.search) {
+      const contains = { contains: query.search, mode: 'insensitive' as const };
+      where.OR = [
+        { invoiceNumber: contains },
+        { student: { firstName: contains } },
+        { student: { lastName: contains } },
+        { student: { admissionNumber: contains } },
+      ];
+    }
 
     return prisma.invoice.findMany({
       where,
       take: query.limit ?? 50,
-      orderBy: { issuedAt: "desc" },
+      skip: query.offset ?? 0,
+      orderBy: [{ issuedAt: "desc" }, { id: "desc" }],
       include: {
         student: {
           select: {
@@ -622,14 +675,23 @@ export class FeesService {
       orderBy: { issuedAt: "desc" },
     });
 
-    return { invoices };
+    return { invoices, bankAccount: await bankTransferInstructions(organizationId) };
   }
 
   // ─── Bursar summary ────────────────────────────────────────────
   async bursarSummary(
     organizationId: string,
-    opts?: { from?: string; to?: string }
+    opts?: { from?: string; to?: string; termId?: string }
   ) {
+    if (opts?.termId) {
+      const where: Prisma.InvoiceWhereInput = { organizationId, termId: opts.termId, status: { notIn: ['CANCELLED', 'DRAFT'] } };
+      const [totals, invoiceCount] = await Promise.all([
+        prisma.invoice.aggregate({ where, _sum: { totalNgn: true, paidNgn: true, outstandingNgn: true } }),
+        prisma.invoice.count({ where: { ...where, outstandingNgn: { gt: 0 } } }),
+      ]);
+      return { collectedNgn: totals._sum.paidNgn ?? 0, outstandingNgn: totals._sum.outstandingNgn ?? 0,
+        billedNgn: totals._sum.totalNgn ?? 0, invoicesWithBalance: invoiceCount };
+    }
     const paymentWhere: Prisma.PaymentWhereInput = {
       organizationId,
       status: "SUCCESSFUL",

@@ -17,15 +17,21 @@ exports.updateSessionSchema = exports.createSessionSchema.partial();
 exports.sessionIdParamsSchema = zod_1.z.object({
     sessionId: zod_1.z.string().uuid("Please provide a valid ID."),
 });
+const calendarDate = zod_1.z.union([zod_1.z.date(), zod_1.z.string().refine(value => {
+        if (!/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value))
+            return false;
+        const day = value.slice(0, 10), date = new Date(day + 'T00:00:00.000Z');
+        return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === day && Number.isFinite(new Date(value).getTime());
+    }, 'Enter a real calendar date.').transform(value => new Date(value.slice(0, 10) + 'T00:00:00.000Z'))]);
 exports.createTermSchema = zod_1.z.object({
     name: zod_1.z.nativeEnum(client_1.TermName, { error: "Please select a valid term." }),
-    startDate: zod_1.z.coerce.date().optional().nullable(),
-    endDate: zod_1.z.coerce.date().optional().nullable(),
+    startDate: calendarDate.optional().nullable(),
+    endDate: calendarDate.optional().nullable(),
     isCurrent: zod_1.z.boolean().optional(),
 });
 exports.updateTermSchema = zod_1.z.object({
-    startDate: zod_1.z.coerce.date().optional().nullable(),
-    endDate: zod_1.z.coerce.date().optional().nullable(),
+    startDate: calendarDate.optional().nullable(),
+    endDate: calendarDate.optional().nullable(),
     isCurrent: zod_1.z.boolean().optional(),
 });
 exports.termIdParamsSchema = zod_1.z.object({

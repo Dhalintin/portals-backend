@@ -246,6 +246,8 @@ model Organization {
   studentEnrollments       StudentEnrollment[]
   attendanceRecords        AttendanceRecord[]
   feeCategories            FeeCategory[]
+  bankAccount              SchoolBankAccount?
+  bankChanges              BankAccountChange[]
   feeStructures            FeeStructure[]
   invoices                 Invoice[]
   invoiceBatches           InvoiceBatch[]
@@ -669,6 +671,9 @@ model FeeCategory {
 }
 
 model FeeStructure {
+  targetClassIds String[] @default([])
+  autoBill Boolean @default(false)
+  invoices Invoice[]
   id             String   @id @default(uuid())
   organizationId String
   name           String
@@ -703,6 +708,9 @@ model FeeStructureItem {
 }
 
 model Invoice {
+  feeStructureId String?
+  feeStructure FeeStructure? @relation(fields: [feeStructureId], references: [id], onDelete: Restrict)
+  @@unique([feeStructureId, studentId])
   id             String        @id @default(uuid())
   organizationId String
   studentId      String
@@ -997,4 +1005,27 @@ model AuthEmail {
   sentAt         DateTime?
   createdAt      DateTime @default(now())
   @@index([status, nextAttemptAt])
+}
+
+model SchoolBankAccount {
+ organizationId String @id
+ encryptedDetails String
+ version Int @default(1)
+ updatedAt DateTime @updatedAt
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+}
+model BankAccountChange {
+ id String @id @default(uuid())
+ organizationId String
+ requesterId String
+ email String
+ encryptedDetails String
+ codeHash String
+ expectedVersion Int
+ attempts Int @default(0)
+ expiresAt DateTime
+ usedAt DateTime?
+ createdAt DateTime @default(now())
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+ @@index([organizationId, createdAt])
 }

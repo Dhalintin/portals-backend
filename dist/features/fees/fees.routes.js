@@ -1,5 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const studentBalances_1 = require("./studentBalances");
+const feeAssignments_1 = require("./feeAssignments");
+const http_1 = require("../../lib/http");
 const express_1 = require("express");
 const authenticate_1 = require("../../middlewares/authenticate");
 const requireSchool_1 = require("../../middlewares/requireSchool");
@@ -10,6 +13,18 @@ const feesRoutes = (0, express_1.Router)();
 feesRoutes.use(authenticate_1.authenticate, requireSchool_1.requireSchool);
 feesRoutes.get("/parent/me", (0, requirePermission_1.requirePermission)("fees:read"), fees_controller_1.feesController.parentFees);
 feesRoutes.use(requireStaff_1.requireStaff);
+feesRoutes.post('/assignments', (0, requirePermission_1.requirePermission)('fees:write'), async (req, res, next) => { try {
+    (0, http_1.sendSuccess)(res, await (0, feeAssignments_1.saveFeeAssignment)(req.auth.schoolId, req.auth.userId, req.body));
+}
+catch (e) {
+    next(e);
+} });
+feesRoutes.get('/student-balances', (0, requirePermission_1.requirePermission)('fees:read'), async (req, res, next) => { try {
+    (0, http_1.sendSuccess)(res, await (0, studentBalances_1.studentBalances)(req.auth.schoolId, req.query));
+}
+catch (error) {
+    next(error);
+} });
 // Categories
 feesRoutes.post("/categories", (0, requirePermission_1.requirePermission)("fees:write"), fees_controller_1.feesController.createCategory);
 feesRoutes.get("/categories", (0, requirePermission_1.requirePermission)("fees:read"), fees_controller_1.feesController.listCategories);

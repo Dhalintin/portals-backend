@@ -18,16 +18,22 @@ export const sessionIdParamsSchema = z.object({
   sessionId: z.string().uuid("Please provide a valid ID."),
 });
 
+const calendarDate=z.union([z.date(),z.string().refine(value=>{
+  if(!/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value))return false;
+  const day=value.slice(0,10),date=new Date(day+'T00:00:00.000Z');
+  return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===day&&Number.isFinite(new Date(value).getTime());
+},'Enter a real calendar date.').transform(value=>new Date(value.slice(0,10)+'T00:00:00.000Z'))]);
+
 export const createTermSchema = z.object({
   name: z.nativeEnum(TermName, { error: "Please select a valid term." }),
-  startDate: z.coerce.date().optional().nullable(),
-  endDate: z.coerce.date().optional().nullable(),
+  startDate: calendarDate.optional().nullable(),
+  endDate: calendarDate.optional().nullable(),
   isCurrent: z.boolean().optional(),
 });
 
 export const updateTermSchema = z.object({
-  startDate: z.coerce.date().optional().nullable(),
-  endDate: z.coerce.date().optional().nullable(),
+  startDate: calendarDate.optional().nullable(),
+  endDate: calendarDate.optional().nullable(),
   isCurrent: z.boolean().optional(),
 });
 

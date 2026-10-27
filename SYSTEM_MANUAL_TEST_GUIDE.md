@@ -207,8 +207,8 @@ Run cold-offline tests on a production frontend build over HTTPS (or localhost f
 - Open the new owner's dashboard/setup checklist.
 - Review missing requirements.
 - Add the calendar, class, curriculum, teacher assignment, student and parent link requested by the checklist.
-- Refresh the checklist; complete onboarding when allowed.
-- **Expect:** completion uses server-confirmed requirements and persists after reload.
+- Refresh the checklist after meeting all requirements; completion is saved automatically.
+- **Expect:** completion uses server-confirmed requirements; the checklist disappears and stays hidden after reload, sign-in on another device, and later school-record changes.
 - Try completion while requirements are missing.
 - **Expect:** incomplete setup is identified; the portal does not fabricate completion.
 

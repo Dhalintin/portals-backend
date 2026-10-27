@@ -130,6 +130,8 @@ class SchoolsService {
     async completeOnboarding(organizationId, actorId) {
         return (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
             const checklist = await (0, onboarding_1.onboardingChecklist)(tx, organizationId);
+            if (checklist.completed)
+                return tx.organization.findUniqueOrThrow({ where: { id: organizationId }, select: schoolSelect });
             if (!checklist.readyForCompletion) {
                 throw new errors_1.AppError(400, "ONBOARDING_INCOMPLETE", "Complete the missing onboarding steps", checklist);
             }

@@ -18,9 +18,11 @@ for (const model of ['user', 'membership', 'class', 'classSubject', 'classSubjec
   'auditLog', 'payment', 'paymentAllocation', 'invoice', 'receipt', 'notificationOutbox',
   'subject', 'feeStructure', 'invoiceBatch', 'feeCategory', 'subscription', 'academicSession', 'term', 'authSession']) {
   prisma[model] = Object.fromEntries(['findUnique', 'findUniqueOrThrow', 'findFirst', 'findMany',
-    'create', 'createMany', 'update', 'updateMany', 'upsert', 'count', 'aggregate', 'delete', 'deleteMany']
+    'create', 'createMany', 'update', 'updateMany', 'upsert', 'count', 'aggregate', 'groupBy', 'delete', 'deleteMany']
     .map(method => [method, unexpectedQuery]));
 }
+prisma.feeStructure.findMany=async()=>[];
+prisma.schoolBankAccount={findUnique:async()=>null};
 const prismaPath = require.resolve('../.test-build/lib/prisma');
 require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: { prisma } };
 const dotenvConfigPath = require.resolve('dotenv/config');
@@ -40,6 +42,31 @@ const { studentsService } = require('../.test-build/features/students/students.s
 const paystack = require('../.test-build/lib/paystack');
 
 afterEach(() => mock.restoreAll());
+test('invoice tracking filters remain school scoped and search before pagination', async () => {
+  let query;
+  mock.method(prisma.invoice, 'findMany', async input => { query = input; return []; });
+  for (const paymentState of ['owing', 'unpaid', 'partial', 'paid']) {
+    await feesService.listInvoices('school-a', { paymentState, search: 'Ada', offset: 50, limit: 50 });
+    assert.equal(query.where.organizationId, 'school-a');
+    assert.deepEqual(query.where.status, { notIn: ['CANCELLED', 'DRAFT'] });
+    assert.equal(query.skip, 50);
+    assert.equal(query.take, 50);
+    assert.equal(query.where.OR[1].student.firstName.contains, 'Ada');
+    assert.equal(query.where.OR[1].student.firstName.mode, 'insensitive');
+    assert.deepEqual(query.where.outstandingNgn, paymentState === 'paid' ? 0 : { gt: 0 });
+    if (paymentState === 'unpaid') assert.equal(query.where.paidNgn, 0);
+    if (paymentState === 'partial') assert.deepEqual(query.where.paidNgn, { gt: 0 });
+  }
+  await feesService.listInvoices('school-b', { paymentState: 'all' });
+  assert.deepEqual(query.where, { organizationId: 'school-b' });
+});
+test('invoice query validation bounds search and pagination', () => {
+  const { listInvoicesQuerySchema } = require('../.test-build/features/fees/fees.validation');
+  assert.equal(listInvoicesQuerySchema.parse({ offset: '50', paymentState: 'partial' }).offset, 50);
+  for (const input of [{ offset: -1 }, { offset: 1.5 }, { search: 'x'.repeat(101) }, { paymentState: 'invalid' }]) {
+    assert.equal(listInvoicesQuerySchema.safeParse(input).success, false);
+  }
+});
 test('legacy authorization uses the current session role and never a conflicting older user role', async () => {
   await middleware(authorize('TEACHER'), { auth: { orgRole: 'TEACHER', globalRole: 'USER', schoolId: 'school-a' } });
   await assert.rejects(middleware(authorize('SCHOOL_ADMIN'), {
@@ -330,4 +357,65 @@ test('announcement writers including principals can list drafts, while readers c
   assert.equal(failure,undefined);
  }
  assert.equal(calls[0].options.isAdmin,true);assert.equal(calls[1].options.isAdmin,false);assert.ok(calls.every(call=>call.schoolId==='school-a'));
+});
+
+const {attendanceWindow,attendanceOverview,resultProgress}=require('../.test-build/features/dashboard/monitoring.service');
+test('owner attendance windows use Monday to date and require an explicit term start',()=>{
+ assert.equal(attendanceWindow('week','2026-10-28').from.toISOString().slice(0,10),'2026-10-26');
+ assert.equal(attendanceWindow('week','2026-11-01').from.toISOString().slice(0,10),'2026-10-26');
+ assert.throws(()=>attendanceWindow('term','2026-10-28',null),e=>e.code==='TERM_DATES_REQUIRED');
+ const range=attendanceWindow('term','2026-10-28',{startDate:new Date('2026-09-07'),endDate:new Date('2026-10-23')});
+ assert.equal(range.from.toISOString().slice(0,10),'2026-09-07');assert.equal(range.to.toISOString().slice(0,10),'2026-10-23');
+});
+test('owner attendance aggregates marks without inventing absences or leaking other classes',async()=>{
+ let groupQuery;
+ mock.method(prisma.class,'findMany',async input=>{assert.equal(input.where.organizationId,'school-a');return [{id:'class-a',name:'SS 1',arm:null,_count:{students:10}}];});
+ const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Lagos',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ mock.method(prisma.attendanceRecord,'groupBy',async input=>{groupQuery=input;return [{classId:'class-a',date:new Date(today),status:'PRESENT',_count:{_all:3}},{classId:'class-a',date:new Date(today),status:'LATE',_count:{_all:1}},{classId:'class-a',date:new Date(today),status:'ABSENT',_count:{_all:1}}];});
+ const data=await attendanceOverview({schoolId:'school-a',orgRole:'PROPRIETOR',userId:'owner'},'day');
+ assert.equal(groupQuery.where.organizationId,'school-a');assert.deepEqual(groupQuery.where.classId,{in:['class-a']});
+ assert.equal(data.totals.students,10);assert.equal(data.totals.total,5);assert.equal(data.totals.absent,1);assert.equal(data.totals.rate,80);assert.equal(data.classes[0].todayMarked,5);
+});
+test('result progress counts the entire roster beyond 200 and distinguishes incomplete scores from zero marks',async()=>{
+ mock.method(prisma.term,'findFirst',async input=>{assert.equal(input.where.session.organizationId,'school-a');return {id:'term-a'};});
+ mock.method(prisma.class,'findMany',async input=>{assert.equal(input.where.organizationId,'school-a');return [{id:'class-a',name:'SS 1',arm:null,subjects:[{subject:{id:'math',name:'Math'}},{subject:{id:'english',name:'English'}}]}];});
+ mock.method(prisma.student,'findMany',async input=>{
+  assert.equal(input.where.organizationId,'school-a');assert.equal(input.select.results.where.termId,'term-a');assert.equal(input.take,undefined);
+  return Array.from({length:205},(_,i)=>({id:'student-'+i,classId:'class-a',firstName:'Student',lastName:String(i),admissionNumber:String(i),results:[{id:'result-'+i,classId:'class-a',status:i<100?'PUBLISHED':i<200?'APPROVED':'DRAFT',isPublished:i<100,scores:[{subjectId:'math',ca1:0,ca2:0,exam:0,total:0},{subjectId:'english',ca1:10,ca2:10,exam:i<200?30:null,total:i<200?50:null}]}]}));
+ });
+ const data=await resultProgress({schoolId:'school-a',orgRole:'PROPRIETOR',userId:'owner'},'term-a');
+ assert.equal(data.totals.students,205);assert.equal(data.totals.expected,410);assert.equal(data.totals.completed,405);assert.equal(data.totals.completeReports,200);assert.equal(data.totals.approved,100);assert.equal(data.totals.published,100);assert.equal(data.classes[0].reports.length,205);assert.equal(data.classes[0].subjects[0].completed,205);
+});
+test('result progress rejects foreign terms before looking up school records',async()=>{
+ mock.method(prisma.term,'findFirst',async()=>null);
+ await assert.rejects(()=>resultProgress({schoolId:'school-a',orgRole:'PROPRIETOR',userId:'owner'},'foreign-term'),e=>e.statusCode===404||e.status===404);
+});
+const {groupStudentBalances,studentBalances}=require('../.test-build/features/fees/studentBalances');
+test('student balances combine paid and unpaid bills before student status filtering',async()=>{
+ const student={firstName:'Ada',lastName:'Obi',admissionNumber:'A1',class:{name:'SS 1',arm:'A'}};
+ const bills=[{id:'tuition',studentId:'student-a',invoiceNumber:'TUITION-1',totalNgn:12000,paidNgn:12000,outstandingNgn:0,student,items:[{description:'Tuition',amountNgn:12000}]},{id:'pta',studentId:'student-a',invoiceNumber:'PTA-1',totalNgn:3500,paidNgn:0,outstandingNgn:3500,student,items:[{description:'PTA',amountNgn:3500}]}];
+ const grouped=groupStudentBalances(bills);assert.equal(grouped.length,1);assert.equal(grouped[0].totalNgn,15500);assert.equal(grouped[0].paidNgn,12000);assert.equal(grouped[0].outstandingNgn,3500);assert.equal(grouped[0].bills.length,2);
+ mock.method(prisma.term,'findFirst',async()=>({id:'00000000-0000-4000-8000-000000000001'}));
+ mock.method(prisma.invoice,'findMany',async input=>{assert.equal(input.where.organizationId,'school-a');assert.equal(input.where.termId,'00000000-0000-4000-8000-000000000001');assert.deepEqual(input.where.status,{notIn:['CANCELLED','DRAFT']});assert.equal(input.where.outstandingNgn,undefined);assert.equal(input.take,undefined);assert.equal(input.skip,undefined);return bills;});
+ const query={termId:'00000000-0000-4000-8000-000000000001',paymentState:'partial',search:'PTA-1'};
+ const response=await studentBalances('school-a',query);assert.equal(response.items.length,1);assert.equal(response.items[0].totalNgn,15500);assert.equal(response.summary.studentsOwing,1);
+ assert.equal((await studentBalances('school-a',{...query,search:'',paymentState:'unpaid'})).items.length,0);
+});
+test('student-balance pagination counts students rather than invoices and clamps empty pages',async()=>{
+ const bills=Array.from({length:26},(_,i)=>({id:'invoice-'+i,studentId:'student-'+i,invoiceNumber:'INV-'+i,totalNgn:100,paidNgn:0,outstandingNgn:100,student:{firstName:'Student',lastName:String(i).padStart(2,'0'),admissionNumber:String(i),class:null},items:[]}));bills.push({...bills[0],id:'extra',invoiceNumber:'EXTRA'});
+ mock.method(prisma.term,'findFirst',async()=>({}));mock.method(prisma.invoice,'findMany',async()=>bills);
+ const response=await studentBalances('school-a',{termId:'00000000-0000-4000-8000-000000000001',page:999});assert.equal(response.meta.page,2);assert.equal(response.meta.total,26);assert.equal(response.items.length,1);assert.equal(response.summary.studentsOwing,26);
+ const first=await studentBalances('school-a',{termId:'00000000-0000-4000-8000-000000000001'});assert.equal(first.items[0].outstandingNgn,200);assert.equal(first.items.length,25);
+});
+test('term dates reject invalid ordering, missing boundaries and rolled-over calendar dates',()=>{
+ const {assertTermDates}=require('../.test-build/features/academic/academic.service');
+ const {createTermSchema}=require('../.test-build/features/academic/academic.validation');
+ assert.doesNotThrow(()=>assertTermDates(null,null,false));
+ assert.throws(()=>assertTermDates(null,null,true),{code:'TERM_DATES_REQUIRED'});
+ assert.throws(()=>assertTermDates(new Date('2026-09-01'),null,true),{code:'TERM_DATES_REQUIRED'});
+ assert.throws(()=>assertTermDates(new Date('2026-12-20'),new Date('2026-09-01'),true),{code:'INVALID_TERM_DATES'});
+ assert.doesNotThrow(()=>assertTermDates(new Date('2026-09-01'),new Date('2026-12-20'),true));
+ assert.equal(createTermSchema.safeParse({name:'FIRST',startDate:'2026-02-31'}).success,false);
+ assert.equal(createTermSchema.parse({name:'FIRST',startDate:'2026-09-01'}).startDate.toISOString(),'2026-09-01T00:00:00.000Z');
+ assert.throws(()=>attendanceWindow('term','2026-10-27',{startDate:new Date('2026-09-01'),endDate:null}),{code:'TERM_DATES_REQUIRED'});
 });

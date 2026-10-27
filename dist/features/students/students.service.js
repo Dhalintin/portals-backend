@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.studentsService = exports.StudentsService = void 0;
+const feeAssignments_1 = require("../fees/feeAssignments");
 const prisma_1 = require("../../lib/prisma");
 const errors_1 = require("../../lib/errors");
 const audit_service_1 = require("../audit/audit.service");
@@ -50,6 +51,7 @@ class StudentsService {
                             },
                         });
                     }
+                    await (0, feeAssignments_1.syncStudentAssignedFees)(tx, organizationId, created.id);
                     return created;
                 });
             }
@@ -404,20 +406,24 @@ class StudentsService {
             await this.assertClassInOrg(organizationId, input.classId);
         }
         try {
-            const student = await prisma_1.prisma.student.update({
-                where: { id: studentId },
-                data: {
-                    admissionNumber: input.admissionNumber,
-                    firstName: input.firstName,
-                    lastName: input.lastName,
-                    otherNames: input.otherNames === undefined ? undefined : input.otherNames,
-                    gender: input.gender === undefined ? undefined : input.gender,
-                    dateOfBirth: input.dateOfBirth === undefined ? undefined : input.dateOfBirth,
-                    classId: input.classId === undefined ? undefined : input.classId,
-                    parentPhone: input.parentPhone === undefined ? undefined : input.parentPhone,
-                    parentEmail: input.parentEmail === undefined ? undefined : input.parentEmail,
-                },
-                include: studentInclude,
+            const student = await (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
+                const updated = await tx.student.update({
+                    where: { id: studentId },
+                    data: {
+                        admissionNumber: input.admissionNumber,
+                        firstName: input.firstName,
+                        lastName: input.lastName,
+                        otherNames: input.otherNames === undefined ? undefined : input.otherNames,
+                        gender: input.gender === undefined ? undefined : input.gender,
+                        dateOfBirth: input.dateOfBirth === undefined ? undefined : input.dateOfBirth,
+                        classId: input.classId === undefined ? undefined : input.classId,
+                        parentPhone: input.parentPhone === undefined ? undefined : input.parentPhone,
+                        parentEmail: input.parentEmail === undefined ? undefined : input.parentEmail,
+                    },
+                    include: studentInclude,
+                });
+                await (0, feeAssignments_1.syncStudentAssignedFees)(tx, organizationId, studentId);
+                return updated;
             });
             await audit_service_1.auditService.write({
                 action: "STUDENT_UPDATED",
@@ -430,7 +436,9 @@ class StudentsService {
             });
             return student;
         }
-        catch {
+        catch (error) {
+            if (error instanceof errors_1.AppError)
+                throw error;
             throw new errors_1.AppError(409, "ADMISSION_EXISTS", "A student with this admission number already exists");
         }
     }
@@ -456,8 +464,8 @@ class StudentsService {
         await this.assertClassInOrg(organizationId, input.classId);
         await this.assertSessionInOrg(organizationId, input.sessionId);
         try {
-            const [enrollment] = await prisma_1.prisma.$transaction([
-                prisma_1.prisma.studentEnrollment.upsert({
+            const enrollment = await (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
+                const row = await tx.studentEnrollment.upsert({
                     where: {
                         studentId_sessionId: {
                             studentId,
@@ -475,15 +483,19 @@ class StudentsService {
                         class: { select: { id: true, name: true, arm: true } },
                         session: { select: { id: true, name: true } },
                     },
-                }),
-                prisma_1.prisma.student.update({
+                });
+                await tx.student.update({
                     where: { id: studentId },
                     data: { classId: input.classId },
-                }),
-            ]);
+                });
+                await (0, feeAssignments_1.syncStudentAssignedFees)(tx, organizationId, studentId);
+                return row;
+            });
             return enrollment;
         }
-        catch {
+        catch (error) {
+            if (error instanceof errors_1.AppError)
+                throw error;
             throw new errors_1.AppError(400, "ENROLL_FAILED", "Could not enroll student");
         }
     }

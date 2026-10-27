@@ -15,6 +15,11 @@ type UpdateSession = z.infer<typeof updateSessionSchema>;
 type CreateTerm = z.infer<typeof createTermSchema>;
 type UpdateTerm = z.infer<typeof updateTermSchema>;
 
+export function assertTermDates(startDate:Date|null|undefined,endDate:Date|null|undefined,isCurrent:boolean){
+  if((isCurrent||startDate||endDate)&&(!startDate||!endDate))throw new AppError(400,'TERM_DATES_REQUIRED','Set both the term start date and end date before making it current.');
+  if(startDate&&endDate&&(!Number.isFinite(startDate.getTime())||!Number.isFinite(endDate.getTime())||endDate<startDate))throw new AppError(400,'INVALID_TERM_DATES','The term end date must be on or after its start date.');
+}
+
 export class AcademicService {
   async listSessions(organizationId: string) {
     return prisma.academicSession.findMany({
@@ -139,6 +144,7 @@ export class AcademicService {
     }
 
     return schoolTransaction(organizationId, async (tx) => {
+      assertTermDates(input.startDate,input.endDate,input.isCurrent??false);
       if (input.isCurrent) {
         await this.clearCurrentTermsInOrg(tx, organizationId);
         await tx.academicSession.updateMany({ where: { organizationId, isCurrent: true }, data: { isCurrent: false } });
@@ -183,6 +189,9 @@ export class AcademicService {
     }
 
     return schoolTransaction(organizationId, async (tx) => {
+      const current=await tx.term.findFirst({where:{id:termId,sessionId,session:{organizationId}}});
+      if(!current)throw new AppError(404,'NOT_FOUND','Term not found');
+      assertTermDates(input.startDate===undefined?current.startDate:input.startDate,input.endDate===undefined?current.endDate:input.endDate,input.isCurrent??current.isCurrent);
       if (input.isCurrent === true) {
         await this.clearCurrentTermsInOrg(tx, organizationId);
         await tx.academicSession.updateMany({ where: { organizationId, isCurrent: true }, data: { isCurrent: false } });
@@ -218,6 +227,9 @@ export class AcademicService {
     }
 
     return schoolTransaction(organizationId, async (tx) => {
+      const current=await tx.term.findFirst({where:{id:termId,sessionId,session:{organizationId}}});
+      if(!current)throw new AppError(404,'NOT_FOUND','Term not found');
+      assertTermDates(current.startDate,current.endDate,true);
       await this.clearCurrentTermsInOrg(tx, organizationId);
       // Ensure parent session is current when term is current
       await tx.academicSession.updateMany({

@@ -15,6 +15,7 @@ export class DashboardService {
     today.setUTCHours(0, 0, 0, 0);
     const todayStr = today.toISOString().slice(0, 10);
 
+    const currentTerm = await prisma.term.findFirst({where:{isCurrent:true,session:{organizationId}},select:{id:true}});
     const [
       studentCount,
       activeTeachers,
@@ -23,6 +24,7 @@ export class DashboardService {
       absentToday,
       incompleteResults,
       pendingPayments,
+      staffCount, parentCount, classCount,
     ] = await Promise.all([
       // 1. Students
       prisma.student.count({
@@ -41,7 +43,7 @@ export class DashboardService {
       }),
 
       // 4. Fees collected / outstanding
-      feesService.bursarSummary(organizationId),
+      currentTerm ? feesService.bursarSummary(organizationId,{termId:currentTerm.id}) : Promise.resolve({collectedNgn:0,outstandingNgn:0,invoicesWithBalance:0,billedNgn:0}),
 
       // 5. Who is absent today
       attendanceService.absentToday(organizationId, todayStr),
@@ -53,17 +55,22 @@ export class DashboardService {
       prisma.payment.count({
         where: { organizationId, status: "PENDING", source: "PAYSTACK" },
       }),
+      prisma.membership.count({where:{organizationId,isActive:true,role:{not:"PARENT"}}}),
+      prisma.parent.count({where:{organizationId,isActive:true}}),
+      prisma.class.count({where:{organizationId,isActive:true}}),
     ]);
 
     return {
       students: studentCount,
       teachers: activeTeachers,
+      staff: staffCount, parents: parentCount, classes: classCount, currentTermId: currentTerm?.id ?? null,
       attendance: {
         percentage: attendanceToday.percentage,
         present: attendanceToday.present,
         total: attendanceToday.total,
       },
       finance: {
+        billedNgn: feeSummary.billedNgn,
         collectedNgn: feeSummary.collectedNgn,
         outstandingNgn: feeSummary.outstandingNgn,
         invoicesWithBalance: feeSummary.invoicesWithBalance,

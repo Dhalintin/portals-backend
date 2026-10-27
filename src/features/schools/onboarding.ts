@@ -19,7 +19,7 @@ export async function onboardingChecklist(tx: Prisma.TransactionClient, organiza
       children: { some: { organizationId, student: { organizationId, isActive: true } } } } }),
   ]);
   const checks = [
-    { key: "profile", complete: Boolean(school.name.trim() && school.slug), message: "Set the school name and URL" },
+    { key: "profile", complete: Boolean(school.name.trim() && school.slug), message: "Set the school name" },
     { key: "site", complete: site > 0, message: "Create the school site" },
     { key: "subscription", complete: Boolean(subscription && ["ACTIVE", "TRIAL"].includes(subscription.status)), message: "Activate the school subscription" },
     { key: "calendar", complete: Boolean(session && session.terms.length === 1), message: "Select one current session and one current term" },

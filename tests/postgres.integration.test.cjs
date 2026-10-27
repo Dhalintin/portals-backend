@@ -282,18 +282,19 @@ check('calendar changes serialize to one current session per school', async () =
 
 check('creating/updating a current term switches the current session consistently', async () => {
   const session = await academicService.createSession(a.id, { name: '2029/2030', isCurrent: false });
-  const term = await academicService.createTerm(a.id, session.id, { name: 'FIRST', isCurrent: true });
+  const term = await academicService.createTerm(a.id, session.id, { name: 'FIRST', isCurrent: true, startDate:new Date('2029-09-01'),endDate:new Date('2029-12-20') });
   let current = await academicService.getCurrent(a.id);
   assert.equal(current.session.id, session.id); assert.equal(current.term.id, term.id);
-  await academicService.updateTerm(a.id, a.sessionId, a.secondTermId, { isCurrent: true });
+  await academicService.updateTerm(a.id, a.sessionId, a.secondTermId, { isCurrent: true,startDate:new Date('2027-01-11'),endDate:new Date('2027-04-09') });
   current = await academicService.getCurrent(a.id);
   assert.equal(current.session.id, a.sessionId); assert.equal(current.term.id, a.secondTermId);
   assert.equal(await prisma.term.count({ where: { session: { organizationId: a.id }, isCurrent: true } }), 1);
 });
 
 check('concurrent term selection leaves exactly one current term in the current session', async () => {
+  await prisma.term.update({where:{id:a.termId},data:{startDate:new Date('2026-09-01'),endDate:new Date('2026-12-18')}});
   const session = await academicService.createSession(a.id, { name: '2030/2031', isCurrent: false });
-  const term = await academicService.createTerm(a.id, session.id, { name: 'FIRST', isCurrent: false });
+  const term = await academicService.createTerm(a.id, session.id, { name: 'FIRST', isCurrent: false,startDate:new Date('2030-09-01'),endDate:new Date('2030-12-20') });
   await Promise.all([
     academicService.setCurrentTerm(a.id, a.sessionId, a.termId),
     academicService.setCurrentTerm(a.id, session.id, term.id),
@@ -1349,7 +1350,7 @@ check('fresh-school MVP acceptance completes setup, teaching, publication, payme
   assert.equal(owner.orgRole, 'PROPRIETOR');
   assert.equal((await call('GET', '/schools/onboarding', token)).readyForCompletion, false);
   const session = await call('POST', '/academic/sessions', token, { name: '2026/2027', isCurrent: true });
-  const term = await call('POST', `/academic/sessions/${session.id}/terms`, token, { name: 'FIRST', isCurrent: true });
+  const term = await call('POST', `/academic/sessions/${session.id}/terms`, token, { name: 'FIRST', isCurrent: true,startDate:'2026-09-01',endDate:'2026-12-20' });
   const classroom = await call('POST', '/classes', token, { name: 'Primary 1' });
   const subject = await call('POST', '/subjects', token, { name: 'Mathematics', code: 'MATH' });
   await call('POST', `/classes/${classroom.id}/subjects`, token, { subjectIds: [subject.id] });
@@ -1456,4 +1457,179 @@ check('email/password login auto-selects one school and reveals multiple choices
  login=await request('POST','/auth/login',undefined,{email,password});assert.equal(login.status,200);assert.equal(login.body.data.school.id,school.id);
  await prisma.organization.update({where:{id:school.id},data:{isActive:false}});
  login=await request('POST','/auth/login',undefined,{email,password});assert.equal(login.status,403);assert.equal(login.body.error.code,'NO_ACTIVE_SCHOOL');
+});
+
+
+check('completed school setup stays complete after requirements change and completion retries are harmless',async()=>{
+ const {schoolsService}=require('../.test-build/features/schools/schools.service');
+ const school=await prisma.organization.create({data:{name:'Completed setup school',slug:'completed-'+crypto.randomUUID(),createdById:a.ownerId,onBoarded:true}});
+ const before=await prisma.auditLog.count({where:{organizationId:school.id}});
+ const status=await schoolsService.getOnboarding(school.id);assert.equal(status.completed,true);assert.equal(status.readyForCompletion,false);
+ assert.equal((await schoolsService.completeOnboarding(school.id,a.ownerId)).onBoarded,true);
+ assert.equal((await schoolsService.getOnboarding(school.id)).completed,true);assert.equal(await prisma.auditLog.count({where:{organizationId:school.id}}),before);
+});
+
+check('school-wide fees reach every active student and extra fees target multiple school classes safely', async () => {
+ const classes=await Promise.all([1,2].map(n=>prisma.class.create({data:{organizationId:a.id,name:'Fee scope '+n,arm:'Acceptance'}})));
+ const students=await Promise.all(classes.map((cls,n)=>prisma.student.create({data:{organizationId:a.id,firstName:'Fee',lastName:'Scope '+n,admissionNumber:'FEE-SCOPE-'+n,classId:cls.id}})));
+ const category=await prisma.feeCategory.create({data:{organizationId:a.id,name:'School-wide acceptance fee'}});
+ const structure=await prisma.feeStructure.create({data:{organizationId:a.id,name:'School-wide acceptance',items:{create:[{feeCategoryId:category.id,amountNgn:1000}]}}});
+ const expected=await prisma.student.findMany({where:{organizationId:a.id,isActive:true},select:{id:true}});
+ const input={idempotencyKey:'school-wide-acceptance-001',feeStructureId:structure.id};
+ const schoolWide=await feesService.generateInvoices(a.id,input,a.ownerId);
+ assert.deepEqual(schoolWide.invoices.map(i=>i.studentId).sort(),expected.map(s=>s.id).sort());
+ const selected={...input,idempotencyKey:'class-extra-acceptance-001',classIds:classes.map(c=>c.id)};
+ const extra=await feesService.generateInvoices(a.id,selected,a.ownerId);
+ assert.deepEqual(extra.invoices.map(i=>i.studentId).sort(),students.map(s=>s.id).sort());
+ const replay=await feesService.generateInvoices(a.id,{...selected,classIds:[classes[1].id,classes[0].id,classes[0].id]},a.ownerId);
+ assert.equal(replay.replayed,true);assert.equal(replay.batchId,extra.batchId);
+ await assert.rejects(feesService.generateInvoices(a.id,{...selected,classIds:[classes[0].id]},a.ownerId),{code:'IDEMPOTENCY_CONFLICT'});
+ const foreignClass=await prisma.class.findFirstOrThrow({where:{organizationId:b.id}});
+ await assert.rejects(feesService.generateInvoices(a.id,{...input,idempotencyKey:'foreign-class-acceptance',classIds:[foreignClass.id]},a.ownerId),{code:'INVALID_CLASSES'});
+ const {generateInvoicesSchema}=require('../.test-build/features/fees/fees.validation');
+ assert.equal(generateInvoicesSchema.safeParse({...input,classIds:[]}).success,false);
+});
+
+check('fee breakdown estimates recipients and reports received money for only the selected term',async()=>{
+ const session=await prisma.academicSession.create({data:{organizationId:a.id,name:'Fee breakdown acceptance'}});
+ const term=await prisma.term.create({data:{sessionId:session.id,name:'FIRST'}});
+ const cls=await prisma.class.findFirstOrThrow({where:{organizationId:a.id,isActive:true}});
+ const recipients=await prisma.student.count({where:{organizationId:a.id,isActive:true,classId:cls.id}});
+ assert.ok(recipients>0);
+ const category=await prisma.feeCategory.create({data:{organizationId:a.id,name:'Breakdown acceptance'}});
+ const plan=await prisma.feeStructure.create({data:{organizationId:a.id,name:'Breakdown fee',termId:term.id,classId:cls.id,items:{create:[{feeCategoryId:category.id,amountNgn:1200}]}}});
+ let row=(await feesService.listStructures(a.id)).find(p=>p.id===plan.id);
+ assert.equal(row.recipientCount,recipients);assert.equal(row.expectedIncomeNgn,recipients*1200);assert.equal(row.isBilled,false);
+ const batch=await feesService.generateInvoices(a.id,{feeStructureId:plan.id,idempotencyKey:'fee-plan-'+plan.id},a.ownerId);
+ await feesService.createManualPayment(a.id,{idempotencyKey:crypto.randomUUID(),amountNgn:100,method:'CASH',source:'MANUAL',allocations:[{invoiceId:batch.invoices[0].id,amountNgn:100}]},a.ownerId);
+ row=(await feesService.listStructures(a.id)).find(p=>p.id===plan.id);
+ assert.equal(row.isBilled,true);assert.equal(row.receivedNgn,100);assert.equal(row.expectedIncomeNgn,recipients*1200);
+ const summary=await feesService.bursarSummary(a.id,{termId:term.id});
+ assert.equal(summary.collectedNgn,100);assert.equal(summary.billedNgn,recipients*1200);assert.equal(summary.outstandingNgn,recipients*1200-100);
+ assert.equal((await feesService.bursarSummary(b.id,{termId:term.id})).collectedNgn,0);
+ await feesService.updateStructure(a.id,plan.id,{items:[{feeCategoryId:category.id,amountNgn:1500}]},a.ownerId);
+ row=(await feesService.listStructures(a.id)).find(p=>p.id===plan.id);
+ assert.equal(row.expectedIncomeNgn,recipients*1200);
+});
+
+check('class fee schedules save bills atomically, prevent overlapping fees and keep term totals correct',async()=>{
+ const password='ScheduleAcceptance123!';const owner=await authService.registerSchoolAdmin({email:'schedules-'+crypto.randomUUID()+'@example.test',password,firstName:'Fees',lastName:'Owner',schoolName:'Fee schedule school'});
+ const org=owner.school.id,actor=owner.user.id,token=owner.accessToken;
+ const year=await prisma.academicSession.create({data:{organizationId:org,name:'2026/2027',isCurrent:true}});const term=await prisma.term.create({data:{sessionId:year.id,name:'FIRST',isCurrent:true}});
+ const classes=await Promise.all(['SS1','SS2','JSS1'].map(name=>prisma.class.create({data:{organizationId:org,name}})));
+ const children=await Promise.all(classes.map((c,index)=>prisma.student.create({data:{organizationId:org,classId:c.id,firstName:'Child',lastName:String(index),admissionNumber:'ASSIGN-'+index}})));
+ const items=[{name:'Tuition',amountNgn:12000},{name:'PTA',amountNgn:3500},{name:'Exam',amountNgn:9700},{name:'Sports',amountNgn:300},{name:'Library',amountNgn:2000}];
+ const input={idempotencyKey:crypto.randomUUID(),termId:term.id,name:'Senior class fees',classIds:[classes[0].id,classes[1].id],items};
+ let saved=await request('POST','/fees/assignments',token,input);assert.equal(saved.status,200,JSON.stringify(saved));const planId=saved.body.data.id;
+ assert.equal(saved.body.data.students,2);assert.equal(saved.body.data.expectedNgn,55000);
+ assert.equal((await request('POST','/fees/assignments',token,input)).body.data.id,planId);
+ assert.equal(await prisma.invoice.count({where:{organizationId:org,feeStructureId:planId}}),2);
+ let summary=(await request('GET','/fees/summary?termId='+term.id,token)).body.data;assert.equal(summary.billedNgn,55000);assert.equal(summary.outstandingNgn,55000);assert.equal(summary.collectedNgn,0);
+ const junior={...input,idempotencyKey:crypto.randomUUID(),name:'Junior class fees',classIds:[classes[2].id],items:[{name:'Tuition',amountNgn:10000}]};
+ assert.equal((await request('POST','/fees/assignments',token,junior)).status,200);
+ assert.equal((await request('POST','/fees/assignments',token,{...input,idempotencyKey:crypto.randomUUID()})).status,409);
+ const foreign=await prisma.class.findFirstOrThrow({where:{organizationId:b.id}});
+ assert.equal((await request('POST','/fees/assignments',token,{...input,idempotencyKey:crypto.randomUUID(),classIds:[foreign.id]})).status,400);
+ const tuition=await prisma.invoice.findFirstOrThrow({where:{organizationId:org,feeStructureId:planId,studentId:children[0].id}});
+ await feesService.createManualPayment(org,{idempotencyKey:crypto.randomUUID(),amountNgn:5000,method:'CASH',source:'MANUAL',allocations:[{invoiceId:tuition.id,amountNgn:5000}]},actor);
+ summary=(await request('GET','/fees/summary?termId='+term.id,token)).body.data;assert.equal(summary.billedNgn,65000);assert.equal(summary.collectedNgn,5000);assert.equal(summary.outstandingNgn,60000);
+ const failed=await request('POST','/fees/assignments',token,{...input,id:planId,idempotencyKey:crypto.randomUUID(),items:[{name:'Tuition',amountNgn:1}]});assert.equal(failed.status,409);assert.equal(failed.body.error.code,'FEE_HAS_PAYMENTS');
+ assert.equal((await prisma.invoice.findUniqueOrThrow({where:{id:tuition.id}})).totalNgn,27500);
+ const enrolled=await request('POST','/students',token,{firstName:'New',lastName:'Student',classId:classes[0].id});assert.equal(enrolled.status,201,JSON.stringify(enrolled));
+ assert.equal(await prisma.invoice.count({where:{organizationId:org,studentId:enrolled.body.data.id,feeStructureId:planId}}),1);
+ summary=(await request('GET','/fees/summary?termId='+term.id,token)).body.data;assert.equal(summary.billedNgn,92500);assert.equal(summary.outstandingNgn,87500);
+ const juniorPlan=await prisma.feeStructure.findFirstOrThrow({where:{organizationId:org,name:'Junior class fees'}});
+ const edited=await request('POST','/fees/assignments',token,{...junior,id:juniorPlan.id,idempotencyKey:crypto.randomUUID(),items:[{name:'Tuition',amountNgn:9000}]});assert.equal(edited.status,200,JSON.stringify(edited));
+ summary=(await request('GET','/fees/summary?termId='+term.id,token)).body.data;assert.equal(summary.billedNgn,91500);assert.equal(summary.outstandingNgn,86500);
+ const extra=await request('POST','/fees/assignments',token,{...input,idempotencyKey:crypto.randomUUID(),name:'SS2 practical',classIds:[classes[1].id],items:[{name:'Practical materials',amountNgn:1000}]});assert.equal(extra.status,200);assert.equal(extra.body.data.students,1);
+ summary=(await request('GET','/fees/summary?termId='+term.id,token)).body.data;assert.equal(summary.billedNgn,92500);assert.equal(summary.outstandingNgn,87500);
+ assert.equal((await request('POST','/fees/assignments',(await tokens(a.teacherId,a.id)).accessToken,input)).status,403);
+});
+check('receiving bank changes require the creator password and exact, expiring, single-use OTP',async()=>{
+ const {env}=require('../.test-build/config/env');const original=env.EMAIL_PROVIDER;env.EMAIL_PROVIDER='smtp';
+ try{
+ const {readBankAccount,requestBankChange,confirmBankChange}=require('../.test-build/features/schools/bankAccount');const {decryptAuthEmail}=require('../.test-build/lib/authEmail');
+ const password='BankAcceptance123!';const owner=await authService.registerSchoolAdmin({email:'bank-'+crypto.randomUUID()+'@example.test',password,firstName:'Bank',lastName:'Owner',schoolName:'Bank acceptance'});
+ const auth={userId:owner.user.id,schoolId:owner.school.id,orgRole:'PROPRIETOR',globalRole:'USER',sessionId:'test',permissions:[]};
+ const details={bankName:'Test bank',accountName:'School account',accountNumber:'0123456789',password};
+ await assert.rejects(requestBankChange(auth,{...details,password:'wrong'}),{code:'REAUTHENTICATION_FAILED'});
+ await assert.rejects(requestBankChange({...auth,orgRole:'SCHOOL_ADMIN'},details),{code:'OWNER_ONLY'});
+ let pending=await requestBankChange(auth,details);assert.equal(pending.code,undefined);assert.equal(await readBankAccount(auth),null);
+ const job=await prisma.authEmail.findFirstOrThrow({where:{recipient:owner.user.email,subject:{contains:'verify bank'}},orderBy:{createdAt:'desc'}});const code=decryptAuthEmail(job.encryptedText).match(/code is (\d{6})/)[1];
+ const draft=await prisma.bankAccountChange.findUniqueOrThrow({where:{id:pending.changeId}});assert.ok(!draft.encryptedDetails.includes(details.accountNumber));assert.notEqual(draft.codeHash,code);
+ await assert.rejects(confirmBankChange({...auth,userId:a.ownerId},{changeId:pending.changeId,code}),{code:'OWNER_ONLY'});
+ const wrong=code==='100000'?'100001':'100000';await assert.rejects(confirmBankChange(auth,{changeId:pending.changeId,code:wrong}),{code:'INVALID_OTP'});assert.equal((await prisma.bankAccountChange.findUniqueOrThrow({where:{id:pending.changeId}})).attempts,1);
+ await assert.rejects(confirmBankChange(auth,{changeId:pending.changeId,code,accountNumber:'9999999999'}));
+ await confirmBankChange(auth,{changeId:pending.changeId,code});assert.equal((await readBankAccount(auth)).accountNumber,details.accountNumber);
+ await assert.rejects(confirmBankChange(auth,{changeId:pending.changeId,code}),{code:'INVALID_OTP'});
+ await assert.rejects(requestBankChange(auth,{...details,accountNumber:'1111111111'}),{code:'BANK_CHANGE_COOLDOWN'});
+ await prisma.schoolBankAccount.update({where:{organizationId:owner.school.id},data:{updatedAt:new Date(Date.now()-2*86400000)}});
+ await prisma.bankAccountChange.updateMany({where:{organizationId:owner.school.id},data:{createdAt:new Date(Date.now()-2*60000)}});
+ pending=await requestBankChange(auth,{...details,accountNumber:'1111111111'});
+ for(let i=0;i<5;i++)await assert.rejects(confirmBankChange(auth,{changeId:pending.changeId,code:'000000'}),{code:'INVALID_OTP'});
+ assert.equal((await prisma.bankAccountChange.findUniqueOrThrow({where:{id:pending.changeId}})).attempts,5);
+ assert.equal((await readBankAccount(auth)).accountNumber,details.accountNumber);
+ await prisma.bankAccountChange.update({where:{id:pending.changeId},data:{attempts:0,expiresAt:new Date(0)}});
+ await assert.rejects(confirmBankChange(auth,{changeId:pending.changeId,code:'000000'}),{code:'INVALID_OTP'});
+ assert.equal((await request('GET','/schools/bank-account',(await tokens(a.teacherId,a.id)).accessToken)).status,403);
+ assert.ok(await prisma.auditLog.count({where:{organizationId:owner.school.id,entity:'SchoolBankAccount'}})>=4);
+ }finally{env.EMAIL_PROVIDER=original;}
+});
+check('owner overview endpoints aggregate real attendance and incomplete result uploads without writes',async()=>{
+ const school=await authService.registerSchoolAdmin({email:'monitor-'+crypto.randomUUID()+'@example.test',password:'MonitorAcceptance123!',firstName:'Monitor',lastName:'Owner',schoolName:'Monitor acceptance'});
+ const org=school.school.id,actor=school.user.id,token=(await tokens(actor,org)).accessToken;
+ const session=await prisma.academicSession.create({data:{organizationId:org,name:'2026/2027',isCurrent:true}});
+ const term=await prisma.term.create({data:{sessionId:session.id,name:'FIRST',isCurrent:true,startDate:new Date('2026-01-01'),endDate:new Date('2026-12-31')}});
+ const cls=await prisma.class.create({data:{organizationId:org,name:'SS 1'}});
+ const subjects=await Promise.all(['Math','English'].map(name=>prisma.subject.create({data:{organizationId:org,name}})));
+ await prisma.classSubject.createMany({data:subjects.map(subject=>({organizationId:org,classId:cls.id,subjectId:subject.id}))});
+ const student=await prisma.student.create({data:{organizationId:org,classId:cls.id,firstName:'First',lastName:'Student',admissionNumber:'M1'}});
+ await prisma.student.create({data:{organizationId:org,classId:cls.id,firstName:'Second',lastName:'Student',admissionNumber:'M2'}});
+ const result=await prisma.result.create({data:{organizationId:org,classId:cls.id,studentId:student.id,termId:term.id,scores:{create:[{subjectId:subjects[0].id,ca1:0,ca2:0,exam:0,total:0},{subjectId:subjects[1].id,ca1:10,ca2:10,exam:null,total:null}]}}});
+ const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Lagos',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ await prisma.attendanceRecord.create({data:{organizationId:org,classId:cls.id,studentId:student.id,recordedById:actor,date:new Date(today),status:'LATE'}});
+ for(const period of ['day','week','term']){
+  const response=await request('GET','/dashboard/attendance-overview?period='+period,token);assert.equal(response.status,200,JSON.stringify(response));
+  assert.equal(response.body.data.totals.students,2);assert.equal(response.body.data.totals.late,1);assert.equal(response.body.data.totals.absent,0);assert.equal(response.body.data.totals.rate,100);
+ }
+ const progress=await request('GET','/dashboard/result-progress?termId='+term.id,token);assert.equal(progress.status,200,JSON.stringify(progress));
+ assert.equal(progress.body.data.totals.students,2);assert.equal(progress.body.data.totals.expected,4);assert.equal(progress.body.data.totals.completed,1);assert.equal(progress.body.data.totals.completeReports,0);assert.equal(progress.body.data.classes[0].reports.length,2);
+ assert.equal(await prisma.result.count({where:{organizationId:org}}),1);assert.equal((await prisma.result.findUniqueOrThrow({where:{id:result.id}})).status,'DRAFT');
+ assert.equal((await request('GET','/dashboard/attendance-overview?period=invalid',token)).status,422);
+ assert.equal((await request('GET','/dashboard/result-progress?termId='+crypto.randomUUID(),token)).status,404);
+ const parent=(await tokens(a.parentUserId,a.id)).accessToken;
+ assert.equal((await request('GET','/dashboard/attendance-overview',parent)).status,403);
+ assert.equal((await request('GET','/dashboard/result-progress?termId='+term.id,parent)).status,403);
+});
+check('fee balance endpoint combines all student bills and excludes cancelled or draft charges',async()=>{
+ const school=await authService.registerSchoolAdmin({email:'balances-'+crypto.randomUUID()+'@example.test',password:'BalanceAcceptance123!',firstName:'Balance',lastName:'Owner',schoolName:'Balance acceptance'});
+ const org=school.school.id,token=(await tokens(school.user.id,org)).accessToken;
+ const session=await prisma.academicSession.create({data:{organizationId:org,name:'2026/2027'}}),term=await prisma.term.create({data:{sessionId:session.id,name:'FIRST'}});
+ const student=await prisma.student.create({data:{organizationId:org,firstName:'Ada',lastName:'Obi',admissionNumber:'B1'}});
+ for(const bill of [{invoiceNumber:'TUITION',totalNgn:12000,paidNgn:12000,outstandingNgn:0,status:'PAID'},{invoiceNumber:'PTA',totalNgn:3500,paidNgn:0,outstandingNgn:3500,status:'ISSUED'},{invoiceNumber:'CANCELLED',totalNgn:999,paidNgn:0,outstandingNgn:999,status:'CANCELLED'},{invoiceNumber:'DRAFT',totalNgn:999,paidNgn:0,outstandingNgn:999,status:'DRAFT'}])await prisma.invoice.create({data:{organizationId:org,studentId:student.id,termId:term.id,...bill}});
+ const response=await request('GET','/fees/student-balances?termId='+term.id+'&search=PTA&paymentState=partial',token);assert.equal(response.status,200,JSON.stringify(response));
+ assert.equal(response.body.data.items.length,1);const row=response.body.data.items[0];assert.equal(row.totalNgn,15500);assert.equal(row.paidNgn,12000);assert.equal(row.outstandingNgn,3500);assert.equal(row.bills.length,2);assert.equal(response.body.data.summary.studentsOwing,1);
+ assert.equal((await request('GET','/fees/student-balances?termId='+term.id,(await tokens(a.ownerId,a.id)).accessToken)).status,404);
+ assert.equal((await request('GET','/fees/student-balances?termId='+term.id,(await tokens(a.parentUserId,a.id)).accessToken)).status,403);
+ assert.equal((await request('GET','/fees/student-balances?termId='+term.id+'&pageSize=999',token)).status,422);
+});
+
+check('term dates are editable and required on every activation route without disturbing the current calendar',async()=>{
+ const school=await authService.registerSchoolAdmin({email:'term-dates-'+crypto.randomUUID()+'@example.test',password:'TermDatesAcceptance123!',firstName:'Calendar',lastName:'Owner',schoolName:'Term dates acceptance'});
+ const org=school.school.id,token=(await tokens(school.user.id,org)).accessToken;
+ const session=await academicService.createSession(org,{name:'2026/2027',isCurrent:true});
+ const term=await academicService.createTerm(org,session.id,{name:'FIRST',isCurrent:false});
+ const path='/academic/sessions/'+session.id+'/terms/'+term.id;
+ let response=await request('POST',path+'/current',token);assert.equal(response.status,400);assert.equal(response.body.error.code,'TERM_DATES_REQUIRED');
+ response=await request('PATCH',path,token,{isCurrent:true});assert.equal(response.status,400);
+ response=await request('PATCH',path,token,{startDate:'2026-12-20',endDate:'2026-09-01',isCurrent:true});assert.equal(response.status,400);
+ assert.equal((await prisma.term.findUniqueOrThrow({where:{id:term.id}})).isCurrent,false);
+ response=await request('PATCH',path,token,{startDate:'2026-02-31',endDate:'2026-12-20'});assert.equal(response.status,400);
+ response=await request('PATCH',path,token,{startDate:'2026-09-01',endDate:'2026-12-20',isCurrent:true});assert.equal(response.status,200,JSON.stringify(response));
+ assert.equal(response.body.data.startDate.slice(0,10),'2026-09-01');assert.equal(response.body.data.endDate.slice(0,10),'2026-12-20');
+ response=await request('PATCH',path,token,{startDate:'2027-01-01'});assert.equal(response.status,400);
+ response=await request('PATCH',path,token,{endDate:null});assert.equal(response.status,400);
+ assert.equal((await prisma.term.findUniqueOrThrow({where:{id:term.id}})).endDate.toISOString().slice(0,10),'2026-12-20');
+ const second=await request('POST','/academic/sessions/'+session.id+'/terms',token,{name:'SECOND',isCurrent:true});assert.equal(second.status,400);
+ assert.equal((await academicService.getCurrent(org)).term.id,term.id);
 });
