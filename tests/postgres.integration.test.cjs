@@ -1880,11 +1880,30 @@ check('new staff can accept an emailed invitation over HTTP and sign in with the
   const email = `new-invite-${crypto.randomUUID()}@example.test`;
   await invitationsService.create(b.id, b.ownerId, { email, firstName: 'New', lastName: 'Teacher', role: 'TEACHER' });
   const token = await invitationToken(email);
-  const result = await request('POST', '/auth/invitations/accept', undefined, { token, password: 'ChosenPassword123!' });
+  const owner = await prisma.user.findUniqueOrThrow({ where: { id: b.ownerId } });
+  const ownerSession = await tokens(b.ownerId, b.id);
+  const preview = await request('POST', '/auth/invitations/inspect', ownerSession.accessToken, { token });
+  assert.equal(preview.status, 200);
+  assert.equal(preview.body.data.email, email);
+  assert.equal(preview.body.data.needsPassword, true);
+  assert.equal(preview.body.data.passwordHash, undefined);
+  const result = await request('POST', '/auth/invitations/accept', ownerSession.accessToken, { token, password: 'ChosenPassword123!' });
+  assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: b.ownerId } })).passwordHash, owner.passwordHash);
   assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.equal((await request('POST', '/auth/invitations/inspect', ownerSession.accessToken, { token })).status, 400);
   const login = await request('POST', '/auth/login', undefined, { email, password: 'ChosenPassword123!' });
   assert.equal(login.status, 200, JSON.stringify(login.body));
   assert.equal(login.body.data.orgRole, 'TEACHER');
   assert.equal(login.body.data.school.id, b.id);
   assert.ok(login.body.data.accessToken);
+});
+
+check('invitation inspection recognises existing-password accounts and rejects expired or used links', async () => {
+  const user = await prisma.user.create({ data: { email: `inspect-${crypto.randomUUID()}@example.test`, firstName: 'Existing', lastName: 'Invite', passwordHash: 'not-returned' } });
+  await invitationsService.create(b.id, b.ownerId, { email: user.email, firstName: 'Existing', lastName: 'Invite', role: 'STAFF' });
+  const token = await invitationToken(user.email);
+  assert.equal((await invitationsService.inspect(token)).needsPassword, false);
+  await prisma.schoolInvitation.update({ where: { tokenHash: sha256(token) }, data: { expiresAt: new Date(0) } });
+  await assert.rejects(invitationsService.inspect(token), { code: 'INVALID_INVITATION' });
+  await assert.rejects(invitationsService.inspect('nonexistent'.repeat(6)), { code: 'INVALID_INVITATION' });
 });

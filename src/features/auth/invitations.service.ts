@@ -7,6 +7,17 @@ import { schoolTransaction } from "../../lib/schoolTransaction";
 import { authLink, enqueueAuthEmail } from "../../lib/authEmail";
 
 export class InvitationsService {
+  async inspect(token: string) {
+    const invitation = await prisma.schoolInvitation.findFirst({
+      where: { tokenHash: sha256(token), acceptedAt: null, revokedAt: null,
+        expiresAt: { gt: new Date() }, organization: { isActive: true } },
+      select: { email: true, organization: { select: { name: true } } },
+    });
+    if (!invitation) throw new AppError(400, "INVALID_INVITATION", "Invitation is invalid or expired. Ask your school for a new invitation.");
+    const account = await prisma.user.findUnique({ where: { email: invitation.email }, select: { passwordHash: true } });
+    return { email: invitation.email, schoolName: invitation.organization.name, needsPassword: !account?.passwordHash };
+  }
+
   async create(
     organizationId: string,
     actorId: string,

@@ -8,6 +8,17 @@ const password_1 = require("../../lib/password");
 const schoolTransaction_1 = require("../../lib/schoolTransaction");
 const authEmail_1 = require("../../lib/authEmail");
 class InvitationsService {
+    async inspect(token) {
+        const invitation = await prisma_1.prisma.schoolInvitation.findFirst({
+            where: { tokenHash: (0, token_1.sha256)(token), acceptedAt: null, revokedAt: null,
+                expiresAt: { gt: new Date() }, organization: { isActive: true } },
+            select: { email: true, organization: { select: { name: true } } },
+        });
+        if (!invitation)
+            throw new errors_1.AppError(400, "INVALID_INVITATION", "Invitation is invalid or expired. Ask your school for a new invitation.");
+        const account = await prisma_1.prisma.user.findUnique({ where: { email: invitation.email }, select: { passwordHash: true } });
+        return { email: invitation.email, schoolName: invitation.organization.name, needsPassword: !account?.passwordHash };
+    }
     async create(organizationId, actorId, input, requestId) {
         const email = input.email.trim().toLowerCase(), token = (0, token_1.randomToken)(32);
         const link = (0, authEmail_1.authLink)("/accept-invitation", token), expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);

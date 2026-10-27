@@ -12,6 +12,14 @@ const invitations_service_1 = require("./invitations.service");
 const http_1 = require("../../lib/http");
 const c = new auth_controller_1.AuthController();
 const router = (0, express_1.Router)();
+router.post("/invitations/inspect", rateLimit_1.authLimiter, (0, validate_1.validate)(auth_validation_1.acceptExistingInvitationSchema), async (req, res, next) => {
+    try {
+        (0, http_1.sendSuccess)(res, await invitations_service_1.invitationsService.inspect(req.body.token));
+    }
+    catch (error) {
+        next(error);
+    }
+});
 router.post("/invitations/accept-existing-password", rateLimit_1.authLimiter, (0, validate_1.validate)(auth_validation_1.acceptExistingPasswordInvitationSchema), async (req, res, next) => {
     try {
         (0, http_1.sendSuccess)(res, await invitations_service_1.invitationsService.accept(req.body.token, undefined, undefined, req.body.currentPassword));

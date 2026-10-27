@@ -20,6 +20,9 @@ import { sendSuccess } from "../../lib/http";
 
 const c = new AuthController();
 const router = Router();
+router.post("/invitations/inspect", authLimiter, validate(acceptExistingInvitationSchema), async (req, res, next) => {
+  try { sendSuccess(res, await invitationsService.inspect(req.body.token)); } catch (error) { next(error); }
+});
 router.post("/invitations/accept-existing-password", authLimiter, validate(acceptExistingPasswordInvitationSchema), async (req, res, next) => {
   try { sendSuccess(res, await invitationsService.accept(req.body.token, undefined, undefined, req.body.currentPassword)); }
   catch (error) { next(error); }
