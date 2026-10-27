@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.importsService = exports.ImportsService = void 0;
+const feeAssignments_1 = require("../fees/feeAssignments");
 const node_crypto_1 = require("node:crypto");
 const errors_1 = require("../../lib/errors");
 const schoolTransaction_1 = require("../../lib/schoolTransaction");
@@ -102,6 +103,8 @@ class ImportsService {
                 if (enrollments.length)
                     await tx.studentEnrollment.createMany({ data: enrollments });
             }
+            for (const student of students)
+                await (0, feeAssignments_1.syncStudentAssignedFees)(tx, organizationId, student.id);
             return finish(tx, organizationId, "STUDENTS", input.idempotencyKey, hash, students.length, input.rows.length, actorId, requestId);
         });
     }

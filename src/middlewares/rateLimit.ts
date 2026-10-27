@@ -117,3 +117,5 @@ export const apiLimiter = rateLimit({
 //   message: commonMessage,
 //   store: createRedisStore("api"),
 // });
+
+export const parentPaymentLimiter = rateLimit({windowMs:60*1000,max:20,keyGenerator:req=>req.auth!.userId,standardHeaders:true,legacyHeaders:false,message:{success:false,error:{code:"RATE_LIMITED",message:"Too many payment requests. Wait a moment and check your payment status before trying again."}}});

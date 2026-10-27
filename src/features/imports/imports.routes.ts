@@ -1,3 +1,6 @@
+import {importStaff} from './staffImport';
+import {sendSuccess} from '../../lib/http';
+import {invitationLimiter} from '../../middlewares/rateLimit';
 // imports.routes.ts
 import { Router } from "express";
 import { authenticate } from "../../middlewares/authenticate";
@@ -30,4 +33,5 @@ importsRoutes.post(
   c.parents
 );
 
+importsRoutes.post('/staff',requirePermission('staff:write'),invitationLimiter,async(req,res,next)=>{try{sendSuccess(res,await importStaff(req.auth!.schoolId!,req.auth!.userId,req.body));}catch(error){next(error);}});
 export default importsRoutes;

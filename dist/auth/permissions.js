@@ -2,6 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ALL_PERMISSIONS = exports.PERMISSIONS = void 0;
 exports.PERMISSIONS = {
+    "exams:read": "exams:read",
+    "exams:write": "exams:write",
+    "exams:publish": "exams:publish",
     "students:read": "students:read",
     "students:write": "students:write",
     "classes:read": "classes:read",

@@ -1,5 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const financeWorkspace_1 = require("./financeWorkspace");
+const fees_service_1 = require("./fees.service");
+const rateLimit_1 = require("../../middlewares/rateLimit");
+const parentPayments_1 = require("./parentPayments");
 const studentBalances_1 = require("./studentBalances");
 const feeAssignments_1 = require("./feeAssignments");
 const http_1 = require("../../lib/http");
@@ -12,7 +16,43 @@ const requireStaff_1 = require("../../middlewares/requireStaff");
 const feesRoutes = (0, express_1.Router)();
 feesRoutes.use(authenticate_1.authenticate, requireSchool_1.requireSchool);
 feesRoutes.get("/parent/me", (0, requirePermission_1.requirePermission)("fees:read"), fees_controller_1.feesController.parentFees);
+feesRoutes.post('/parent/payments', (0, requirePermission_1.requirePermission)('fees:read'), rateLimit_1.parentPaymentLimiter, async (req, res, next) => { try {
+    (0, http_1.sendSuccess)(res, await (0, parentPayments_1.startParentCheckout)(req.auth, req.body), 201);
+}
+catch (error) {
+    next(error);
+} });
+feesRoutes.post('/parent/payments/:reference/verify', (0, requirePermission_1.requirePermission)('fees:read'), rateLimit_1.parentPaymentLimiter, async (req, res, next) => { try {
+    (0, http_1.sendSuccess)(res, await (0, parentPayments_1.parentPaymentStatus)(req.auth, req.params.reference));
+}
+catch (error) {
+    next(error);
+} });
+feesRoutes.get('/parent/receipts/:id', (0, requirePermission_1.requirePermission)('fees:read'), async (req, res, next) => { try {
+    (0, http_1.sendSuccess)(res, await (0, parentPayments_1.parentReceipt)(req.auth, req.params.id));
+}
+catch (error) {
+    next(error);
+} });
 feesRoutes.use(requireStaff_1.requireStaff);
+feesRoutes.get('/workspace', (0, requirePermission_1.requirePermission)('payments:read'), async (req, res, next) => { try {
+    (0, http_1.sendSuccess)(res, await (0, financeWorkspace_1.financeWorkspace)(req.auth.schoolId, req.query));
+}
+catch (error) {
+    next(error);
+} });
+feesRoutes.post('/student-payments', (0, requirePermission_1.requirePermission)('payments:write'), async (req, res, next) => { try {
+    (0, http_1.sendSuccess)(res, await fees_service_1.feesService.recordStudentPayment(req.auth.schoolId, req.body, req.auth.userId), 201);
+}
+catch (error) {
+    next(error);
+} });
+feesRoutes.get('/receipt-documents/:id', (0, requirePermission_1.requirePermission)('payments:read'), async (req, res, next) => { try {
+    (0, http_1.sendSuccess)(res, await (0, financeWorkspace_1.staffReceiptDocument)(req.auth.schoolId, req.params.id));
+}
+catch (error) {
+    next(error);
+} });
 feesRoutes.post('/assignments', (0, requirePermission_1.requirePermission)('fees:write'), async (req, res, next) => { try {
     (0, http_1.sendSuccess)(res, await (0, feeAssignments_1.saveFeeAssignment)(req.auth.schoolId, req.auth.userId, req.body));
 }

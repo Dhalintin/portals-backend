@@ -419,3 +419,83 @@ test('term dates reject invalid ordering, missing boundaries and rolled-over cal
  assert.equal(createTermSchema.parse({name:'FIRST',startDate:'2026-09-01'}).startDate.toISOString(),'2026-09-01T00:00:00.000Z');
  assert.throws(()=>attendanceWindow('term','2026-10-27',{startDate:new Date('2026-09-01'),endDate:null}),{code:'TERM_DATES_REQUIRED'});
 });
+const {staffImportSchema}=require('../.test-build/features/imports/staffImport');
+test('staff imports default to teacher and cannot grant privileged roles through a spreadsheet',()=>{
+ const rows=[{rowNumber:2,firstName:'Ada',lastName:'Obi',email:'ada@example.test'}];
+ assert.equal(staffImportSchema.parse({rows}).defaultRole,'TEACHER');
+ assert.equal(staffImportSchema.safeParse({rows,defaultRole:'PROPRIETOR'}).success,false);
+ assert.equal(staffImportSchema.safeParse({rows,dryRun:false}).success,false);
+ assert.equal(staffImportSchema.safeParse({rows:Array.from({length:101},()=>rows[0])}).success,false);
+});
+
+for (const role of ['SCHOOL_ADMIN','PRINCIPAL','EXAM_OFFICER','TEACHER']) {
+ test(role+' cannot enter scores without a subject assignment',async()=>{
+  mock.method(prisma.membership,'findFirst',async()=>({role}));
+  mock.method(prisma.class,'findFirst',async()=>({id:'class-a',classTeacherId:'someone-else'}));
+  mock.method(prisma.classSubject,'findFirst',async()=>({id:'link'}));
+  mock.method(prisma.classSubjectTeacher,'findFirst',async()=>null);
+  const {assertSubjectTeacher}=require('../.test-build/auth/resourceAccess');
+  await assert.rejects(assertSubjectTeacher('school-a','actor','class-a','subject-a'),{statusCode:403});
+ });
+ test(role+' can enter scores for their assigned subject',async()=>{
+  mock.method(prisma.membership,'findFirst',async()=>({role}));
+  mock.method(prisma.class,'findFirst',async()=>({id:'class-a'}));
+  mock.method(prisma.classSubject,'findFirst',async()=>({id:'link'}));
+  mock.method(prisma.classSubjectTeacher,'findFirst',async q=>{assert.equal(q.where.userId,'actor');assert.equal(q.where.organizationId,'school-a');return {id:'assignment'};});
+  const {assertSubjectTeacher}=require('../.test-build/auth/resourceAccess');
+  await assertSubjectTeacher('school-a','actor','class-a','subject-a');
+ });
+}
+test('a subject assignment alone never permits attendance entry',async()=>{
+ mock.method(prisma.membership,'findFirst',async()=>({role:'TEACHER'}));
+ mock.method(prisma.class,'findFirst',async q=>q.where.classTeacherId?null:{id:'class-a',classTeacherId:'other'});
+ mock.method(prisma.classSubjectTeacher,'findFirst',async()=>({id:'subject-assignment'}));
+ const {assertClassTeacher}=require('../.test-build/auth/resourceAccess');
+ await assert.rejects(assertClassTeacher('school-a','actor','class-a'),{statusCode:403});
+});
+test('the assigned class teacher can enter attendance',async()=>{
+ mock.method(prisma.membership,'findFirst',async()=>({role:'SCHOOL_ADMIN'}));
+ mock.method(prisma.class,'findFirst',async()=>({id:'class-a',classTeacherId:'actor'}));
+ const {assertClassTeacher}=require('../.test-build/auth/resourceAccess');
+ await assertClassTeacher('school-a','actor','class-a');
+});
+
+test('item balances preserve explicit payments and apply older payments to remaining items',()=>{
+ const {itemBalances,allocateItems}=require('../.test-build/features/fees/itemBalances');
+ const bill={totalNgn:15500,paidNgn:4500,items:[{id:'a',description:'Tuition',amountNgn:12000},{id:'b',description:'PTA',amountNgn:3500}],allocations:[{amountNgn:3500,itemAllocations:[{invoiceItemId:'b',description:'PTA',amountNgn:3500}]},{amountNgn:1000}]};
+ assert.deepEqual(itemBalances(bill).map(i=>[i.id,i.paidNgn,i.outstandingNgn]),[['a',1000,11000],['b',3500,0]]);
+ assert.deepEqual(allocateItems(bill,2000),[{invoiceItemId:'a',description:'Tuition',amountNgn:2000}]);
+ assert.throws(()=>allocateItems(bill,1,[{invoiceItemId:'b',description:'PTA',amountNgn:1}]),{code:'ITEM_BALANCE_CHANGED'});
+});
+test('parent checkout rejects client totals, duplicate items and missing school collection routes',()=>{
+ const {parentCheckoutSchema,parentPaymentSubaccount}=require('../.test-build/features/fees/parentPayments');
+ const id='11111111-1111-4111-8111-111111111111';
+ assert.equal(parentCheckoutSchema.safeParse({studentId:id,idempotencyKey:id,itemIds:[id],callbackOrigin:'https://portal.test',amountNgn:1}).success,false);
+ assert.equal(parentCheckoutSchema.safeParse({studentId:id,idempotencyKey:id,itemIds:[id,id],callbackOrigin:'https://portal.test'}).success,false);
+ const saved=process.env.PAYSTACK_SCHOOL_SUBACCOUNTS;
+ try{process.env.PAYSTACK_SCHOOL_SUBACCOUNTS='{}';assert.equal(parentPaymentSubaccount('school-a'),null);process.env.PAYSTACK_SCHOOL_SUBACCOUNTS='{"school-a":"ACCT_test123"}';assert.equal(parentPaymentSubaccount('school-a'),'ACCT_test123');assert.equal(parentPaymentSubaccount('school-b'),null);}finally{if(saved===undefined)delete process.env.PAYSTACK_SCHOOL_SUBACCOUNTS;else process.env.PAYSTACK_SCHOOL_SUBACCOUNTS=saved;}
+});
+
+test('a student-linked payment cannot be allocated to another child',async()=>{
+ fakeTransactions();mock.method(prisma.payment,'findFirst',async()=>({id:'p',organizationId:'school-a',status:'SUCCESSFUL',amountNgn:100,providerPayload:{studentId:'child-a'}}));
+ mock.method(prisma.paymentAllocation,'findMany',async()=>[]);mock.method(prisma.invoice,'findFirst',async()=>({id:'bill-b',studentId:'child-b',organizationId:'school-a',status:'ISSUED',outstandingNgn:100}));
+ await assert.rejects(feesService.allocatePayment('school-a','p',[{invoiceId:'bill-b',amountNgn:100}],'bursar'),{code:'INVALID_INVOICES'});
+});
+test('student payment snapshots reject duplicate bills and invalid amounts before writes',()=>{
+ const {studentPaymentSchema}=require('../.test-build/features/fees/financeWorkspace');const id='11111111-1111-4111-8111-111111111111';const input={idempotencyKey:id,studentId:id,termId:id,amountNgn:100,method:'CASH',paidAt:new Date().toISOString(),bills:[{invoiceId:id,balanceNgn:100}]};
+ assert.equal(studentPaymentSchema.safeParse(input).success,true);assert.equal(studentPaymentSchema.safeParse({...input,bills:[...input.bills,...input.bills]}).success,false);assert.equal(studentPaymentSchema.safeParse({...input,amountNgn:0}).success,false);assert.equal(studentPaymentSchema.safeParse({...input,allocations:[]}).success,false);
+});
+
+test('exam dates and time ranges reject impossible dates and zero-length exams',()=>{
+ const {examEntrySchema}=require('../.test-build/features/exams/exams.validation');const id='11111111-1111-4111-8111-111111111111';const entry={id,classId:id,subjectId:id,date:'2026-11-10',startTime:'09:00',endTime:'11:00'};
+ assert.equal(examEntrySchema.safeParse(entry).success,true);for(const change of [{date:'2026-02-30'},{startTime:'25:00'},{endTime:'09:00'},{endTime:'08:00'}])assert.equal(examEntrySchema.safeParse({...entry,...change}).success,false);
+});
+test('exam clashes block overlapping classes and venues but allow shared papers and adjoining slots',()=>{
+ const {validateExamClashes}=require('../.test-build/features/exams/exams.validation');const a={id:'a',classId:'class-a',subjectId:'math',date:'2026-11-10',startTime:'09:00',endTime:'11:00',venue:'Main hall',note:''};
+ assert.throws(()=>validateExamClashes([a,{...a,id:'b',startTime:'10:00'}]),{code:'CLASS_EXAM_CLASH'});
+ assert.throws(()=>validateExamClashes([a,{...a,id:'b',classId:'class-b',subjectId:'english',venue:'MAIN HALL'}]),{code:'VENUE_EXAM_CLASH'});
+ assert.doesNotThrow(()=>validateExamClashes([a,{...a,id:'b',classId:'class-b'}]));assert.doesNotThrow(()=>validateExamClashes([a,{...a,id:'b',startTime:'11:00',endTime:'12:00'}]));
+});
+test('exam save signatures survive JSON object-key and row ordering changes',()=>{
+ const {examEntriesSignature}=require('../.test-build/features/exams/exams.validation');const a={id:'a',classId:'class-a',subjectId:'math',date:'2026-11-10',startTime:'09:00',endTime:'11:00',venue:'',note:''};assert.equal(examEntriesSignature([a]),examEntriesSignature([{note:'',venue:'',endTime:'11:00',startTime:'09:00',date:'2026-11-10',subjectId:'math',classId:'class-a',id:'a'}]));
+});

@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const exams_routes_1 = __importDefault(require("./exams/exams.routes"));
 const express_1 = __importDefault(require("express"));
 const errorHandler_1 = require("../common/middleware/errorHandler");
 const notFound_1 = require("../common/middleware/notFound");
@@ -57,6 +58,7 @@ appRouter.use("/teachers", teacher_routes_1.default);
 appRouter.use("/imports", imports_routes_1.default);
 appRouter.use("/attendance", attendance_routes_1.default);
 appRouter.use("/results", results_routes_1.default);
+appRouter.use("/exams", exams_routes_1.default);
 appRouter.use("/fees", fees_routes_1.default);
 appRouter.use("/dashboard", dashboard_routes_1.default);
 appRouter.use("/platform", platform_routes_1.default);

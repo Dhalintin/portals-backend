@@ -50,6 +50,7 @@ async function initializeTransaction(params) {
             callback_url: params.callback_url,
             metadata: params.metadata,
             currency: "NGN",
+            ...(params.subaccount ? { subaccount: params.subaccount, bearer: "subaccount" } : {}),
         },
     });
 }

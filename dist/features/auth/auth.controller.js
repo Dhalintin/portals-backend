@@ -3,10 +3,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
 const http_1 = require("../../lib/http");
 const auth_service_1 = require("./auth.service");
+const mailing_1 = require("../../utils/mailing");
 class AuthController {
     register = async (req, res, next) => {
         try {
             const data = await auth_service_1.authService.registerSchoolAdmin(req.body);
+            await (0, mailing_1.sendEmail)({
+                subject: "Registration Successful!",
+                receiptent: {
+                    name: `${data.user.firstName} ${data.user.lastName}`,
+                    email: data.user.email,
+                },
+                content: `<p> Welcome, <emp>${data.user.firstName}<emp></p>. <br/><p> ${data?.school?.name} portal has been created</p>`,
+            });
             return (0, http_1.sendSuccess)(res, data, 201);
         }
         catch (e) {

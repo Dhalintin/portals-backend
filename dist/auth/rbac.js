@@ -8,6 +8,7 @@ exports.ROLE_PERMISSIONS = {
     PROPRIETOR: permissions_1.ALL_PERMISSIONS,
     SCHOOL_ADMIN: permissions_1.ALL_PERMISSIONS,
     PRINCIPAL: [
+        permissions_1.PERMISSIONS["exams:read"], permissions_1.PERMISSIONS["exams:write"], permissions_1.PERMISSIONS["exams:publish"],
         permissions_1.PERMISSIONS["announcements:read"],
         permissions_1.PERMISSIONS["students:read"],
         permissions_1.PERMISSIONS["students:write"],
@@ -42,6 +43,7 @@ exports.ROLE_PERMISSIONS = {
         permissions_1.PERMISSIONS["parents:read"],
     ],
     TEACHER: [
+        permissions_1.PERMISSIONS["exams:read"],
         permissions_1.PERMISSIONS["announcements:read"],
         permissions_1.PERMISSIONS["students:read"],
         permissions_1.PERMISSIONS["classes:read"],
@@ -51,6 +53,7 @@ exports.ROLE_PERMISSIONS = {
         permissions_1.PERMISSIONS["attendance:write"],
     ],
     EXAM_OFFICER: [
+        permissions_1.PERMISSIONS["exams:read"], permissions_1.PERMISSIONS["exams:write"], permissions_1.PERMISSIONS["exams:publish"],
         permissions_1.PERMISSIONS["announcements:read"],
         permissions_1.PERMISSIONS["students:read"],
         permissions_1.PERMISSIONS["classes:read"],
@@ -60,6 +63,7 @@ exports.ROLE_PERMISSIONS = {
         permissions_1.PERMISSIONS["reports:read"],
     ],
     PARENT: [
+        permissions_1.PERMISSIONS["exams:read"],
         permissions_1.PERMISSIONS["announcements:read"],
         permissions_1.PERMISSIONS["results:read"],
         permissions_1.PERMISSIONS["fees:read"],

@@ -5,6 +5,7 @@ export const ROLE_PERMISSIONS: Record<OrgRole, readonly Permission[]> = {
   PROPRIETOR: ALL_PERMISSIONS,
   SCHOOL_ADMIN: ALL_PERMISSIONS,
   PRINCIPAL: [
+    PERMISSIONS["exams:read"], PERMISSIONS["exams:write"], PERMISSIONS["exams:publish"],
     PERMISSIONS["announcements:read"],
     PERMISSIONS["students:read"],
     PERMISSIONS["students:write"],
@@ -39,6 +40,7 @@ export const ROLE_PERMISSIONS: Record<OrgRole, readonly Permission[]> = {
     PERMISSIONS["parents:read"],
   ],
   TEACHER: [
+    PERMISSIONS["exams:read"],
     PERMISSIONS["announcements:read"],
     PERMISSIONS["students:read"],
     PERMISSIONS["classes:read"],
@@ -48,6 +50,7 @@ export const ROLE_PERMISSIONS: Record<OrgRole, readonly Permission[]> = {
     PERMISSIONS["attendance:write"],
   ],
   EXAM_OFFICER: [
+    PERMISSIONS["exams:read"], PERMISSIONS["exams:write"], PERMISSIONS["exams:publish"],
     PERMISSIONS["announcements:read"],
     PERMISSIONS["students:read"],
     PERMISSIONS["classes:read"],
@@ -57,6 +60,7 @@ export const ROLE_PERMISSIONS: Record<OrgRole, readonly Permission[]> = {
     PERMISSIONS["reports:read"],
   ],
   PARENT: [
+    PERMISSIONS["exams:read"],
     PERMISSIONS["announcements:read"],
     PERMISSIONS["results:read"],
     PERMISSIONS["fees:read"],

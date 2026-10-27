@@ -99,6 +99,7 @@ exports.listInvoicesQuerySchema = zod_1.z.object({
         .default(50),
 });
 exports.createManualPaymentSchema = zod_1.z.object({
+    studentId: zod_1.z.string().uuid().optional(),
     idempotencyKey: zod_1.z.string().trim().min(16).max(100).regex(/^[A-Za-z0-9_-]+$/),
     amountNgn: zod_1.z
         .number()

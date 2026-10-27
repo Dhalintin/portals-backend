@@ -28,6 +28,17 @@ export async function assertTeachingAccess(
   if (!allowed) throw new AppError(403, "FORBIDDEN", "You are not assigned to this class or subject");
 }
 
+export async function assertClassTeacher(organizationId: string, actorId: string, classId: string, db: Prisma.TransactionClient = prisma) {
+  await assertTeachingAccess(organizationId, actorId, classId, undefined, db);
+  const assigned = await db.class.findFirst({ where: { id: classId, organizationId, isActive: true, classTeacherId: actorId } });
+  if (!assigned) throw new AppError(403, "FORBIDDEN", "Only the assigned class teacher can mark attendance");
+}
+export async function assertSubjectTeacher(organizationId: string, actorId: string, classId: string, subjectId: string, db: Prisma.TransactionClient = prisma) {
+  await assertTeachingAccess(organizationId, actorId, classId, subjectId, db);
+  const assigned = await db.classSubjectTeacher.findFirst({ where: { organizationId, classId, subjectId, userId: actorId } });
+  if (!assigned) throw new AppError(403, "FORBIDDEN", "Only the assigned subject teacher can enter scores");
+}
+
 export async function assertParentChildAccess(auth: AuthContext, studentId: string) {
   const link = await prisma.parentStudent.findFirst({
     where: {

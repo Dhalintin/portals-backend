@@ -48,6 +48,7 @@ export async function initializeTransaction(params: {
   amountKobo: number;
   reference: string;
   callback_url?: string;
+  subaccount?: string;
   metadata?: Record<string, any>;
 }) {
   return paystackRequest<{
@@ -63,6 +64,7 @@ export async function initializeTransaction(params: {
       callback_url: params.callback_url,
       metadata: params.metadata,
       currency: "NGN",
+      ...(params.subaccount ? { subaccount: params.subaccount, bearer: "subaccount" } : {}),
     },
   });
 }

@@ -1,7 +1,7 @@
 import type { AttendanceStatus, AttendanceRecord, Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
-import { assertTeachingAccess, teachingClassFilter } from "../../auth/resourceAccess";
+import { assertClassTeacher, assertTeachingAccess, teachingClassFilter } from "../../auth/resourceAccess";
 import type { AuthContext } from "../../auth/types";
 import { schoolTransaction } from "../../lib/schoolTransaction";
 import { syncAttendanceNotifications } from "../../lib/studentNotifications";
@@ -31,7 +31,7 @@ export class AttendanceService {
     meta?: { requestId?: string }
   ) {
     return schoolTransaction(organizationId, async tx => {
-      await assertTeachingAccess(organizationId, recordedById, input.classId, undefined, tx);
+      await assertClassTeacher(organizationId, recordedById, input.classId, tx);
       const date = attendanceDate(input.date);
       const students = await tx.student.findMany({ where: { organizationId, classId: input.classId, isActive: true }, select: { id: true } });
       const ids = new Set(students.map(student => student.id));
@@ -66,7 +66,7 @@ export class AttendanceService {
     return schoolTransaction(organizationId, async tx => {
       const existing = await tx.attendanceRecord.findFirst({ where: { id: recordId, organizationId } });
       if (!existing) throw new AppError(404, "NOT_FOUND", "Attendance record not found");
-      await assertTeachingAccess(organizationId, recordedById, existing.classId, undefined, tx);
+      await assertClassTeacher(organizationId, recordedById, existing.classId, tx);
       const updated = await tx.attendanceRecord.update({ where: { id: recordId }, data: { status: input.status,
         note: input.note === undefined ? existing.note : input.note, recordedById } });
       await syncAttendanceNotifications(tx, organizationId, [{ previousStatus: existing.status, record: updated }]);
@@ -154,7 +154,7 @@ export class AttendanceService {
     const results: any = [];
 
     await schoolTransaction(organizationId, async (tx) => {
-      for (const classId of new Set(input.records.map(record => record.classId))) await assertTeachingAccess(organizationId, recordedById, classId, undefined, tx);
+      for (const classId of new Set(input.records.map(record => record.classId))) await assertClassTeacher(organizationId, recordedById, classId, tx);
       const changes: { previousStatus?: AttendanceStatus; record: AttendanceRecord }[] = [];
       for (const r of input.records) {
         const student = await tx.student.findFirst({

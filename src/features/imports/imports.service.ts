@@ -1,3 +1,4 @@
+import {syncStudentAssignedFees} from '../fees/feeAssignments';
 import { randomUUID, createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -90,6 +91,7 @@ export class ImportsService {
         const enrollments = students.filter(row => row.classId).map(row => ({ organizationId, studentId: row.id, classId: row.classId!, sessionId: input.sessionId! }));
         if (enrollments.length) await tx.studentEnrollment.createMany({ data: enrollments });
       }
+      for(const student of students)await syncStudentAssignedFees(tx,organizationId,student.id);
       return finish(tx, organizationId, "STUDENTS", input.idempotencyKey!, hash, students.length, input.rows.length, actorId, requestId);
     });
   }

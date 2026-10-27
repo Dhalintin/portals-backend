@@ -209,6 +209,7 @@ model PasswordResetToken {
 // ═══════════════════════════════════════════════════════════
 
 model Organization {
+  examTimetables ExamTimetable[]
   id           String   @id @default(uuid())
   name         String
   slug         String   @unique
@@ -358,6 +359,7 @@ model AcademicSession {
 }
 
 model Term {
+  examTimetables ExamTimetable[]
   id        String    @id @default(uuid())
   sessionId String
   name      TermName
@@ -810,6 +812,7 @@ model Payment {
 }
 
 model PaymentAllocation {
+  itemAllocations Json?
   id        String @id @default(uuid())
   paymentId String
   invoiceId String
@@ -824,6 +827,7 @@ model PaymentAllocation {
 }
 
 model Receipt {
+  items Json?
   id             String   @id @default(uuid())
   organizationId String
   paymentId      String
@@ -1028,4 +1032,21 @@ model BankAccountChange {
  createdAt DateTime @default(now())
  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
  @@index([organizationId, createdAt])
+}
+
+model ExamTimetable {
+  id String @id @default(uuid())
+  organizationId String
+  termId String
+  title String @default("Exam timetable")
+  entries Json @default("[]")
+  version Int @default(1)
+  publishedSnapshot Json?
+  publishedVersion Int?
+  publishedAt DateTime?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  term Term @relation(fields: [termId], references: [id], onDelete: Cascade)
+  @@unique([organizationId, termId])
 }

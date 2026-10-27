@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.apiLimiter = exports.webhookLimiter = exports.publicLimiter = exports.refreshLimiter = exports.authLimiter = exports.invitationLimiter = void 0;
+exports.parentPaymentLimiter = exports.apiLimiter = exports.webhookLimiter = exports.publicLimiter = exports.refreshLimiter = exports.authLimiter = exports.invitationLimiter = void 0;
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 exports.invitationLimiter = (0, express_rate_limit_1.default)({
     windowMs: 60 * 60 * 1000, max: 100,
@@ -111,3 +111,4 @@ exports.apiLimiter = (0, express_rate_limit_1.default)({
 //   message: commonMessage,
 //   store: createRedisStore("api"),
 // });
+exports.parentPaymentLimiter = (0, express_rate_limit_1.default)({ windowMs: 60 * 1000, max: 20, keyGenerator: req => req.auth.userId, standardHeaders: true, legacyHeaders: false, message: { success: false, error: { code: "RATE_LIMITED", message: "Too many payment requests. Wait a moment and check your payment status before trying again." } } });

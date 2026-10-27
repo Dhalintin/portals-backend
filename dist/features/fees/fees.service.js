@@ -1,6 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.feesService = exports.FeesService = void 0;
+const financeWorkspace_1 = require("./financeWorkspace");
+const rbac_1 = require("../../auth/rbac");
+const itemBalances_1 = require("./itemBalances");
+const paymentConfig_1 = require("./paymentConfig");
 const bankAccount_1 = require("../schools/bankAccount");
 const prisma_1 = require("../../lib/prisma");
 const errors_1 = require("../../lib/errors");
@@ -418,14 +422,15 @@ class FeesService {
             return tx.payment.findUniqueOrThrow({ where: { id }, include: { allocations: true, receipts: true } });
         });
     }
-    async createManualPayment(organizationId, input, recordedById, meta) {
+    async createManualPayment(organizationId, input, recordedById, meta, transaction) {
         input = fees_validation_1.createManualPaymentSchema.parse(input);
         const requestHash = (0, crypto_1.createHash)("sha256").update(JSON.stringify({
+            ...(input.studentId ? { studentId: input.studentId } : {}),
             amountNgn: input.amountNgn, method: input.method, note: input.note ?? null,
             paidAt: input.paidAt ? new Date(input.paidAt).toISOString() : null,
             allocations: [...(input.allocations ?? [])].sort((a, b) => a.invoiceId.localeCompare(b.invoiceId) || a.amountNgn - b.amountNgn),
         })).digest("hex");
-        return (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
+        const save = async (tx) => {
             const previous = await tx.payment.findUnique({ where: {
                     organizationId_idempotencyKey: { organizationId, idempotencyKey: input.idempotencyKey }
                 },
@@ -435,10 +440,20 @@ class FeesService {
                     throw new errors_1.AppError(409, "IDEMPOTENCY_CONFLICT", "This key was used with a different payment request");
                 return { ...previous, replayed: true };
             }
+            if (input.studentId) {
+                const student = await tx.student.findFirst({ where: { id: input.studentId, organizationId }, select: { id: true } });
+                if (!student)
+                    throw new errors_1.AppError(404, "STUDENT_NOT_FOUND", "Student not found");
+                if (input.allocations?.length) {
+                    const count = await tx.invoice.count({ where: { id: { in: [...new Set(input.allocations.map(a => a.invoiceId))] }, organizationId, studentId: input.studentId } });
+                    if (count !== new Set(input.allocations.map(a => a.invoiceId)).size)
+                        throw new errors_1.AppError(400, "INVALID_INVOICES", "All bills must belong to this student");
+                }
+            }
             const payment = await tx.payment.create({ data: { organizationId, amountNgn: input.amountNgn,
                     method: input.method, source: "MANUAL", status: "SUCCESSFUL", recordedById,
                     paidAt: input.paidAt ? new Date(input.paidAt) : new Date(), note: input.note,
-                    idempotencyKey: input.idempotencyKey, requestHash } });
+                    idempotencyKey: input.idempotencyKey, requestHash, ...(input.studentId ? { providerPayload: { studentId: input.studentId } } : {}) } });
             if (input.allocations?.length)
                 await this._allocateInTx(tx, organizationId, payment.id, payment.amountNgn, input.allocations);
             await tx.auditLog.create({ data: { action: "PAYMENT_CREATED", actorId: recordedById, organizationId,
@@ -447,6 +462,29 @@ class FeesService {
             const result = await tx.payment.findUniqueOrThrow({ where: { id: payment.id },
                 include: { allocations: { include: { invoice: true } }, receipts: true } });
             return { ...result, replayed: false };
+        };
+        return transaction ? save(transaction) : (0, schoolTransaction_1.schoolTransaction)(organizationId, save);
+    }
+    async recordStudentPayment(organizationId, raw, actorId) {
+        const input = financeWorkspace_1.studentPaymentSchema.parse(raw);
+        let remaining = input.amountNgn;
+        const allocations = input.bills.flatMap(bill => { const amountNgn = Math.min(remaining, bill.balanceNgn); remaining -= amountNgn; return amountNgn > 0 ? [{ invoiceId: bill.invoiceId, amountNgn }] : []; });
+        if (remaining > 0)
+            throw new errors_1.AppError(400, "OVER_OUTSTANDING", "The amount exceeds the selected bills. Refresh and check the student's balance.");
+        return (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
+            const membership = await tx.membership.findFirst({ where: { organizationId, userId: actorId, isActive: true, user: { isActive: true }, organization: { isActive: true } } });
+            if (!membership || !(0, rbac_1.permissionsForOrgRole)(membership.role).includes('payments:write'))
+                throw new errors_1.AppError(403, 'FORBIDDEN', 'Current payment recording permission is required');
+            const previous = await tx.payment.findUnique({ where: { organizationId_idempotencyKey: { organizationId, idempotencyKey: input.idempotencyKey } } });
+            if (!previous) {
+                const term = await tx.term.findFirst({ where: { id: input.termId, session: { organizationId } }, select: { id: true } });
+                if (!term)
+                    throw new errors_1.AppError(404, "TERM_NOT_FOUND", "Term not found");
+                const bills = await tx.invoice.findMany({ where: { organizationId, studentId: input.studentId, termId: input.termId, id: { in: input.bills.map(b => b.invoiceId) }, status: { notIn: ['DRAFT', 'CANCELLED'] } }, select: { id: true, outstandingNgn: true } });
+                if (bills.length !== input.bills.length || input.bills.some(saved => bills.find(b => b.id === saved.invoiceId)?.outstandingNgn !== saved.balanceNgn))
+                    throw new errors_1.AppError(409, "BALANCE_CHANGED", "These bills changed after this entry was saved. No payment was recorded. Refresh the student and review the amount before saving a new entry.");
+            }
+            return this.createManualPayment(organizationId, { idempotencyKey: input.idempotencyKey, studentId: input.studentId, amountNgn: input.amountNgn, method: input.method, note: input.note, paidAt: input.paidAt, source: 'MANUAL', allocations }, actorId, undefined, tx);
         });
     }
     async allocatePayment(organizationId, paymentId, allocations, actorId, meta) {
@@ -492,20 +530,27 @@ class FeesService {
             }
             const invoice = await tx.invoice.findFirst({
                 where: { id: alloc.invoiceId, organizationId },
+                include: { items: true, allocations: { where: { reversedAt: null, payment: { status: "SUCCESSFUL" } } } },
             });
             if (!invoice) {
                 throw new errors_1.AppError(404, "INVOICE_NOT_FOUND", `Invoice ${alloc.invoiceId} not found`);
+            }
+            const paymentStudentId = current.providerPayload?.studentId;
+            if (typeof paymentStudentId === 'string' && invoice.studentId !== paymentStudentId) {
+                throw new errors_1.AppError(400, 'INVALID_INVOICES', 'A student payment can only cover that student’s bills');
             }
             if (invoice.status === "CANCELLED")
                 throw new errors_1.AppError(400, "CANCELLED_INVOICE", "Cannot allocate to a cancelled invoice");
             if (alloc.amountNgn > invoice.outstandingNgn) {
                 throw new errors_1.AppError(400, "OVER_OUTSTANDING", `Allocation ${alloc.amountNgn} exceeds invoice outstanding ${invoice.outstandingNgn}`);
             }
+            const itemAllocations = (0, itemBalances_1.allocateItems)(invoice, alloc.amountNgn, alloc.itemSelection);
             const row = await tx.paymentAllocation.create({
                 data: {
                     paymentId,
                     invoiceId: alloc.invoiceId,
                     amountNgn: alloc.amountNgn,
+                    itemAllocations,
                 },
             });
             created.push(row);
@@ -523,6 +568,7 @@ class FeesService {
                     invoiceId: alloc.invoiceId,
                     receiptNumber: nextNumber("RCPT", rseq),
                     amountNgn: alloc.amountNgn,
+                    items: itemAllocations,
                 },
             });
             await (0, studentNotifications_1.enqueueReceipt)(tx, organizationId, receipt, invoice.studentId);
@@ -579,7 +625,7 @@ class FeesService {
         if (studentIds.length === 0)
             return { children: [] };
         const invoices = await prisma_1.prisma.invoice.findMany({
-            where: { organizationId, studentId: { in: studentIds } },
+            where: { organizationId, studentId: { in: studentIds }, status: { not: "DRAFT" } },
             include: {
                 student: {
                     select: {
@@ -590,11 +636,14 @@ class FeesService {
                     },
                 },
                 items: true,
+                term: { include: { session: true } },
+                allocations: { where: { reversedAt: null, payment: { status: "SUCCESSFUL" } } },
                 receipts: true,
             },
             orderBy: { issuedAt: "desc" },
         });
-        return { invoices, bankAccount: await (0, bankAccount_1.bankTransferInstructions)(organizationId) };
+        const creditReceipts = await prisma_1.prisma.receipt.findMany({ where: { organizationId, invoiceId: null, payment: { recordedById: parentUserId, source: 'PAYSTACK', OR: studentIds.map(id => ({ providerPayload: { path: ['studentId'], equals: id } })) } }, select: { id: true, receiptNumber: true, amountNgn: true, issuedAt: true, voidedAt: true, payment: { select: { providerPayload: true } } } });
+        return { invoices: invoices.map(({ allocations, ...invoice }) => ({ ...invoice, items: (0, itemBalances_1.itemBalances)({ ...invoice, allocations }) })), creditReceipts: creditReceipts.map(({ payment, ...receipt }) => ({ ...receipt, studentId: payment.providerPayload?.studentId })), onlinePaymentsEnabled: !!(0, paymentConfig_1.parentPaymentSubaccount)(organizationId), bankAccount: await (0, bankAccount_1.bankTransferInstructions)(organizationId) };
     }
     // ─── Bursar summary ────────────────────────────────────────────
     async bursarSummary(organizationId, opts) {
@@ -668,34 +717,50 @@ class FeesService {
             }
         }
         const reference = `sch_${organizationId.slice(0, 8)}_${(0, crypto_1.randomBytes)(8).toString("hex")}`;
-        const payment = await prisma_1.prisma.payment.create({
-            data: {
-                organizationId,
-                amountNgn: input.amountNgn,
-                status: "PENDING",
-                method: "ONLINE",
-                source: "PAYSTACK",
-                providerReference: reference,
-                recordedById,
-                note: input.studentId ? `Student ${input.studentId}` : undefined,
-                providerPayload: {
-                    ...input.metadata,
-                    invoiceIds: input.invoiceIds ?? [],
-                    studentId: input.studentId,
+        const payment = await (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
+            if (input.idempotencyKey) {
+                const previous = await tx.payment.findUnique({ where: { organizationId_idempotencyKey: { organizationId, idempotencyKey: input.idempotencyKey } } });
+                if (previous) {
+                    if (previous.recordedById !== recordedById || previous.providerPayload?.selectionHash !== input.metadata?.selectionHash)
+                        throw new errors_1.AppError(409, "IDEMPOTENCY_CONFLICT", "Payment selection changed");
+                    return previous;
+                }
+            }
+            return tx.payment.create({
+                data: {
+                    organizationId,
+                    idempotencyKey: input.idempotencyKey,
+                    amountNgn: input.amountNgn,
+                    status: "PENDING",
+                    method: "ONLINE",
+                    source: "PAYSTACK",
+                    providerReference: reference,
+                    recordedById,
+                    note: input.studentId ? `Student ${input.studentId}` : undefined,
+                    providerPayload: {
+                        ...input.metadata,
+                        subaccount: input.subaccount,
+                        invoiceIds: input.invoiceIds ?? [],
+                        studentId: input.studentId,
+                    },
                 },
-            },
+            });
         });
-        const amountKobo = input.amountNgn * 100;
+        const previousCheckout = payment.providerPayload?.checkout;
+        if (previousCheckout)
+            return { paymentId: payment.id, reference: payment.providerReference, authorizationUrl: previousCheckout.authorization_url, accessCode: previousCheckout.access_code };
+        const amountKobo = payment.amountNgn * 100;
         const paystack = await (0, paystack_1.initializeTransaction)({
             email: input.email,
             amountKobo,
-            reference,
+            reference: payment.providerReference,
+            subaccount: payment.providerPayload?.subaccount ?? input.subaccount,
             callback_url: input.callbackUrl || `${process.env.APP_URL}/payments/callback`,
             metadata: {
                 organizationId,
                 paymentId: payment.id,
-                invoiceIds: input.invoiceIds,
-                studentId: input.studentId,
+                invoiceIds: payment.providerPayload?.invoiceIds,
+                studentId: payment.providerPayload?.studentId,
                 custom_fields: [
                     {
                         display_name: "Payment ID",
@@ -705,6 +770,7 @@ class FeesService {
                 ],
             },
         });
+        await (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => { const current = await tx.payment.findUniqueOrThrow({ where: { id: payment.id } }); await tx.payment.update({ where: { id: payment.id }, data: { providerPayload: { ...current.providerPayload, checkout: paystack } } }); });
         await audit_service_1.auditService.write({
             action: "PAYMENT_CREATED",
             actorId: recordedById ?? undefined,
@@ -716,7 +782,7 @@ class FeesService {
         });
         return {
             paymentId: payment.id,
-            reference,
+            reference: payment.providerReference,
             authorizationUrl: paystack.authorization_url,
             accessCode: paystack.access_code,
         };
@@ -807,12 +873,21 @@ class FeesService {
                         break;
                     const inv = await tx.invoice.findFirst({
                         where: { id: invId, organizationId: payment.organizationId },
+                        include: { items: true, allocations: { where: { reversedAt: null, payment: { status: "SUCCESSFUL" } } } },
                     });
                     if (!inv || inv.status === "CANCELLED" || inv.outstandingNgn <= 0)
                         continue;
-                    const allocAmount = Math.min(remaining, inv.outstandingNgn);
-                    allocations.push({ invoiceId: invId, amountNgn: allocAmount });
+                    const selection = payload?.itemSelections?.[invId];
+                    const balances = (0, itemBalances_1.itemBalances)(inv);
+                    const selectedRemaining = selection ? selection.reduce((sum, line) => sum + Math.min(line.amountNgn, balances.find(item => item.id === line.invoiceItemId)?.outstandingNgn ?? 0), 0) : inv.outstandingNgn;
+                    const allocAmount = Math.min(remaining, inv.outstandingNgn, selectedRemaining);
+                    if (allocAmount <= 0)
+                        continue;
+                    allocations.push({ invoiceId: invId, amountNgn: allocAmount, itemSelection: selection?.filter(line => balances.some(item => item.id === line.invoiceItemId)) });
                     remaining -= allocAmount;
+                }
+                if (remaining > 0 && payload?.parentUserId) {
+                    await tx.receipt.create({ data: { organizationId: payment.organizationId, paymentId: payment.id, receiptNumber: 'CREDIT-' + payment.id, amountNgn: remaining, items: [{ invoiceItemId: 'credit', description: 'Unallocated school credit — contact the school office', amountNgn: remaining }] } });
                 }
                 if (allocations.length) {
                     await this._allocateInTx(tx, payment.organizationId, payment.id, updated.amountNgn, allocations);

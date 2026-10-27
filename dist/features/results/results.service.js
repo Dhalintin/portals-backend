@@ -175,7 +175,7 @@ class ResultsService {
         if (!result.classId)
             throw new errors_1.AppError(400, "CLASS_REQUIRED", "Result sheet must belong to a class");
         for (const entry of scores) {
-            await (0, resourceAccess_1.assertTeachingAccess)(organizationId, actorId, result.classId, entry.subjectId);
+            await (0, resourceAccess_1.assertSubjectTeacher)(organizationId, actorId, result.classId, entry.subjectId);
         }
         const scale = await this.getGradeScale(organizationId);
         const bands = scale.bands || [];
@@ -185,6 +185,7 @@ class ResultsService {
                 throw new errors_1.AppError(409, "LOCKED", "Result is no longer editable");
             const out = [];
             for (const entry of scores) {
+                await (0, resourceAccess_1.assertSubjectTeacher)(organizationId, actorId, current.classId, entry.subjectId, tx);
                 const previous = await tx.score.findUnique({ where: { resultId_subjectId: { resultId, subjectId: entry.subjectId } } });
                 const ca1 = entry.ca1 === undefined ? previous?.ca1 ?? 0 : entry.ca1 ?? 0;
                 const ca2 = entry.ca2 === undefined ? previous?.ca2 ?? 0 : entry.ca2 ?? 0;
@@ -250,7 +251,7 @@ class ResultsService {
         return this.getResult(organizationId, resultId);
     }
     async bulkScoresByClassSubject(organizationId, input, actorId, meta) {
-        await (0, resourceAccess_1.assertTeachingAccess)(organizationId, actorId, input.classId, input.subjectId);
+        await (0, resourceAccess_1.assertSubjectTeacher)(organizationId, actorId, input.classId, input.subjectId);
         const studentIds = [...new Set(input.entries.map((entry) => entry.studentId))];
         const studentCount = await prisma_1.prisma.student.count({
             where: { organizationId, classId: input.classId, isActive: true, id: { in: studentIds } },

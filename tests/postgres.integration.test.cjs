@@ -1633,3 +1633,227 @@ check('term dates are editable and required on every activation route without di
  const second=await request('POST','/academic/sessions/'+session.id+'/terms',token,{name:'SECOND',isCurrent:true});assert.equal(second.status,400);
  assert.equal((await academicService.getCurrent(org)).term.id,term.id);
 });
+check('staff spreadsheet imports validate before writing, replay safely and support pending role assignment',async()=>{
+ const owner=await authService.registerSchoolAdmin({email:'staff-import-'+crypto.randomUUID()+'@example.test',password:'StaffImportAcceptance123!',firstName:'Import',lastName:'Owner',schoolName:'Staff import acceptance'});
+ const org=owner.school.id,token=(await tokens(owner.user.id,org)).accessToken;
+ const input={rows:[{rowNumber:2,firstName:'Ada',lastName:'Obi',email:'staff-a-'+crypto.randomUUID()+'@example.test'},{rowNumber:3,firstName:'Tunde',lastName:'Bello',email:'staff-b-'+crypto.randomUUID()+'@example.test'}]};
+ let response=await request('POST','/imports/staff',token,input);assert.equal(response.status,200,JSON.stringify(response));assert.equal(response.body.data.canCommit,true);assert.equal(response.body.data.defaultRole,'TEACHER');assert.equal(await prisma.schoolInvitation.count({where:{organizationId:org}}),0);
+ const commit={...input,dryRun:false,idempotencyKey:crypto.randomUUID()};response=await request('POST','/imports/staff',token,commit);assert.equal(response.status,200,JSON.stringify(response));assert.equal(response.body.data.created,2);
+ assert.equal((await request('POST','/imports/staff',token,commit)).body.data.replayed,true);assert.equal(await prisma.schoolInvitation.count({where:{organizationId:org}}),2);assert.equal(await prisma.authEmail.count({where:{recipient:{in:input.rows.map(r=>r.email)}}}),2);
+ assert.equal((await request('POST','/imports/staff',token,input)).body.data.canCommit,false);
+ assert.equal((await request('POST','/imports/staff',token,{...input,defaultRole:'PROPRIETOR'})).status,422);
+ const invitation=await prisma.schoolInvitation.findFirstOrThrow({where:{organizationId:org,email:input.rows[0].email}});
+ assert.equal((await request('PATCH','/staff/invitations/'+invitation.id+'/role',token,{role:'EXAM_OFFICER'})).status,200);
+ const accepted=await request('POST','/auth/invitations/accept',null,{token:await invitationToken(input.rows[0].email),password:'StaffAccepted123!'});assert.equal(accepted.status,200,JSON.stringify(accepted));
+ const user=await prisma.user.findUniqueOrThrow({where:{email:input.rows[0].email}});assert.equal((await prisma.membership.findUniqueOrThrow({where:{userId_organizationId:{userId:user.id,organizationId:org}}})).role,'EXAM_OFFICER');
+ assert.equal((await request('PATCH','/staff/invitations/'+invitation.id+'/role',token,{role:'BURSAR'})).status,404);
+ assert.equal((await request('POST','/imports/staff',(await tokens(a.teacherId,a.id)).accessToken,input)).status,403);
+ const second=await prisma.schoolInvitation.findFirstOrThrow({where:{organizationId:org,email:input.rows[1].email}});
+ assert.equal((await request('PATCH','/staff/invitations/'+second.id+'/role',(await tokens(a.ownerId,a.id)).accessToken,{role:'BURSAR'})).status,404);
+});
+check('spreadsheet student import creates the applicable automatic term bills in the same transaction',async()=>{
+ const owner=await authService.registerSchoolAdmin({email:'student-sheet-'+crypto.randomUUID()+'@example.test',password:'StudentSheetAcceptance123!',firstName:'Sheet',lastName:'Owner',schoolName:'Student sheet acceptance'});
+ const org=owner.school.id,token=(await tokens(owner.user.id,org)).accessToken;
+ const year=await prisma.academicSession.create({data:{organizationId:org,name:'2026/2027',isCurrent:true}});
+ const term=await prisma.term.create({data:{sessionId:year.id,name:'FIRST',isCurrent:true,startDate:new Date('2026-09-01'),endDate:new Date('2026-12-20')}});
+ const cls=await prisma.class.create({data:{organizationId:org,name:'SS 1'}});
+ let response=await request('POST','/fees/assignments',token,{idempotencyKey:crypto.randomUUID(),termId:term.id,name:'Tuition',classIds:[cls.id],items:[{name:'Tuition',amountNgn:12000}]});assert.equal(response.status,200,JSON.stringify(response));
+ const input={sessionId:year.id,rows:[{rowNumber:2,firstName:'Ada',lastName:'Obi',admissionNumber:'SHEET001',className:'SS 1'}]};
+ response=await request('POST','/imports/students',token,input);assert.equal(response.status,200);assert.equal(response.body.data.canCommit,true);
+ const committed={...input,dryRun:false,idempotencyKey:crypto.randomUUID()};response=await request('POST','/imports/students',token,committed);assert.equal(response.status,200,JSON.stringify(response));assert.equal(response.body.data.created,1);
+ assert.equal((await request('POST','/imports/students',token,committed)).body.data.replayed,true);
+ assert.equal(await prisma.student.count({where:{organizationId:org}}),1);assert.equal(await prisma.invoice.count({where:{organizationId:org,termId:term.id}}),1);
+ assert.equal((await prisma.invoice.findFirstOrThrow({where:{organizationId:org,termId:term.id}})).outstandingNgn,12000);
+});
+
+check('entry permissions follow assignments rather than administrative role', async () => {
+ const {assertClassTeacher,assertSubjectTeacher}=require('../.test-build/auth/resourceAccess');
+ await assert.rejects(assertClassTeacher(a.id,a.ownerId,a.classId),{statusCode:403});
+ await assert.rejects(assertSubjectTeacher(a.id,a.ownerId,a.classId,a.subjectId),{statusCode:403});
+ await assertClassTeacher(a.id,a.teacherId,a.classId);
+ const assignment=await prisma.classSubjectTeacher.findFirstOrThrow({where:{organizationId:a.id,userId:a.teacherId,classId:a.classId}});
+ await assertSubjectTeacher(a.id,a.teacherId,a.classId,assignment.subjectId);
+ const previous=await prisma.class.findUniqueOrThrow({where:{id:a.classId}});
+ try {
+  await prisma.class.update({where:{id:a.classId},data:{classTeacherId:null}});
+  await assert.rejects(attendanceService.offlineSync(a.id,a.teacherId,{records:[{studentId:a.studentId,classId:a.classId,date:'2026-10-12',status:'PRESENT'}]}),{statusCode:403});
+ } finally {await prisma.class.update({where:{id:a.classId},data:{classTeacherId:previous.classTeacherId}});}
+ const token=(await tokens(a.ownerId,a.id)).accessToken;
+ const response=await request('GET','/staff/me/assignments',token);
+ assert.equal(response.status,200);
+});
+
+check('parents pay selected items, retry safely and receive scoped itemized receipts',async()=>{
+ const {startParentCheckout,parentPaymentStatus,parentReceipt}=require('../.test-build/features/fees/parentPayments');
+ const savedMap=process.env.PAYSTACK_SCHOOL_SUBACCOUNTS,savedWeb=process.env.WEB_URL;
+ process.env.PAYSTACK_SCHOOL_SUBACCOUNTS=JSON.stringify({[a.id]:'ACCT_schoolA'});process.env.WEB_URL='https://portal.test';
+ const auth={userId:a.parentUserId,schoolId:a.id,orgRole:'PARENT'};
+ const bill=await prisma.invoice.create({data:{organizationId:a.id,studentId:a.studentId,invoiceNumber:'PARENT-ITEM-'+crypto.randomUUID(),totalNgn:15500,outstandingNgn:15500,status:'ISSUED',items:{create:[{description:'Tuition',amountNgn:12000},{description:'PTA',amountNgn:3500}]}},include:{items:true}});
+ const pta=bill.items.find(i=>i.description==='PTA');
+ let calls=0;
+ mock.method(paystack,'initializeTransaction',async input=>{calls++;assert.equal(input.amountKobo,350000);assert.equal(input.subaccount,'ACCT_schoolA');assert.equal(input.callback_url,'https://portal.test/parent');return {reference:input.reference,authorization_url:'https://checkout.paystack.com/test',access_code:'test'};});
+ mock.method(paystack,'verifyTransaction',async reference=>({status:'success',amount:350000,currency:'NGN',reference}));
+ try{
+  const body={studentId:a.studentId,itemIds:[pta.id],idempotencyKey:crypto.randomUUID(),callbackOrigin:'https://portal.test'};
+  const first=await startParentCheckout(auth,body),retry=await startParentCheckout(auth,body);
+  assert.equal(first.reference,retry.reference);assert.equal(calls,1);
+  await assert.rejects(startParentCheckout(auth,{...body,studentId:b.studentId,idempotencyKey:crypto.randomUUID()}));
+  await assert.rejects(startParentCheckout(auth,{...body,callbackOrigin:'https://evil.test',idempotencyKey:crypto.randomUUID()}),{code:'INVALID_CALLBACK'});
+  await Promise.all([parentPaymentStatus(auth,first.reference),parentPaymentStatus(auth,first.reference)]);
+  const current=await prisma.invoice.findUniqueOrThrow({where:{id:bill.id}});assert.equal(current.paidNgn,3500);assert.equal(current.outstandingNgn,12000);
+  const receipts=await prisma.receipt.findMany({where:{paymentId:first.paymentId}});assert.equal(receipts.length,1);assert.equal(receipts[0].items[0].description,'PTA');assert.equal(receipts[0].items[0].amountNgn,3500);
+  const receipt=await parentReceipt(auth,receipts[0].id);assert.equal(receipt.student.admissionNumber,(await prisma.student.findUniqueOrThrow({where:{id:a.studentId}})).admissionNumber);assert.equal(receipt.payment.providerPayload,undefined);
+  await assert.rejects(parentReceipt({...auth,userId:b.parentUserId,schoolId:b.id},receipts[0].id),{code:'NOT_FOUND'});
+  const overview=await feesService.parentFees(a.id,a.parentUserId),visible=overview.invoices.find(i=>i.id===bill.id);assert.equal(visible.items.find(i=>i.id===pta.id).outstandingNgn,0);assert.equal(visible.items.find(i=>i.description==='Tuition').outstandingNgn,12000);
+  assert.equal((await startParentCheckout(auth,body)).reference,first.reference);
+  await assert.rejects(startParentCheckout(auth,{...body,itemIds:bill.items.map(i=>i.id)}),{code:'IDEMPOTENCY_CONFLICT'});
+ }finally{if(savedMap===undefined)delete process.env.PAYSTACK_SCHOOL_SUBACCOUNTS;else process.env.PAYSTACK_SCHOOL_SUBACCOUNTS=savedMap;if(savedWeb===undefined)delete process.env.WEB_URL;else process.env.WEB_URL=savedWeb;}
+});
+check('a completed parent payment preserves excess as school credit instead of charging another item',async()=>{
+ const bill=await prisma.invoice.create({data:{organizationId:a.id,studentId:a.studentId,invoiceNumber:'PARENT-RACE-'+crypto.randomUUID(),totalNgn:3500,outstandingNgn:3500,status:'ISSUED',items:{create:[{description:'PTA',amountNgn:3500}]}},include:{items:true}});
+ const pending=await prisma.payment.create({data:{organizationId:a.id,recordedById:a.parentUserId,amountNgn:3500,method:'ONLINE',source:'PAYSTACK',providerReference:'PARENT-RACE-'+crypto.randomUUID(),providerPayload:{parentUserId:a.parentUserId,studentId:a.studentId,invoiceIds:[bill.id],itemSelections:{[bill.id]:[{invoiceItemId:bill.items[0].id,description:'PTA',amountNgn:3500}]}}}});
+ await feesService.createManualPayment(a.id,{idempotencyKey:crypto.randomUUID(),amountNgn:3500,method:'CASH',source:'MANUAL',allocations:[{invoiceId:bill.id,amountNgn:3500}]},a.bursarId);
+ mock.method(paystack,'verifyTransaction',async reference=>({status:'success',amount:350000,currency:'NGN',reference}));
+ await feesService.finalizePaystackPayment(pending.providerReference);
+ assert.equal(await prisma.paymentAllocation.count({where:{paymentId:pending.id}}),0);
+ const receipts=await prisma.receipt.findMany({where:{paymentId:pending.id}});assert.equal(receipts.length,1);assert.equal(receipts[0].invoiceId,null);assert.equal(receipts[0].amountNgn,3500);
+ const overview=await feesService.parentFees(a.id,a.parentUserId);assert.ok(overview.creditReceipts.some(r=>r.id===receipts[0].id&&r.studentId===a.studentId));
+});
+
+check('parents can pay multiple invoices in one checkout and recover provider initialization failure',async()=>{
+ const {startParentCheckout,parentPaymentStatus}=require('../.test-build/features/fees/parentPayments');
+ const oldMap=process.env.PAYSTACK_SCHOOL_SUBACCOUNTS,oldWeb=process.env.WEB_URL;
+ process.env.PAYSTACK_SCHOOL_SUBACCOUNTS=JSON.stringify({[a.id]:'ACCT_schoolA'});process.env.WEB_URL='https://portal.test';
+ const auth={userId:a.parentUserId,schoolId:a.id,orgRole:'PARENT'};
+ const bills=[];
+ for(const [name,amount] of [['Sports',300],['Library',2000]])bills.push(await prisma.invoice.create({data:{organizationId:a.id,studentId:a.studentId,invoiceNumber:'COMBINED-'+crypto.randomUUID(),totalNgn:amount,outstandingNgn:amount,status:'ISSUED',items:{create:[{description:name,amountNgn:amount}]}},include:{items:true}}));
+ const body={studentId:a.studentId,itemIds:bills.flatMap(b=>b.items.map(i=>i.id)),idempotencyKey:crypto.randomUUID(),callbackOrigin:'https://portal.test'};
+ let calls=0,originalReference;
+ mock.method(paystack,'initializeTransaction',async input=>{calls++;assert.equal(input.amountKobo,230000);if(calls===1){originalReference=input.reference;throw Error('Provider temporarily unavailable');}assert.equal(input.reference,originalReference);return {authorization_url:'https://checkout.paystack.com/test',access_code:'test',reference:input.reference};});
+ mock.method(paystack,'verifyTransaction',async reference=>({status:'success',amount:230000,currency:'NGN',reference}));
+ try{
+  await assert.rejects(startParentCheckout(auth,body),/temporarily unavailable/);
+  const recovered=await startParentCheckout(auth,body);assert.equal(recovered.reference,originalReference);assert.equal(await prisma.payment.count({where:{organizationId:a.id,idempotencyKey:body.idempotencyKey}}),1);
+  await parentPaymentStatus(auth,recovered.reference);
+  const receipts=await prisma.receipt.findMany({where:{paymentId:recovered.paymentId}});assert.equal(receipts.length,2);assert.equal(receipts.reduce((sum,r)=>sum+r.amountNgn,0),2300);assert.deepEqual(receipts.flatMap(r=>r.items.map(i=>i.description)).sort(),['Library','Sports']);
+  for(const bill of bills)assert.equal((await prisma.invoice.findUniqueOrThrow({where:{id:bill.id}})).outstandingNgn,0);
+ }finally{if(oldMap===undefined)delete process.env.PAYSTACK_SCHOOL_SUBACCOUNTS;else process.env.PAYSTACK_SCHOOL_SUBACCOUNTS=oldMap;if(oldWeb===undefined)delete process.env.WEB_URL;else process.env.WEB_URL=oldWeb;}
+});
+
+check('bursar records one student payment across bills and safely replays concurrent retries',async()=>{
+ const child=await prisma.student.create({data:{organizationId:a.id,classId:a.classId,firstName:'Finance',lastName:'Student',admissionNumber:'FIN-'+crypto.randomUUID()}});
+ const bills=[];for(const [name,amount] of [['Tuition',4000],['PTA',3500]])bills.push(await prisma.invoice.create({data:{organizationId:a.id,studentId:child.id,termId:a.termId,invoiceNumber:'FIN-'+crypto.randomUUID(),totalNgn:amount,outstandingNgn:amount,status:'ISSUED',items:{create:[{description:name,amountNgn:amount}]}}}));
+ const body={idempotencyKey:crypto.randomUUID(),studentId:child.id,termId:a.termId,amountNgn:6500,method:'BANK_TRANSFER',paidAt:new Date().toISOString(),note:'BANK-123',bills:bills.map(bill=>({invoiceId:bill.id,balanceNgn:bill.outstandingNgn}))};
+ const token=(await tokens(a.bursarId,a.id)).accessToken;
+ const responses=await Promise.all([request('POST','/fees/student-payments',token,body),request('POST','/fees/student-payments',token,body)]);
+ assert.ok(responses.every(response=>response.status===201),JSON.stringify(responses));
+ assert.equal(await prisma.payment.count({where:{organizationId:a.id,idempotencyKey:body.idempotencyKey}}),1);
+ const payment=await prisma.payment.findUniqueOrThrow({where:{organizationId_idempotencyKey:{organizationId:a.id,idempotencyKey:body.idempotencyKey}}});
+ const receipts=await prisma.receipt.findMany({where:{paymentId:payment.id}});assert.equal(receipts.length,2);assert.equal(receipts.reduce((sum,row)=>sum+row.amountNgn,0),6500);assert.equal((await prisma.invoice.findUniqueOrThrow({where:{id:bills[0].id}})).outstandingNgn,0);assert.equal((await prisma.invoice.findUniqueOrThrow({where:{id:bills[1].id}})).outstandingNgn,1000);
+ const report=await request('GET','/fees/receipt-documents/'+receipts[0].id,token);assert.equal(report.status,200);assert.ok(report.body.data.items.length);assert.equal(report.body.data.payment.providerPayload,undefined);
+ const outsider=(await tokens(b.bursarId,b.id)).accessToken;assert.equal((await request('GET','/fees/receipt-documents/'+receipts[0].id,outsider)).status,404);
+ const parent=(await tokens(a.parentUserId,a.id)).accessToken;assert.equal((await request('POST','/fees/student-payments',parent,body)).status,403);
+ await assert.rejects(feesService.recordStudentPayment(a.id,{...body,amountNgn:6000},a.bursarId),{code:'IDEMPOTENCY_CONFLICT'});
+});
+check('stale offline student payments roll back entirely and cannot be moved to other children',async()=>{
+ const child=await prisma.student.create({data:{organizationId:a.id,classId:a.classId,firstName:'Offline',lastName:'Review',admissionNumber:'OFF-'+crypto.randomUUID()}});
+ const bill=await prisma.invoice.create({data:{organizationId:a.id,studentId:child.id,termId:a.termId,invoiceNumber:'OFF-'+crypto.randomUUID(),totalNgn:100,outstandingNgn:100,status:'ISSUED'}});
+ const input={idempotencyKey:crypto.randomUUID(),studentId:child.id,termId:a.termId,amountNgn:80,method:'CASH',paidAt:new Date().toISOString(),bills:[{invoiceId:bill.id,balanceNgn:100}]};
+ await feesService.createManualPayment(a.id,{idempotencyKey:crypto.randomUUID(),amountNgn:40,method:'CASH',source:'MANUAL',allocations:[{invoiceId:bill.id,amountNgn:40}]},a.bursarId);
+ await assert.rejects(feesService.recordStudentPayment(a.id,input,a.bursarId),{code:'BALANCE_CHANGED'});
+ assert.equal(await prisma.payment.count({where:{organizationId:a.id,idempotencyKey:input.idempotencyKey}}),0);
+ await assert.rejects(feesService.recordStudentPayment(a.id,{...input,studentId:a.studentId,amountNgn:10,bills:[{invoiceId:bill.id,balanceNgn:60}]},a.bursarId),{code:'BALANCE_CHANGED'});
+ await assert.rejects(feesService.recordStudentPayment(a.id,{...input,termId:b.termId},a.bursarId),{code:'TERM_NOT_FOUND'});
+ const saved=await feesService.recordStudentPayment(a.id,{...input,amountNgn:60,bills:[{invoiceId:bill.id,balanceNgn:60}]},a.bursarId);assert.equal(saved.amountNgn,60);
+});
+check('finance workspace uses complete term bills and all-time unallocated credits with school-scoped totals',async()=>{
+ const {financeWorkspace}=require('../.test-build/features/fees/financeWorkspace');
+ for(let index=0;index<28;index++){
+  const student=await prisma.student.create({data:{organizationId:a.id,classId:a.classId,firstName:'Report',lastName:'Student '+index,admissionNumber:'RPT-'+crypto.randomUUID()}});
+  await prisma.invoice.create({data:{organizationId:a.id,studentId:student.id,termId:a.termId,invoiceNumber:'RPT-'+crypto.randomUUID(),totalNgn:100,outstandingNgn:100,status:'ISSUED'}});
+ }
+ const credit=await feesService.createManualPayment(a.id,{idempotencyKey:crypto.randomUUID(),studentId:a.studentId,amountNgn:250,method:'CASH',source:'MANUAL',allocations:[]},a.bursarId);
+ const workspace=await financeWorkspace(a.id,{termId:a.termId});assert.ok(workspace.students.length>=28);assert.equal(workspace.daily.length,14);
+ const totals=await prisma.invoice.aggregate({where:{organizationId:a.id,termId:a.termId,status:{notIn:['DRAFT','CANCELLED']}},_sum:{totalNgn:true,paidNgn:true,outstandingNgn:true}});
+ assert.equal(workspace.totals.expectedNgn,totals._sum.totalNgn);assert.equal(workspace.totals.receivedNgn,totals._sum.paidNgn);assert.equal(workspace.totals.outstandingNgn,totals._sum.outstandingNgn);
+ assert.equal(workspace.credits.find(row=>row.paymentId===credit.id).creditNgn,250);assert.equal(workspace.credits.find(row=>row.paymentId===credit.id).studentId,a.studentId);assert.ok(!JSON.stringify(workspace).includes('providerPayload'));
+ await feesService.reverseManualPayment(a.id,credit.id,'Test credit reversed',a.bursarId);assert.ok(!(await financeWorkspace(a.id,{termId:a.termId})).credits.some(row=>row.paymentId===credit.id));
+ await assert.rejects(financeWorkspace(a.id,{termId:b.termId}),{code:'TERM_NOT_FOUND'});
+ const parent=(await tokens(a.parentUserId,a.id)).accessToken;assert.equal((await request('GET','/fees/workspace?termId='+a.termId,parent)).status,403);
+ const bursar=(await tokens(a.bursarId,a.id)).accessToken;assert.equal((await request('GET','/fees/workspace?termId='+a.termId,bursar)).status,200);
+});
+
+check('offline student payment sync rechecks active payment permission inside the transaction',async()=>{
+ const membership=await prisma.membership.findFirstOrThrow({where:{organizationId:a.id,userId:a.bursarId}});
+ try{
+  await prisma.membership.update({where:{id:membership.id},data:{isActive:false}});
+  await assert.rejects(feesService.recordStudentPayment(a.id,{idempotencyKey:crypto.randomUUID(),studentId:a.studentId,termId:a.termId,amountNgn:1,method:'CASH',paidAt:new Date().toISOString(),bills:[{invoiceId:a.invoiceId,balanceNgn:1}]},a.bursarId),{code:'FORBIDDEN'});
+ }finally{await prisma.membership.update({where:{id:membership.id},data:{isActive:membership.isActive}});}
+});
+
+async function examFixture(){
+ const label=crypto.randomUUID();const session=await prisma.academicSession.create({data:{organizationId:a.id,name:'Exams '+label}});const term=await prisma.term.create({data:{sessionId:session.id,name:'FIRST',startDate:new Date('2026-10-01'),endDate:new Date('2026-12-20')}});
+ const classes=[];for(const name of ['One','Two'])classes.push(await prisma.class.create({data:{organizationId:a.id,name:'Exam '+name+' '+label}}));
+ const subjects=[];for(const name of ['Math','English'])subjects.push(await prisma.subject.create({data:{organizationId:a.id,name:name+' '+label}}));for(const cls of classes)for(const subject of subjects)await prisma.classSubject.create({data:{organizationId:a.id,classId:cls.id,subjectId:subject.id}});
+ const officer=await prisma.user.create({data:{email:'exam-officer-'+label+'@example.test',firstName:'Exam',lastName:'Officer',memberships:{create:{organizationId:a.id,role:'EXAM_OFFICER'}}}});const teacher=await prisma.user.create({data:{email:'exam-teacher-'+label+'@example.test',firstName:'Exam',lastName:'Teacher',memberships:{create:{organizationId:a.id,role:'TEACHER'}}}});
+ await prisma.classSubjectTeacher.create({data:{organizationId:a.id,userId:teacher.id,classId:classes[0].id,subjectId:subjects[0].id}});
+ const parentUser=await prisma.user.create({data:{email:'exam-parent-'+label+'@example.test',firstName:'Exam',lastName:'Parent',memberships:{create:{organizationId:a.id,role:'PARENT'}}}});const parent=await prisma.parent.create({data:{organizationId:a.id,userId:parentUser.id,firstName:'Exam',lastName:'Parent'}});
+ const children=[];for(const cls of classes)children.push(await prisma.student.create({data:{organizationId:a.id,classId:cls.id,firstName:'Exam',lastName:'Child',admissionNumber:'EX-'+crypto.randomUUID()}}));await prisma.parentStudent.create({data:{organizationId:a.id,parentId:parent.id,studentId:children[0].id}});
+ const entries=classes.map(cls=>({id:crypto.randomUUID(),classId:cls.id,subjectId:subjects[0].id,date:'2026-11-10',startTime:'09:00',endTime:'11:00',venue:'Shared hall',note:''}));
+ return {term,classes,subjects,officer,teacher,parentUser,children,entries,officerToken:(await tokens(officer.id,a.id)).accessToken,teacherToken:(await tokens(teacher.id,a.id)).accessToken,parentToken:(await tokens(parentUser.id,a.id)).accessToken};
+}
+check('exam timetable drafts stay private, publishing is scoped and device retries preserve versions',async()=>{
+ const f=await examFixture();const body={termId:f.term.id,expectedVersion:0,title:'November exams',entries:f.entries};
+ let response=await request('PUT','/exams/timetable',f.officerToken,body);assert.equal(response.status,200,JSON.stringify(response));assert.equal(response.body.data.version,1);
+ assert.equal((await request('GET','/exams/editor?termId='+f.term.id,f.teacherToken)).status,403);
+ let parent=await request('GET','/exams/published?termId='+f.term.id+'&studentId='+f.children[0].id,f.parentToken);assert.equal(parent.body.data.publishedAt,null);assert.equal(parent.body.data.entries.length,0);
+ response=await request('POST','/exams/timetable/publish',f.officerToken,{termId:f.term.id,expectedVersion:1});assert.equal(response.status,200);assert.equal(response.body.data.version,2);
+ const repeated=await request('POST','/exams/timetable/publish',f.officerToken,{termId:f.term.id,expectedVersion:1});assert.equal(repeated.body.data.version,2);
+ const teacher=await request('GET','/exams/published?termId='+f.term.id,f.teacherToken);assert.equal(teacher.body.data.entries.length,1);assert.equal(teacher.body.data.entries[0].classId,f.classes[0].id);
+ parent=await request('GET','/exams/published?termId='+f.term.id+'&studentId='+f.children[0].id,f.parentToken);assert.equal(parent.body.data.entries.length,1);assert.equal(parent.body.data.entries[0].classId,f.classes[0].id);assert.equal(parent.body.data.hasUnpublishedChanges,undefined);
+ assert.equal((await request('GET','/exams/published?termId='+f.term.id+'&studentId='+f.children[1].id,f.parentToken)).status,404);
+ assert.equal((await request('GET','/exams/editor?termId='+f.term.id,(await tokens(b.ownerId,b.id)).accessToken)).status,404);
+ const edited={...body,expectedVersion:2,entries:f.entries.map(entry=>({...entry,note:'Bring a calculator'}))};response=await request('PUT','/exams/timetable',f.officerToken,edited);assert.equal(response.body.data.version,3);
+ parent=await request('GET','/exams/published?termId='+f.term.id+'&studentId='+f.children[0].id,f.parentToken);assert.equal(parent.body.data.entries[0].note,'');
+ const replay=await request('PUT','/exams/timetable',f.officerToken,edited);assert.equal(replay.status,200);assert.equal(replay.body.data.version,3);
+ assert.equal((await request('PUT','/exams/timetable',f.officerToken,{...edited,title:'Stale overwrite'})).status,409);
+ response=await request('POST','/exams/timetable/publish',f.officerToken,{termId:f.term.id,expectedVersion:3});assert.equal(response.body.data.version,4);
+ parent=await request('GET','/exams/published?termId='+f.term.id+'&studentId='+f.children[0].id,f.parentToken);assert.equal(parent.body.data.entries[0].note,'Bring a calculator');
+ response=await request('POST','/exams/timetable/unpublish',f.officerToken,{termId:f.term.id,expectedVersion:4});assert.equal(response.body.data.version,5);assert.equal(response.body.data.entries.length,2);
+ parent=await request('GET','/exams/published?termId='+f.term.id+'&studentId='+f.children[0].id,f.parentToken);assert.equal(parent.body.data.publishedAt,null);assert.equal(parent.body.data.entries.length,0);
+});
+check('exam timetables reject class clashes, venue clashes, foreign curriculum and out-of-term dates',async()=>{
+ const f=await examFixture(),base={termId:f.term.id,expectedVersion:0,title:'Exams'};
+ for(const [entries,code]of [
+ [[f.entries[0],{...f.entries[0],id:crypto.randomUUID(),subjectId:f.subjects[1].id,startTime:'10:00'}],'CLASS_EXAM_CLASH'],
+ [[f.entries[0],{...f.entries[1],subjectId:f.subjects[1].id,startTime:'10:00'}],'VENUE_EXAM_CLASH'],
+ [[{...f.entries[0],classId:b.classId}],'SUBJECT_NOT_LINKED'],
+ [[{...f.entries[0],date:'2027-01-01'}],'EXAM_OUTSIDE_TERM']]){const response=await request('PUT','/exams/timetable',f.officerToken,{...base,entries});assert.equal(response.body.error.code,code,JSON.stringify(response));}
+ assert.equal(await prisma.examTimetable.count({where:{organizationId:a.id,termId:f.term.id}}),0);
+ const valid=[f.entries[0],{...f.entries[0],id:crypto.randomUUID(),subjectId:f.subjects[1].id,startTime:'11:00',endTime:'12:00'}];assert.equal((await request('PUT','/exams/timetable',f.officerToken,{...base,entries:valid})).status,200);
+ await prisma.classSubject.delete({where:{classId_subjectId:{classId:f.classes[0].id,subjectId:f.subjects[0].id}}});
+ const response=await request('POST','/exams/timetable/publish',f.officerToken,{termId:f.term.id,expectedVersion:1});assert.equal(response.body.error.code,'SUBJECT_NOT_LINKED');assert.equal((await prisma.examTimetable.findUniqueOrThrow({where:{organizationId_termId:{organizationId:a.id,termId:f.term.id}}})).publishedAt,null);
+});
+check('exam publication checks current role, serializes conflicting writers and leaves score assignments enforced',async()=>{
+ const f=await examFixture(),service=require('../.test-build/features/exams/exams.service');const base={termId:f.term.id,expectedVersion:0,title:'Exams',entries:f.entries};
+ const outcomes=await Promise.allSettled([service.saveExamTimetable(a.id,f.officer.id,base),service.saveExamTimetable(a.id,f.officer.id,{...base,title:'Another editor'})]);assert.equal(successful(outcomes).length,1);assert.equal(outcomes.find(outcome=>outcome.status==='rejected').reason.code,'TIMETABLE_CHANGED');
+ const membership=await prisma.membership.findFirstOrThrow({where:{organizationId:a.id,userId:f.officer.id}});await prisma.membership.update({where:{id:membership.id},data:{role:'TEACHER'}});
+ await assert.rejects(service.publishExamTimetable(a.id,f.officer.id,{termId:f.term.id,expectedVersion:1}),{code:'FORBIDDEN'});
+ await prisma.membership.update({where:{id:membership.id},data:{role:'EXAM_OFFICER'}});
+ const scores={classId:f.classes[0].id,termId:f.term.id,subjectId:f.subjects[0].id,entries:[{studentId:f.children[0].id,ca1:10,ca2:20,exam:60}]};
+ assert.equal((await request('POST','/results/scores/bulk',f.officerToken,scores)).status,403);
+ await prisma.classSubjectTeacher.update({where:{classId_subjectId:{classId:f.classes[0].id,subjectId:f.subjects[0].id}},data:{userId:f.officer.id}});
+ assert.equal((await request('POST','/results/scores/bulk',f.officerToken,scores)).status,200);
+ const bursar=(await tokens(a.bursarId,a.id)).accessToken;assert.equal((await request('GET','/exams/published?termId='+f.term.id,bursar)).status,403);assert.equal((await request('PUT','/exams/timetable',bursar,base)).status,403);
+});
+
+check('exam publishing rejects empty schedules and changed term boundaries',async()=>{
+ const f=await examFixture(),service=require('../.test-build/features/exams/exams.service');
+ const empty=await service.saveExamTimetable(a.id,f.officer.id,{termId:f.term.id,expectedVersion:0,title:'Exams',entries:[]});
+ await assert.rejects(service.publishExamTimetable(a.id,f.officer.id,{termId:f.term.id,expectedVersion:empty.version}),{code:'EMPTY_TIMETABLE'});
+ const saved=await service.saveExamTimetable(a.id,f.officer.id,{termId:f.term.id,expectedVersion:1,title:'Exams',entries:f.entries});
+ await prisma.term.update({where:{id:f.term.id},data:{endDate:new Date('2026-11-01')}});
+ await assert.rejects(service.publishExamTimetable(a.id,f.officer.id,{termId:f.term.id,expectedVersion:saved.version}),{code:'EXAM_OUTSIDE_TERM'});
+ await prisma.term.update({where:{id:f.term.id},data:{startDate:null,endDate:null}});
+ await assert.rejects(service.saveExamTimetable(a.id,f.officer.id,{termId:f.term.id,expectedVersion:saved.version,title:'Exams',entries:f.entries}),{code:'TERM_DATES_REQUIRED'});
+});

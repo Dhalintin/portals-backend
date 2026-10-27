@@ -1,4 +1,7 @@
 export const PERMISSIONS = {
+  "exams:read": "exams:read",
+  "exams:write": "exams:write",
+  "exams:publish": "exams:publish",
   "students:read": "students:read",
   "students:write": "students:write",
   "classes:read": "classes:read",

@@ -52,7 +52,7 @@ membershipRoutes.get("/invitations", (0, requirePermission_1.requirePermission)(
     try {
         const { prisma } = await Promise.resolve().then(() => __importStar(require("../../lib/prisma")));
         (0, http_1.sendSuccess)(res, await prisma.schoolInvitation.findMany({ where: { organizationId: req.auth.schoolId }, take: 100,
-            orderBy: { createdAt: "desc" }, select: { id: true, email: true, role: true, parentId: true, expiresAt: true, acceptedAt: true, revokedAt: true, createdAt: true } }));
+            orderBy: { createdAt: "desc" }, select: { id: true, email: true, firstName: true, lastName: true, role: true, parentId: true, expiresAt: true, acceptedAt: true, revokedAt: true, createdAt: true } }));
     }
     catch (error) {
         next(error);

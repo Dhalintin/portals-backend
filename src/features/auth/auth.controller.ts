@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { sendSuccess } from "../../lib/http";
 import { authService } from "./auth.service";
 import type { LoginInput, RegisterSchoolAdminInput } from "./auth.validation";
+import { sendEmail } from "../../utils/mailing";
 
 export class AuthController {
   register = async (req: Request, res: Response, next: NextFunction) => {
@@ -9,6 +10,15 @@ export class AuthController {
       const data = await authService.registerSchoolAdmin(
         req.body as RegisterSchoolAdminInput
       );
+
+      await sendEmail({
+        subject: "Registration Successful!",
+        receiptent: {
+          name: `${data.user.firstName} ${data.user.lastName}`,
+          email: data.user.email! as string,
+        },
+        content: `<p> Welcome, <emp>${data.user.firstName}<emp></p>. <br/><p> ${data?.school?.name} portal has been created</p>`,
+      });
       return sendSuccess(res, data, 201);
     } catch (e) {
       return next(e);
@@ -20,6 +30,7 @@ export class AuthController {
       const data = await authService.login(req.body as LoginInput, {
         requestId: req.requestId,
       });
+
       return sendSuccess(res, data);
     } catch (e) {
       return next(e);
@@ -46,14 +57,21 @@ export class AuthController {
 
   logout = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      return sendSuccess(res, await authService.logout(req.auth!.userId, req.auth!.sessionId));
-    } catch (error) { return next(error); }
+      return sendSuccess(
+        res,
+        await authService.logout(req.auth!.userId, req.auth!.sessionId)
+      );
+    } catch (error) {
+      return next(error);
+    }
   };
 
   logoutAll = async (req: Request, res: Response, next: NextFunction) => {
     try {
       return sendSuccess(res, await authService.logoutAll(req.auth!.userId));
-    } catch (error) { return next(error); }
+    } catch (error) {
+      return next(error);
+    }
   };
 
   forgotPassword = async (req: Request, res: Response, next: NextFunction) => {

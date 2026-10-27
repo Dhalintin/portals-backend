@@ -1,3 +1,4 @@
+import examRoutes from "./exams/exams.routes";
 import express from "express";
 import { errorHandler } from "../common/middleware/errorHandler";
 import { notFound } from "../common/middleware/notFound";
@@ -51,6 +52,7 @@ appRouter.use("/teachers", teacherRoutes);
 appRouter.use("/imports", importsRoutes);
 appRouter.use("/attendance", attendanceRoutes);
 appRouter.use("/results", resultRoutes);
+appRouter.use("/exams", examRoutes);
 appRouter.use("/fees", feesRoutes);
 appRouter.use("/dashboard", dashboardRoutes);
 appRouter.use("/platform", platformRoutes);

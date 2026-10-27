@@ -1,3 +1,7 @@
+import {studentPaymentSchema,type StudentPaymentInput} from "./financeWorkspace";
+import { permissionsForOrgRole } from '../../auth/rbac';
+import {itemBalances,allocateItems,type ItemAmount} from "./itemBalances";
+import {parentPaymentSubaccount} from "./paymentConfig";
 import {bankTransferInstructions} from '../schools/bankAccount';
 import type { InvoiceStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
@@ -466,15 +470,17 @@ export class FeesService {
     organizationId: string,
     input: CreateManualPaymentInput,
     recordedById: string,
-    meta?: { requestId?: string }
+    meta?: { requestId?: string },
+    transaction?: Prisma.TransactionClient
   ) {
     input = createManualPaymentSchema.parse(input);
     const requestHash = createHash("sha256").update(JSON.stringify({
+      ...(input.studentId ? {studentId:input.studentId} : {}),
       amountNgn: input.amountNgn, method: input.method, note: input.note ?? null,
       paidAt: input.paidAt ? new Date(input.paidAt).toISOString() : null,
       allocations: [...(input.allocations ?? [])].sort((a, b) => a.invoiceId.localeCompare(b.invoiceId) || a.amountNgn - b.amountNgn),
     })).digest("hex");
-    return schoolTransaction(organizationId, async tx => {
+    const save = async (tx: Prisma.TransactionClient) => {
       const previous = await tx.payment.findUnique({ where: {
         organizationId_idempotencyKey: { organizationId, idempotencyKey: input.idempotencyKey } },
         include: { allocations: { include: { invoice: true } }, receipts: true } });
@@ -482,10 +488,15 @@ export class FeesService {
         if (previous.requestHash !== requestHash) throw new AppError(409, "IDEMPOTENCY_CONFLICT", "This key was used with a different payment request");
         return { ...previous, replayed: true };
       }
+      if(input.studentId){
+        const student=await tx.student.findFirst({where:{id:input.studentId,organizationId},select:{id:true}});
+        if(!student)throw new AppError(404,"STUDENT_NOT_FOUND","Student not found");
+        if(input.allocations?.length){const count=await tx.invoice.count({where:{id:{in:[...new Set(input.allocations.map(a=>a.invoiceId))]},organizationId,studentId:input.studentId}});if(count!==new Set(input.allocations.map(a=>a.invoiceId)).size)throw new AppError(400,"INVALID_INVOICES","All bills must belong to this student");}
+      }
       const payment = await tx.payment.create({ data: { organizationId, amountNgn: input.amountNgn,
         method: input.method, source: "MANUAL", status: "SUCCESSFUL", recordedById,
         paidAt: input.paidAt ? new Date(input.paidAt) : new Date(), note: input.note,
-        idempotencyKey: input.idempotencyKey, requestHash } });
+        idempotencyKey: input.idempotencyKey, requestHash, ...(input.studentId?{providerPayload:{studentId:input.studentId}}:{}) } });
       if (input.allocations?.length) await this._allocateInTx(tx, organizationId, payment.id, payment.amountNgn, input.allocations);
       await tx.auditLog.create({ data: { action: "PAYMENT_CREATED", actorId: recordedById, organizationId,
         entity: "Payment", entityId: payment.id, requestId: meta?.requestId,
@@ -493,6 +504,25 @@ export class FeesService {
       const result = await tx.payment.findUniqueOrThrow({ where: { id: payment.id },
         include: { allocations: { include: { invoice: true } }, receipts: true } });
       return { ...result, replayed: false };
+    };
+    return transaction ? save(transaction) : schoolTransaction(organizationId, save);
+  }
+  async recordStudentPayment(organizationId: string, raw: unknown, actorId: string) {
+    const input:StudentPaymentInput=studentPaymentSchema.parse(raw);
+    let remaining=input.amountNgn;
+    const allocations=input.bills.flatMap(bill=>{const amountNgn=Math.min(remaining,bill.balanceNgn);remaining-=amountNgn;return amountNgn>0?[{invoiceId:bill.invoiceId,amountNgn}]:[];});
+    if(remaining>0)throw new AppError(400,"OVER_OUTSTANDING","The amount exceeds the selected bills. Refresh and check the student's balance.");
+    return schoolTransaction(organizationId,async tx=>{
+      const membership=await tx.membership.findFirst({where:{organizationId,userId:actorId,isActive:true,user:{isActive:true},organization:{isActive:true}}});
+      if(!membership||!permissionsForOrgRole(membership.role).includes('payments:write'))throw new AppError(403,'FORBIDDEN','Current payment recording permission is required');
+      const previous=await tx.payment.findUnique({where:{organizationId_idempotencyKey:{organizationId,idempotencyKey:input.idempotencyKey}}});
+      if(!previous){
+        const term=await tx.term.findFirst({where:{id:input.termId,session:{organizationId}},select:{id:true}});
+        if(!term)throw new AppError(404,"TERM_NOT_FOUND","Term not found");
+        const bills=await tx.invoice.findMany({where:{organizationId,studentId:input.studentId,termId:input.termId,id:{in:input.bills.map(b=>b.invoiceId)},status:{notIn:['DRAFT','CANCELLED']}},select:{id:true,outstandingNgn:true}});
+        if(bills.length!==input.bills.length||input.bills.some(saved=>bills.find(b=>b.id===saved.invoiceId)?.outstandingNgn!==saved.balanceNgn))throw new AppError(409,"BALANCE_CHANGED","These bills changed after this entry was saved. No payment was recorded. Refresh the student and review the amount before saving a new entry.");
+      }
+      return this.createManualPayment(organizationId,{idempotencyKey:input.idempotencyKey,studentId:input.studentId,amountNgn:input.amountNgn,method:input.method,note:input.note,paidAt:input.paidAt,source:'MANUAL',allocations},actorId,undefined,tx);
     });
   }
   async allocatePayment(
@@ -527,7 +557,7 @@ export class FeesService {
     organizationId: string,
     paymentId: string,
     paymentAmount: number,
-    allocations: { invoiceId: string; amountNgn: number }[]
+    allocations: { invoiceId: string; amountNgn: number; itemSelection?: ItemAmount[] }[]
   ) {
     // Recheck after acquiring the school lock: a reversal may have committed
     // while an allocation caller was waiting for the lock.
@@ -558,6 +588,7 @@ export class FeesService {
       }
       const invoice = await tx.invoice.findFirst({
         where: { id: alloc.invoiceId, organizationId },
+        include: {items:true,allocations:{where:{reversedAt:null,payment:{status:"SUCCESSFUL"}}}},
       });
       if (!invoice) {
         throw new AppError(
@@ -565,6 +596,10 @@ export class FeesService {
           "INVOICE_NOT_FOUND",
           `Invoice ${alloc.invoiceId} not found`
         );
+      }
+      const paymentStudentId = (current.providerPayload as { studentId?: unknown } | null)?.studentId;
+      if (typeof paymentStudentId === 'string' && invoice.studentId !== paymentStudentId) {
+        throw new AppError(400, 'INVALID_INVOICES', 'A student payment can only cover that student’s bills');
       }
       if (invoice.status === "CANCELLED") throw new AppError(400, "CANCELLED_INVOICE", "Cannot allocate to a cancelled invoice");
       if (alloc.amountNgn > invoice.outstandingNgn) {
@@ -575,11 +610,13 @@ export class FeesService {
         );
       }
 
+      const itemAllocations = allocateItems(invoice, alloc.amountNgn, alloc.itemSelection);
       const row = await tx.paymentAllocation.create({
         data: {
           paymentId,
           invoiceId: alloc.invoiceId,
           amountNgn: alloc.amountNgn,
+          itemAllocations,
         },
       });
       created.push(row);
@@ -600,6 +637,7 @@ export class FeesService {
           invoiceId: alloc.invoiceId,
           receiptNumber: nextNumber("RCPT", rseq),
           amountNgn: alloc.amountNgn,
+          items: itemAllocations,
         },
       });
       await enqueueReceipt(tx, organizationId, receipt, invoice.studentId);
@@ -659,7 +697,7 @@ export class FeesService {
     if (studentIds.length === 0) return { children: [] };
 
     const invoices = await prisma.invoice.findMany({
-      where: { organizationId, studentId: { in: studentIds } },
+      where: { organizationId, studentId: { in: studentIds }, status: {not: "DRAFT"} },
       include: {
         student: {
           select: {
@@ -670,12 +708,15 @@ export class FeesService {
           },
         },
         items: true,
+        term: {include:{session:true}},
+        allocations: {where:{reversedAt:null,payment:{status:"SUCCESSFUL"}}},
         receipts: true,
       },
       orderBy: { issuedAt: "desc" },
     });
 
-    return { invoices, bankAccount: await bankTransferInstructions(organizationId) };
+    const creditReceipts=await prisma.receipt.findMany({where:{organizationId,invoiceId:null,payment:{recordedById:parentUserId,source:'PAYSTACK',OR:studentIds.map(id=>({providerPayload:{path:['studentId'],equals:id}}))}},select:{id:true,receiptNumber:true,amountNgn:true,issuedAt:true,voidedAt:true,payment:{select:{providerPayload:true}}}});
+    return { invoices:invoices.map(({allocations,...invoice})=>({...invoice,items:itemBalances({...invoice,allocations})})), creditReceipts:creditReceipts.map(({payment,...receipt})=>({...receipt,studentId:(payment.providerPayload as any)?.studentId})), onlinePaymentsEnabled:!!parentPaymentSubaccount(organizationId), bankAccount: await bankTransferInstructions(organizationId) };
   }
 
   // ─── Bursar summary ────────────────────────────────────────────
@@ -740,6 +781,8 @@ export class FeesService {
       invoiceIds?: string[];
       callbackUrl?: string;
       metadata?: Record<string, any>;
+      subaccount?: string;
+      idempotencyKey?: string;
     },
     recordedById: string | null,
     meta?: { requestId?: string }
@@ -774,9 +817,12 @@ export class FeesService {
       8
     ).toString("hex")}`;
 
-    const payment = await prisma.payment.create({
+    const payment = await schoolTransaction(organizationId, async tx => {
+      if(input.idempotencyKey){const previous=await tx.payment.findUnique({where:{organizationId_idempotencyKey:{organizationId,idempotencyKey:input.idempotencyKey}}});if(previous){if(previous.recordedById!==recordedById||(previous.providerPayload as any)?.selectionHash!==input.metadata?.selectionHash)throw new AppError(409,"IDEMPOTENCY_CONFLICT","Payment selection changed");return previous;}}
+      return tx.payment.create({
       data: {
         organizationId,
+        idempotencyKey: input.idempotencyKey,
         amountNgn: input.amountNgn,
         status: "PENDING",
         method: "ONLINE",
@@ -786,25 +832,30 @@ export class FeesService {
         note: input.studentId ? `Student ${input.studentId}` : undefined,
         providerPayload: {
           ...input.metadata,
+          subaccount: input.subaccount,
           invoiceIds: input.invoiceIds ?? [],
           studentId: input.studentId,
         },
       },
     });
 
-    const amountKobo = input.amountNgn * 100;
+    });
+    const previousCheckout=(payment.providerPayload as any)?.checkout;
+    if(previousCheckout)return {paymentId:payment.id,reference:payment.providerReference!,authorizationUrl:previousCheckout.authorization_url,accessCode:previousCheckout.access_code};
+    const amountKobo = payment.amountNgn * 100;
 
     const paystack = await initializeTransaction({
       email: input.email,
       amountKobo,
-      reference,
+      reference: payment.providerReference!,
+      subaccount: (payment.providerPayload as any)?.subaccount ?? input.subaccount,
       callback_url:
         input.callbackUrl || `${process.env.APP_URL}/payments/callback`,
       metadata: {
         organizationId,
         paymentId: payment.id,
-        invoiceIds: input.invoiceIds,
-        studentId: input.studentId,
+        invoiceIds: (payment.providerPayload as any)?.invoiceIds,
+        studentId: (payment.providerPayload as any)?.studentId,
         custom_fields: [
           {
             display_name: "Payment ID",
@@ -815,6 +866,7 @@ export class FeesService {
       },
     });
 
+    await schoolTransaction(organizationId,async tx=>{const current=await tx.payment.findUniqueOrThrow({where:{id:payment.id}});await tx.payment.update({where:{id:payment.id},data:{providerPayload:{...(current.providerPayload as any),checkout:paystack}}});});
     await auditService.write({
       action: "PAYMENT_CREATED",
       actorId: recordedById ?? undefined,
@@ -827,7 +879,7 @@ export class FeesService {
 
     return {
       paymentId: payment.id,
-      reference,
+      reference: payment.providerReference!,
       authorizationUrl: paystack.authorization_url,
       accessCode: paystack.access_code,
     };
@@ -937,20 +989,28 @@ export class FeesService {
       if (invoiceIds.length > 0) {
         // Simple FIFO allocation across the supplied invoices
         let remaining = updated.amountNgn;
-        const allocations: { invoiceId: string; amountNgn: number }[] = [];
+        const allocations: { invoiceId: string; amountNgn: number; itemSelection?: ItemAmount[] }[] = [];
 
         for (const invId of invoiceIds) {
           if (remaining <= 0) break;
           const inv = await tx.invoice.findFirst({
             where: { id: invId, organizationId: payment.organizationId },
+            include:{items:true,allocations:{where:{reversedAt:null,payment:{status:"SUCCESSFUL"}}}},
           });
           if (!inv || inv.status === "CANCELLED" || inv.outstandingNgn <= 0) continue;
 
-          const allocAmount = Math.min(remaining, inv.outstandingNgn);
-          allocations.push({ invoiceId: invId, amountNgn: allocAmount });
+          const selection:ItemAmount[]|undefined=payload?.itemSelections?.[invId];
+          const balances=itemBalances(inv);
+          const selectedRemaining=selection?selection.reduce((sum,line)=>sum+Math.min(line.amountNgn,balances.find(item=>item.id===line.invoiceItemId)?.outstandingNgn??0),0):inv.outstandingNgn;
+          const allocAmount = Math.min(remaining, inv.outstandingNgn, selectedRemaining);
+          if(allocAmount<=0)continue;
+          allocations.push({ invoiceId: invId, amountNgn: allocAmount, itemSelection:selection?.filter(line=>balances.some(item=>item.id===line.invoiceItemId)) });
           remaining -= allocAmount;
         }
 
+        if (remaining>0 && payload?.parentUserId) {
+          await tx.receipt.create({data:{organizationId:payment.organizationId,paymentId:payment.id,receiptNumber:'CREDIT-'+payment.id,amountNgn:remaining,items:[{invoiceItemId:'credit',description:'Unallocated school credit — contact the school office',amountNgn:remaining}]}});
+        }
         if (allocations.length) {
           await this._allocateInTx(
             tx,

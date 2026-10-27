@@ -20,7 +20,7 @@ class AttendanceService {
      */
     async markClassAttendance(organizationId, recordedById, input, meta) {
         return (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
-            await (0, resourceAccess_1.assertTeachingAccess)(organizationId, recordedById, input.classId, undefined, tx);
+            await (0, resourceAccess_1.assertClassTeacher)(organizationId, recordedById, input.classId, tx);
             const date = attendanceDate(input.date);
             const students = await tx.student.findMany({ where: { organizationId, classId: input.classId, isActive: true }, select: { id: true } });
             const ids = new Set(students.map(student => student.id));
@@ -52,7 +52,7 @@ class AttendanceService {
             const existing = await tx.attendanceRecord.findFirst({ where: { id: recordId, organizationId } });
             if (!existing)
                 throw new errors_1.AppError(404, "NOT_FOUND", "Attendance record not found");
-            await (0, resourceAccess_1.assertTeachingAccess)(organizationId, recordedById, existing.classId, undefined, tx);
+            await (0, resourceAccess_1.assertClassTeacher)(organizationId, recordedById, existing.classId, tx);
             const updated = await tx.attendanceRecord.update({ where: { id: recordId }, data: { status: input.status,
                     note: input.note === undefined ? existing.note : input.note, recordedById } });
             await (0, studentNotifications_1.syncAttendanceNotifications)(tx, organizationId, [{ previousStatus: existing.status, record: updated }]);
@@ -121,7 +121,7 @@ class AttendanceService {
         const results = [];
         await (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
             for (const classId of new Set(input.records.map(record => record.classId)))
-                await (0, resourceAccess_1.assertTeachingAccess)(organizationId, recordedById, classId, undefined, tx);
+                await (0, resourceAccess_1.assertClassTeacher)(organizationId, recordedById, classId, tx);
             const changes = [];
             for (const r of input.records) {
                 const student = await tx.student.findFirst({

@@ -1,6 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.assertTeachingAccess = assertTeachingAccess;
+exports.assertClassTeacher = assertClassTeacher;
+exports.assertSubjectTeacher = assertSubjectTeacher;
 exports.assertParentChildAccess = assertParentChildAccess;
 exports.teachingClassFilter = teachingClassFilter;
 const prisma_1 = require("../lib/prisma");
@@ -30,6 +32,18 @@ async function assertTeachingAccess(organizationId, actorId, classId, subjectId,
     const allowed = subjectId ? !!assignment : schoolClass.classTeacherId === actorId || !!assignment;
     if (!allowed)
         throw new errors_1.AppError(403, "FORBIDDEN", "You are not assigned to this class or subject");
+}
+async function assertClassTeacher(organizationId, actorId, classId, db = prisma_1.prisma) {
+    await assertTeachingAccess(organizationId, actorId, classId, undefined, db);
+    const assigned = await db.class.findFirst({ where: { id: classId, organizationId, isActive: true, classTeacherId: actorId } });
+    if (!assigned)
+        throw new errors_1.AppError(403, "FORBIDDEN", "Only the assigned class teacher can mark attendance");
+}
+async function assertSubjectTeacher(organizationId, actorId, classId, subjectId, db = prisma_1.prisma) {
+    await assertTeachingAccess(organizationId, actorId, classId, subjectId, db);
+    const assigned = await db.classSubjectTeacher.findFirst({ where: { organizationId, classId, subjectId, userId: actorId } });
+    if (!assigned)
+        throw new errors_1.AppError(403, "FORBIDDEN", "Only the assigned subject teacher can enter scores");
 }
 async function assertParentChildAccess(auth, studentId) {
     const link = await prisma_1.prisma.parentStudent.findFirst({

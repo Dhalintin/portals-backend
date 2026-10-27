@@ -1,3 +1,7 @@
+import {financeWorkspace,staffReceiptDocument} from "./financeWorkspace";
+import {feesService} from "./fees.service";
+import {parentPaymentLimiter} from "../../middlewares/rateLimit";
+import {startParentCheckout,parentPaymentStatus,parentReceipt} from "./parentPayments";
 import {studentBalances} from './studentBalances';
 import {saveFeeAssignment} from './feeAssignments';
 import {sendSuccess} from '../../lib/http';
@@ -12,7 +16,13 @@ const feesRoutes = Router();
 
 feesRoutes.use(authenticate, requireSchool);
 feesRoutes.get("/parent/me", requirePermission("fees:read"), feesController.parentFees);
+feesRoutes.post('/parent/payments', requirePermission('fees:read'), parentPaymentLimiter, async(req,res,next)=>{try{sendSuccess(res,await startParentCheckout(req.auth!,req.body),201);}catch(error){next(error);}});
+feesRoutes.post('/parent/payments/:reference/verify', requirePermission('fees:read'), parentPaymentLimiter, async(req,res,next)=>{try{sendSuccess(res,await parentPaymentStatus(req.auth!,req.params.reference as string));}catch(error){next(error);}});
+feesRoutes.get('/parent/receipts/:id', requirePermission('fees:read'), async(req,res,next)=>{try{sendSuccess(res,await parentReceipt(req.auth!,req.params.id as string));}catch(error){next(error);}});
 feesRoutes.use(requireStaff);
+feesRoutes.get('/workspace',requirePermission('payments:read'),async(req,res,next)=>{try{sendSuccess(res,await financeWorkspace(req.auth!.schoolId!,req.query));}catch(error){next(error);}});
+feesRoutes.post('/student-payments',requirePermission('payments:write'),async(req,res,next)=>{try{sendSuccess(res,await feesService.recordStudentPayment(req.auth!.schoolId!,req.body,req.auth!.userId),201);}catch(error){next(error);}});
+feesRoutes.get('/receipt-documents/:id',requirePermission('payments:read'),async(req,res,next)=>{try{sendSuccess(res,await staffReceiptDocument(req.auth!.schoolId!,req.params.id as string));}catch(error){next(error);}});
 
 feesRoutes.post('/assignments',requirePermission('fees:write'),async(req,res,next)=>{try{sendSuccess(res,await saveFeeAssignment(req.auth!.schoolId!,req.auth!.userId,req.body));}catch(e){next(e);}});
 feesRoutes.get('/student-balances',requirePermission('fees:read'),async(req,res,next)=>{try{sendSuccess(res,await studentBalances(req.auth!.schoolId!,req.query));}catch(error){next(error);}});

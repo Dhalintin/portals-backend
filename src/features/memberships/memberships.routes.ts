@@ -24,7 +24,7 @@ membershipRoutes.get("/invitations", requirePermission("memberships:write"), asy
   try {
     const { prisma } = await import("../../lib/prisma");
     sendSuccess(res, await prisma.schoolInvitation.findMany({ where: { organizationId: req.auth!.schoolId! }, take: 100,
-      orderBy: { createdAt: "desc" }, select: { id: true, email: true, role: true, parentId: true, expiresAt: true, acceptedAt: true, revokedAt: true, createdAt: true } }));
+      orderBy: { createdAt: "desc" }, select: { id: true, email: true, firstName: true, lastName: true, role: true, parentId: true, expiresAt: true, acceptedAt: true, revokedAt: true, createdAt: true } }));
   } catch (error) { next(error); }
 });
 membershipRoutes.post("/invitations/:id/revoke", requirePermission("memberships:write"), validate(z.object({ id: z.string().uuid() }), "params"), async (req, res, next) => {

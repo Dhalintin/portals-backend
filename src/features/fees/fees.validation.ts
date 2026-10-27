@@ -139,6 +139,7 @@ export const listInvoicesQuerySchema = z.object({
 });
 
 export const createManualPaymentSchema = z.object({
+  studentId: z.string().uuid().optional(),
   idempotencyKey: z.string().trim().min(16).max(100).regex(/^[A-Za-z0-9_-]+$/),
   amountNgn: z
     .number()
