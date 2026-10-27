@@ -76,3 +76,28 @@ test('new passwords reject bcrypt truncation aliases, including multibyte text',
   send.mock.mockImplementation(async () => { throw new Error('EMAIL_PROVIDER_FAILURE'); });
   await assert.rejects(email.authEmailTransport.send(message), { message: 'EMAIL_PROVIDER_FAILURE' });
 });
+
+ test('API background delivery starts the existing queue and stops without scheduling another cycle', async () => {
+  Object.assign(env, { EMAIL_PROVIDER: 'brevo', BREVO_API_KEY: 'test-key', EMAIL_FROM: 'school@example.test' });
+  const cycle = require('../.test-build/lib/emailWorkerCycle');
+  let complete;
+  const run = mock.method(cycle, 'emailWorkerCycle', () => new Promise(resolve => { complete = resolve; }));
+  mock.method(console, 'info', () => {});
+  const timers = mock.method(globalThis, 'setTimeout', () => { assert.fail('Stopped delivery must not schedule another cycle'); });
+  const { startBackgroundEmail } = require('../.test-build/lib/backgroundEmail');
+  const stop = startBackgroundEmail();
+  assert.equal(run.mock.callCount(), 1);
+  stop(); complete({ failures: 0 });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(timers.mock.callCount(), 0);
+});
+ test('disabled or misconfigured background delivery does not claim queued emails', () => {
+  const cycle = require('../.test-build/lib/emailWorkerCycle');
+  const run = mock.method(cycle, 'emailWorkerCycle', async () => { assert.fail('Must not consume jobs'); });
+  mock.method(console, 'info', () => {});
+  const logged = mock.method(console, 'error', () => {});
+  const { startBackgroundEmail } = require('../.test-build/lib/backgroundEmail');
+  env.EMAIL_PROVIDER = 'disabled'; startBackgroundEmail()();
+  env.EMAIL_PROVIDER = 'brevo'; env.BREVO_API_KEY = undefined; startBackgroundEmail()();
+  assert.equal(run.mock.callCount(), 0); assert.equal(logged.mock.callCount(), 1);
+});

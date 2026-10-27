@@ -32,6 +32,7 @@ exports.teacherController = {
         try {
             if (!req.auth)
                 throw new AppError_1.UnauthorizedError();
+            console.log("Here 1");
             const invitation = await invitations_service_1.invitationsService.create(req.auth.schoolId, req.auth.userId, { ...req.body, phone: req.body.phone ?? undefined }, req.requestId);
             (0, response_1.sendCreated)(res, { invitation });
         }

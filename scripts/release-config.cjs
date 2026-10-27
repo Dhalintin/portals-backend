@@ -18,12 +18,15 @@ function releaseConfigIssues(env) {
         !['require', 'verify-ca', 'verify-full'].includes(url.searchParams.get('sslmode'))) throw new Error();
   } catch { issues.push('DATABASE_URL must be a configured PostgreSQL URL with TLS enabled'); }
   if (!configured(env.AUTH_EMAIL_KEY) || Buffer.from(env.AUTH_EMAIL_KEY, 'base64').length !== 32) issues.push('AUTH_EMAIL_KEY must encode 32 random bytes');
-  if (!configured(env.EMAIL_FROM) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.EMAIL_FROM)) issues.push('EMAIL_FROM must be a configured sender email');
+  const sender = env.EMAIL_FROM || (env.EMAIL_PROVIDER === 'brevo' ? env.SMTP_USER : undefined);
+  if (!configured(sender) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sender)) issues.push('EMAIL_FROM must be a configured sender email');
   if (env.EMAIL_PROVIDER === 'resend') {
     if (!configured(env.RESEND_API_KEY)) issues.push('RESEND_API_KEY must be configured');
   } else if (env.EMAIL_PROVIDER === 'smtp') {
     for (const key of ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD']) if (!configured(env[key])) issues.push(`${key} must be configured`);
-  } else issues.push('EMAIL_PROVIDER must enable resend or smtp');
+  } else if (env.EMAIL_PROVIDER === 'brevo') {
+    if (!configured(env.BREVO_API_KEY)) issues.push('BREVO_API_KEY must be configured');
+  } else issues.push('EMAIL_PROVIDER must enable brevo, resend or smtp');
   return issues;
 }
 

@@ -32,3 +32,10 @@ test('release config checks reject placeholders and unsafe origins without retur
   assert.equal(issues.length, 4); assert.equal(JSON.stringify(issues).includes('do-not-print'), false);
   assert.ok(releaseConfigIssues({ ...env, JWT_REFRESH_SECRET: env.JWT_ACCESS_SECRET }).some(issue => issue.includes('differ')));
 });
+
+ test('release configuration accepts Brevo with the existing SMTP_USER sender', () => {
+  const { releaseConfigIssues } = require('../scripts/release-config.cjs');
+  const issues = releaseConfigIssues({ EMAIL_PROVIDER: 'brevo', BREVO_API_KEY: 'test-brevo-key', SMTP_USER: 'sender@example.test' });
+  assert.ok(!issues.some(issue => /EMAIL_PROVIDER|EMAIL_FROM|BREVO_API_KEY/.test(issue)));
+  assert.ok(releaseConfigIssues({ EMAIL_PROVIDER: 'brevo', SMTP_USER: 'sender@example.test' }).includes('BREVO_API_KEY must be configured'));
+});

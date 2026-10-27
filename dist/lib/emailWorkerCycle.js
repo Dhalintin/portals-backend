@@ -14,7 +14,10 @@ async function emailWorkerCycle() {
     ];
     for (const task of tasks) {
         try {
-            await task();
+            const result = await task();
+            if (result && typeof result === "object" && "status" in result && result.status === "retry") {
+                console.error("Email delivery failed; queued for retry. Check the provider status in the mail log.");
+            }
         }
         catch {
             failures++;

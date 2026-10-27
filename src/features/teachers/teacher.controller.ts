@@ -14,7 +14,6 @@ import type {
 export const teacherController = {
   async list(req: Request, res: Response, next: NextFunction) {
     try {
-
       if (!req.auth) throw new UnauthorizedError();
       const result = await teacherService.list(
         req.auth.schoolId ?? null,
@@ -42,6 +41,7 @@ export const teacherController = {
   async invite(req: Request, res: Response, next: NextFunction) {
     try {
       if (!req.auth) throw new UnauthorizedError();
+      console.log("Here 1");
       const invitation = await invitationsService.create(
         req.auth.schoolId!,
         req.auth.userId,
@@ -157,5 +157,3 @@ export const teacherController = {
     }
   },
 };
-
-

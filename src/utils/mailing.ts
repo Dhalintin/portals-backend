@@ -18,7 +18,9 @@ export async function sendEmail({ subject, receiptent, content, text }: {
       sender: { name: "Schoolos", email: sender },
       to: [receiptent],
     });
-  } catch {
+  } catch (error) {
+    const status = (error as { statusCode?: unknown })?.statusCode;
+    console.error("Brevo rejected the email request", typeof status === "number" ? `HTTP ${status}` : "(network or provider error)");
     // Let queued emails retry without logging private links or credentials.
     throw new Error("EMAIL_PROVIDER_FAILURE");
   }
