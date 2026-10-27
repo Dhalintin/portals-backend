@@ -62,3 +62,17 @@ test('new passwords reject bcrypt truncation aliases, including multibyte text',
   assert.equal(passwordSchema.safeParse('A1' + 'x'.repeat(71)).success, false);
   assert.equal(passwordSchema.safeParse('A1' + '界'.repeat(24)).success, false);
 });
+
+ test('Brevo delivery uses the shared mailing service and propagates failure for retry', async () => {
+  Object.assign(env, { EMAIL_PROVIDER: 'brevo', BREVO_API_KEY: 'test-key', EMAIL_FROM: 'school@example.test' });
+  const mailing = require('../.test-build/utils/mailing');
+  const send = mock.method(mailing, 'sendEmail', async mail => {
+    assert.equal(mail.receiptent.email, message.recipient);
+    assert.equal(mail.subject, message.subject);
+    assert.equal(mail.text, message.text);
+  });
+  await email.authEmailTransport.send(message);
+  assert.equal(send.mock.callCount(), 1);
+  send.mock.mockImplementation(async () => { throw new Error('EMAIL_PROVIDER_FAILURE'); });
+  await assert.rejects(email.authEmailTransport.send(message), { message: 'EMAIL_PROVIDER_FAILURE' });
+});

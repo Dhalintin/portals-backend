@@ -10,7 +10,7 @@ process.on("SIGINT", () => { stopping = true; });
 process.on("SIGTERM", () => { stopping = true; });
 async function run() {
     if (env_1.env.EMAIL_PROVIDER === "disabled")
-        throw new Error("Select EMAIL_PROVIDER=smtp or resend before starting the auth email worker");
+        throw new Error("Select EMAIL_PROVIDER=brevo, smtp or resend before starting the auth email worker");
     (0, authEmail_1.assertAuthEmailDeliveryConfigured)();
     while (!stopping) {
         try {

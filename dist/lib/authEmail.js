@@ -13,6 +13,7 @@ exports.assertEmailDeliveryConfigured = assertEmailDeliveryConfigured;
 exports.processAuthEmail = processAuthEmail;
 const crypto_1 = require("crypto");
 const nodemailer_1 = __importDefault(require("nodemailer"));
+const mailing_1 = require("../utils/mailing");
 const env_1 = require("../config/env");
 const prisma_1 = require("./prisma");
 const errors_1 = require("./errors");
@@ -52,6 +53,12 @@ function assertAuthEmailDeliveryConfigured() {
     assertEmailDeliveryConfigured();
 }
 function assertEmailDeliveryConfigured() {
+    if (env_1.env.EMAIL_PROVIDER === "brevo") {
+        if (!env_1.env.BREVO_API_KEY || !(env_1.env.EMAIL_FROM || env_1.env.SMTP_USER)) {
+            throw new errors_1.AppError(503, "EMAIL_NOT_CONFIGURED", "Configure BREVO_API_KEY and EMAIL_FROM (or SMTP_USER)");
+        }
+        return;
+    }
     if (!env_1.env.EMAIL_FROM || (env_1.env.EMAIL_PROVIDER === "resend" && !env_1.env.RESEND_API_KEY) ||
         (env_1.env.EMAIL_PROVIDER === "smtp" && (!env_1.env.SMTP_HOST || !env_1.env.SMTP_USER || !env_1.env.SMTP_PASSWORD)) || env_1.env.EMAIL_PROVIDER === "disabled") {
         throw new errors_1.AppError(503, "EMAIL_NOT_CONFIGURED", "Configure the selected email provider before starting delivery");
@@ -59,6 +66,11 @@ function assertEmailDeliveryConfigured() {
 }
 exports.authEmailTransport = {
     async send(message) {
+        if (env_1.env.EMAIL_PROVIDER === "brevo") {
+            assertEmailDeliveryConfigured();
+            await (0, mailing_1.sendEmail)({ subject: message.subject, receiptent: { name: message.recipient, email: message.recipient }, text: message.text });
+            return;
+        }
         if (!env_1.env.EMAIL_FROM)
             throw new Error("EMAIL_CONFIGURATION");
         if (env_1.env.EMAIL_PROVIDER === "resend") {

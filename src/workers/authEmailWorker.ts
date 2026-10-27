@@ -7,7 +7,7 @@ let stopping = false;
 process.on("SIGINT", () => { stopping = true; });
 process.on("SIGTERM", () => { stopping = true; });
 async function run() {
-  if (env.EMAIL_PROVIDER === "disabled") throw new Error("Select EMAIL_PROVIDER=smtp or resend before starting the auth email worker");
+  if (env.EMAIL_PROVIDER === "disabled") throw new Error("Select EMAIL_PROVIDER=brevo, smtp or resend before starting the auth email worker");
   assertAuthEmailDeliveryConfigured();
   while (!stopping) {
     try { await processAuthEmail(); } catch { console.error("Auth email worker failed; retrying without logging credentials or links"); }

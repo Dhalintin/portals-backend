@@ -15,7 +15,7 @@ class AuthController {
                     email: data.user.email,
                 },
                 content: `<p> Welcome, <emp>${data.user.firstName}<emp></p>. <br/><p> ${data?.school?.name} portal has been created</p>`,
-            });
+            }).catch(() => console.error("Registration welcome email could not be sent"));
             return (0, http_1.sendSuccess)(res, data, 201);
         }
         catch (e) {
