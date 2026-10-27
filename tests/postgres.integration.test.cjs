@@ -1857,3 +1857,34 @@ check('exam publishing rejects empty schedules and changed term boundaries',asyn
  await prisma.term.update({where:{id:f.term.id},data:{startDate:null,endDate:null}});
  await assert.rejects(service.saveExamTimetable(a.id,f.officer.id,{termId:f.term.id,expectedVersion:saved.version,title:'Exams',entries:f.entries}),{code:'TERM_DATES_REQUIRED'});
 });
+
+check('an invited pre-created account can choose its first password through the public route', async () => {
+  const email = `first-password-${crypto.randomUUID()}@example.test`;
+  const user = await prisma.user.create({ data: { email, firstName: 'Imported', lastName: 'Person' } });
+  await invitationsService.create(b.id, b.ownerId, { email, firstName: 'Imported', lastName: 'Person', role: 'TEACHER' });
+  const token = await invitationToken(email);
+  const route = '/auth/invitations/accept';
+  const invalid = await request('POST', route, undefined, { token, password: 'lettersOnly' });
+  assert.equal(invalid.status, 400);
+  assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).passwordHash, null);
+  const accepted = await request('POST', route, undefined, { token, password: 'FirstPassword123!' });
+  assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+  const updated = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+  const { verifyPassword } = require('../.test-build/lib/password');
+  assert.equal(await verifyPassword('FirstPassword123!', updated.passwordHash), true);
+  assert.equal((await prisma.membership.findUniqueOrThrow({ where: { userId_organizationId: { userId: user.id, organizationId: b.id } } })).role, 'TEACHER');
+  assert.equal((await request('POST', route, undefined, { token, password: 'OtherPassword123' })).status, 400);
+});
+
+check('new staff can accept an emailed invitation over HTTP and sign in with the chosen password', async () => {
+  const email = `new-invite-${crypto.randomUUID()}@example.test`;
+  await invitationsService.create(b.id, b.ownerId, { email, firstName: 'New', lastName: 'Teacher', role: 'TEACHER' });
+  const token = await invitationToken(email);
+  const result = await request('POST', '/auth/invitations/accept', undefined, { token, password: 'ChosenPassword123!' });
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  const login = await request('POST', '/auth/login', undefined, { email, password: 'ChosenPassword123!' });
+  assert.equal(login.status, 200, JSON.stringify(login.body));
+  assert.equal(login.body.data.orgRole, 'TEACHER');
+  assert.equal(login.body.data.school.id, b.id);
+  assert.ok(login.body.data.accessToken);
+});

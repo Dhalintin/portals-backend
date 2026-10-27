@@ -141,7 +141,12 @@ class InvitationsService {
                 user = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
                 if (!user.isActive || user.email.toLowerCase() !== invitation.email)
                     throw new errors_1.AppError(403, "ACCOUNT_DISABLED", "Account is unavailable");
-                if (signedInUserId !== user.id &&
+                if (!user.passwordHash && passwordHash && !signedInUserId) {
+                    // Imported accounts have not chosen a password yet. The invitation proves
+                    // ownership of their email; only initialise an absent password.
+                    user = await tx.user.update({ where: { id: user.id }, data: { passwordHash } });
+                }
+                else if (signedInUserId !== user.id &&
                     !(currentPassword &&
                         (await (0, password_1.verifyPassword)(currentPassword, user.passwordHash)))) {
                     throw new errors_1.AppError(409, "EXISTING_ACCOUNT_LOGIN", "Sign in or supply the invited account's current password");
