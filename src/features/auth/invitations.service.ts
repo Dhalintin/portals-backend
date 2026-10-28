@@ -1,3 +1,4 @@
+import { principalCanManageRole } from "../../auth/rbac";
 import type { OrgRole } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
@@ -5,6 +6,7 @@ import { randomToken, sha256 } from "../../lib/token";
 import { hashPassword, verifyPassword } from "../../lib/password";
 import { schoolTransaction } from "../../lib/schoolTransaction";
 import { authLink, enqueueAuthEmail } from "../../lib/authEmail";
+import type { GoogleProfile } from "../../lib/goggle";
 
 export class InvitationsService {
   async inspect(token: string) {
@@ -50,6 +52,7 @@ export class InvitationsService {
         (input.role === "PROPRIETOR" && actor.role !== "PROPRIETOR")
       )
         throw new AppError(403, "FORBIDDEN", "Cannot invite this role");
+      if (actor.role === "PRINCIPAL" && !principalCanManageRole(input.role)) throw new AppError(403, "FORBIDDEN", "Only an owner or school administrator can grant financial or administrator roles.");
       const school = await tx.organization.findFirst({
         where: { id: organizationId, isActive: true },
       });
@@ -125,7 +128,7 @@ export class InvitationsService {
         tx,
         email,
         `Invitation to ${school.name}`,
-        `You have been invited to ${school.name}.\nAccept within 48 hours: ${link}\nIf you already have an account, sign in before accepting.`,
+        `You have been invited to ${school.name}.\nAccept within 48 hours: ${link}\nOpen the link and join with Google or a password using this invited email. If you already have a password, use that password.`,
         expiresAt
       );
       await tx.auditLog.create({
@@ -153,7 +156,8 @@ export class InvitationsService {
     token: string,
     password?: string,
     signedInUserId?: string,
-    currentPassword?: string
+    currentPassword?: string,
+    profile?: { firstName: string; lastName: string; google?: GoogleProfile }
   ) {
     const tokenHash = sha256(token);
     const candidate = await prisma.schoolInvitation.findUnique({
@@ -202,6 +206,12 @@ export class InvitationsService {
           "INVALID_INVITATION",
           "Invitation is no longer authorized"
         );
+      if (profile?.google && (!profile.google.emailVerified || profile.google.email !== invitation.email)) {
+        throw new AppError(403, "INVITATION_EMAIL_MISMATCH", "Choose the Google account for the email that received this invitation.");
+      }
+      if (inviter.role === "PRINCIPAL" && !principalCanManageRole(invitation.role)) throw new AppError(400, "INVALID_INVITATION", "Ask the school owner to reissue this invitation.");
+      const firstName = profile?.firstName?.trim() || invitation.firstName;
+      const lastName = profile?.lastName?.trim() || invitation.lastName;
       let user = await tx.user.findUnique({
         where: { email: invitation.email },
       });
@@ -210,10 +220,15 @@ export class InvitationsService {
         user = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
         if (!user.isActive || user.email.toLowerCase() !== invitation.email)
           throw new AppError(403, "ACCOUNT_DISABLED", "Account is unavailable");
-        if (!user.passwordHash && passwordHash && !signedInUserId) {
+        if (profile?.google) {
+          if (user.googleId && user.googleId !== profile.google.googleId) throw new AppError(409, "GOOGLE_ACCOUNT_MISMATCH", "This account is linked to a different Google account.");
+          user = await tx.user.update({ where: { id: user.id }, data: { googleId: profile.google.googleId,
+            ...(!user.firstName ? { firstName } : {}), ...(!user.lastName ? { lastName } : {}) } });
+        } else if (!user.passwordHash && passwordHash && !signedInUserId) {
           // Imported accounts have not chosen a password yet. The invitation proves
           // ownership of their email; only initialise an absent password.
-          user = await tx.user.update({ where: { id: user.id }, data: { passwordHash } });
+          if (!firstName || !lastName) throw new AppError(400, "PROFILE_REQUIRED", "Enter your first and last names to finish joining.");
+          user = await tx.user.update({ where: { id: user.id }, data: { passwordHash, firstName, lastName } });
         } else if (
           signedInUserId !== user.id &&
           !(
@@ -228,17 +243,19 @@ export class InvitationsService {
           );
         }
       } else {
-        if (signedInUserId || !passwordHash)
+        if (signedInUserId || (!passwordHash && !profile?.google))
           throw new AppError(
             400,
             "PASSWORD_REQUIRED",
             "Choose a password for the invited account"
           );
+        if (!firstName || (!lastName && !profile?.google)) throw new AppError(400, "PROFILE_REQUIRED", "Enter your first and last names to finish joining.");
         user = await tx.user.create({
           data: {
             email: invitation.email,
-            firstName: invitation.firstName,
-            lastName: invitation.lastName,
+            firstName,
+            lastName,
+            ...(profile?.google ? { googleId: profile.google.googleId, avatarUrl: profile.google.avatarUrl } : {}),
             phone: invitation.phone,
             passwordHash,
           },
@@ -319,6 +336,8 @@ export class InvitationsService {
         },
       });
       return {
+        userId: user.id,
+        authVersion: user.authVersion,
         membershipId: membership.id,
         schoolId: invitation.organizationId,
         role: membership.role,

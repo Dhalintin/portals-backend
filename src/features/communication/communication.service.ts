@@ -313,9 +313,9 @@ export class CommunicationService {
           }),
     };
 
-    return this.db.announcement.findFirst({
-      where,
-    });
+    const announcement = await this.db.announcement.findFirst({ where });
+    if (!announcement) throw new AppError(404, "NOT_FOUND", "Announcement not found");
+    return announcement;
   }
 
   // async getAnnouncement(organizationId: string, id: string) {

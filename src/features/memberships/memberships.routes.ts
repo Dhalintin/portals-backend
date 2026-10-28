@@ -1,3 +1,4 @@
+import { requireStaffManager } from "../../middlewares/requireStaffManager";
 import { Router } from "express";
 import { PERMISSIONS } from "../../auth/permissions";
 import {
@@ -19,7 +20,7 @@ import { z } from "zod";
 const c = new MembershipsController();
 const membershipRoutes = Router();
 
-membershipRoutes.use(authenticate, requireSchool);
+membershipRoutes.use(authenticate, requireSchool, requireStaffManager);
 membershipRoutes.get("/invitations", requirePermission("memberships:write"), async (req, res, next) => {
   try {
     const { prisma } = await import("../../lib/prisma");

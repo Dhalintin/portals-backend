@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ROLE_PERMISSIONS = void 0;
 exports.permissionsForOrgRole = permissionsForOrgRole;
 exports.hasAllPermissions = hasAllPermissions;
+exports.principalCanManageRole = principalCanManageRole;
 const permissions_1 = require("./permissions");
 exports.ROLE_PERMISSIONS = {
     PROPRIETOR: permissions_1.ALL_PERMISSIONS,
@@ -25,12 +26,10 @@ exports.ROLE_PERMISSIONS = {
         permissions_1.PERMISSIONS["staff:write"],
         permissions_1.PERMISSIONS["announcements:write"],
         permissions_1.PERMISSIONS["reports:read"],
+        permissions_1.PERMISSIONS["reports:export"],
         permissions_1.PERMISSIONS["settings:write"],
-        permissions_1.PERMISSIONS["fees:read"],
-        permissions_1.PERMISSIONS["payments:read"],
         permissions_1.PERMISSIONS["memberships:read"],
         permissions_1.PERMISSIONS["memberships:write"],
-        permissions_1.PERMISSIONS["audit:read"],
     ],
     BURSAR: [
         permissions_1.PERMISSIONS["announcements:read"],
@@ -78,4 +77,8 @@ function permissionsForOrgRole(role) {
 function hasAllPermissions(granted, needed) {
     const set = new Set(granted);
     return needed.every((p) => set.has(p));
+}
+// A principal can manage academic staff without granting finance/admin access.
+function principalCanManageRole(role) {
+    return ["PRINCIPAL", "TEACHER", "EXAM_OFFICER", "STAFF", "PARENT"].includes(role);
 }

@@ -1,13 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.dashboardController = exports.DashboardController = void 0;
+const errors_1 = require("../../lib/errors");
 const dashboard_service_1 = require("./dashboard.service");
 const dashboard_validation_1 = require("./dashboard.validation");
 const http_1 = require("../../lib/http");
 class DashboardController {
     home = async (req, res, next) => {
         try {
-            const data = await dashboard_service_1.dashboardService.schoolHome(req.auth.schoolId);
+            const data = await dashboard_service_1.dashboardService.schoolHome(req.auth.schoolId, req.auth.permissions);
             (0, http_1.sendSuccess)(res, data);
         }
         catch (err) {
@@ -16,7 +17,7 @@ class DashboardController {
     };
     classSnapshot = async (req, res, next) => {
         try {
-            const data = await dashboard_service_1.dashboardService.classSnapshot(req.auth.schoolId, req.params.classId);
+            const data = await dashboard_service_1.dashboardService.classSnapshot(req.auth.schoolId, req.params.classId, req.auth.permissions);
             (0, http_1.sendSuccess)(res, data);
         }
         catch (err) {
@@ -26,6 +27,10 @@ class DashboardController {
     export = async (req, res, next) => {
         try {
             const query = dashboard_validation_1.exportQuerySchema.parse(req.query);
+            const readPermissions = { students: "students:read", attendance: "attendance:read", results: "results:read", invoices: "fees:read", payments: "payments:read" };
+            const readPermission = readPermissions[query.type];
+            if (!req.auth.permissions.includes(readPermission))
+                throw new errors_1.AppError(403, "FORBIDDEN", "You do not have access to this report.");
             const rows = await dashboard_service_1.dashboardService.exportData(req.auth.schoolId, query);
             if (query.format === "csv") {
                 // Very simple CSV converter (for production consider a proper library)

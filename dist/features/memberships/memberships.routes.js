@@ -33,6 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+const requireStaffManager_1 = require("../../middlewares/requireStaffManager");
 const express_1 = require("express");
 const permissions_1 = require("../../auth/permissions");
 const memberships_validation_1 = require("./memberships.validation");
@@ -47,7 +48,7 @@ const http_1 = require("../../lib/http");
 const zod_1 = require("zod");
 const c = new memberships_controller_1.MembershipsController();
 const membershipRoutes = (0, express_1.Router)();
-membershipRoutes.use(authenticate_1.authenticate, requireSchool_1.requireSchool);
+membershipRoutes.use(authenticate_1.authenticate, requireSchool_1.requireSchool, requireStaffManager_1.requireStaffManager);
 membershipRoutes.get("/invitations", (0, requirePermission_1.requirePermission)("memberships:write"), async (req, res, next) => {
     try {
         const { prisma } = await Promise.resolve().then(() => __importStar(require("../../lib/prisma")));

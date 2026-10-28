@@ -19,7 +19,7 @@
     "test:integration": "node scripts/run-integration.cjs",
     "test:migrations": "node scripts/run-integration.cjs --migrations",
     "test:restore": "node scripts/run-integration.cjs --restore",
-    "test": "node scripts/legacy-retirement.cjs --clean && prisma generate && prisma validate && tsc --outDir .test-build && node --test tests/regression.test.cjs tests/auth-session.test.cjs tests/test-runner.test.cjs tests/auth-email.test.cjs tests/dependency-security.test.cjs",
+    "test": "node scripts/legacy-retirement.cjs --clean && prisma generate && prisma validate && tsc --outDir .test-build && node --test tests/regression.test.cjs tests/auth-session.test.cjs tests/test-runner.test.cjs tests/auth-email.test.cjs tests/dependency-security.test.cjs tests/google-auth.test.cjs",
     "tsc": "tsc --watch"
   },
   "keywords": [],

@@ -28,7 +28,7 @@ catch (error) {
 // Main home dashboard
 dashboardRoutes.get("/home", (0, requirePermission_1.requirePermission)("reports:read"), dashboard_controller_1.dashboardController.home);
 // Class-level snapshot
-dashboardRoutes.get("/classes/:classId", (0, requirePermission_1.requirePermission)("reports:read"), dashboard_controller_1.dashboardController.classSnapshot);
+dashboardRoutes.get("/classes/:classId", (0, requirePermission_1.requirePermission)("reports:read"), (0, requirePermission_1.requirePermission)("classes:read"), dashboard_controller_1.dashboardController.classSnapshot);
 // Exports
 dashboardRoutes.get("/export", (0, requirePermission_1.requirePermission)("reports:export"), dashboard_controller_1.dashboardController.export);
 // PDF data

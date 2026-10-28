@@ -4,7 +4,7 @@ exports.verifyGoogleIdToken = verifyGoogleIdToken;
 // src/lib/google.ts
 const google_auth_library_1 = require("google-auth-library");
 const client = new google_auth_library_1.OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-async function verifyGoogleIdToken(idToken) {
+async function verifyGoogleIdToken(idToken, expectedNonce) {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     if (!clientId) {
         throw new Error("GOOGLE_CLIENT_ID is not configured");
@@ -14,7 +14,7 @@ async function verifyGoogleIdToken(idToken) {
         audience: clientId,
     });
     const payload = ticket.getPayload();
-    if (!payload?.sub || !payload.email) {
+    if (!payload?.sub || !payload.email || !payload.email_verified || (expectedNonce && payload.nonce !== expectedNonce)) {
         throw new Error("Invalid Google token payload");
     }
     return {

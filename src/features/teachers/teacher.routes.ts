@@ -1,3 +1,4 @@
+import { requireStaffManager } from "../../middlewares/requireStaffManager";
 import { Router } from "express";
 import { validate as validateSource } from "../../middlewares/validate";
 import { requireSchool } from "../../middlewares/requireSchool";
@@ -30,6 +31,7 @@ teacherRoutes.use(authenticate, requireSchool, requireStaff);
 
 teacherRoutes.get(
   "/",
+  requireStaffManager,
   requirePermission(PERMISSIONS["staff:read"]),
   validate({ query: listTeachersQuerySchema }),
   teacherController.list
@@ -37,6 +39,7 @@ teacherRoutes.get(
 
 teacherRoutes.post(
   "/invite",
+  requireStaffManager,
   requirePermission("staff:write"),
   invitationLimiter,
   validate({ body: inviteTeacherBodySchema }),
@@ -52,6 +55,7 @@ teacherRoutes.get(
 // Class staffing (used by class detail Teachers tab)
 teacherRoutes.put(
   "/classes/:classId/class-teacher",
+  requireStaffManager,
   requirePermission("staff:write"),
   validate({
     params: classIdParams,
@@ -62,6 +66,7 @@ teacherRoutes.put(
 
 teacherRoutes.get(
   "/classes/:classId/subject-teachers",
+  requireStaffManager,
   requirePermission("staff:read"),
   validate({ params: classIdParams }),
   teacherController.listClassSubjectTeachers
@@ -69,6 +74,7 @@ teacherRoutes.get(
 
 teacherRoutes.put(
   "/classes/:classId/subject-teachers",
+  requireStaffManager,
   requirePermission("staff:write"),
   validate({
     params: classIdParams,
@@ -79,6 +85,7 @@ teacherRoutes.put(
 
 teacherRoutes.get(
   "/:id",
+  requireStaffManager,
   requirePermission("staff:read"),
   validate({ params: teacherIdParamsSchema }),
   teacherController.getById
@@ -86,6 +93,7 @@ teacherRoutes.get(
 
 teacherRoutes.patch(
   "/:id",
+  requireStaffManager,
   requirePermission("staff:write"),
   validate({ params: teacherIdParamsSchema, body: updateTeacherBodySchema }),
   teacherController.update
@@ -93,6 +101,7 @@ teacherRoutes.patch(
 
 teacherRoutes.delete(
   "/:id",
+  requireStaffManager,
   requirePermission("staff:write"),
   validate({ params: teacherIdParamsSchema }),
   teacherController.remove
@@ -100,6 +109,7 @@ teacherRoutes.delete(
 
 teacherRoutes.put(
   "/:id/assignments",
+  requireStaffManager,
   requirePermission("staff:write"),
   validate({ params: teacherIdParamsSchema, body: setAssignmentsBodySchema }),
   teacherController.setAssignments

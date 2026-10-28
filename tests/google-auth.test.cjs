@@ -1,0 +1,10 @@
+const {test,afterEach,mock}=require('node:test');const assert=require('node:assert/strict');
+const {generateKeyPairSync}=require('node:crypto');const jwt=require('jsonwebtoken');const {OAuth2Client}=require('google-auth-library');
+const {privateKey,publicKey}=generateKeyPairSync('rsa',{modulusLength:2048});const cert=publicKey.export({type:'spki',format:'pem'});
+process.env.GOOGLE_CLIENT_ID='test-client.apps.googleusercontent.com';const {verifyGoogleIdToken}=require('../.test-build/lib/goggle');
+afterEach(()=>mock.restoreAll());
+function token(overrides={},key=privateKey){const now=Math.floor(Date.now()/1000);return jwt.sign({iss:'https://accounts.google.com',aud:process.env.GOOGLE_CLIENT_ID,sub:'google-user-id',email:'invited@gmail.com',email_verified:true,given_name:'Invited',family_name:'Teacher',nonce:'browser-google-nonce',iat:now,exp:now+3600,...overrides},key,{algorithm:'RS256',keyid:'test'});}
+function certificates(){mock.method(OAuth2Client.prototype,'getFederatedSignonCertsAsync',async()=>({certs:{test:cert},format:'PEM'}));}
+test('Google verifies signed credentials and returns names and stable subject',async()=>{certificates();const profile=await verifyGoogleIdToken(token(),'browser-google-nonce');assert.equal(profile.googleId,'google-user-id');assert.equal(profile.email,'invited@gmail.com');assert.equal(profile.firstName,'Invited');assert.equal(profile.lastName,'Teacher');});
+test('Google rejects wrong audience, issuer, nonce, unverified email and expired credentials',async()=>{certificates();for(const claims of [{aud:'attacker-client'},{iss:'https://attacker.test'},{nonce:'different-browser'},{email_verified:false},{exp:Math.floor(Date.now()/1000)-3600}])await assert.rejects(verifyGoogleIdToken(token(claims),'browser-google-nonce'));});
+test('Google rejects a token signed with an untrusted key',async()=>{certificates();const other=generateKeyPairSync('rsa',{modulusLength:2048});await assert.rejects(verifyGoogleIdToken(token({},other.privateKey),'browser-google-nonce'));});

@@ -1,3 +1,4 @@
+import { withReadStatus } from "./announcementReads.service";
 import type { Request, Response, NextFunction } from "express";
 import { communicationService } from "./communication.service";
 import {
@@ -63,7 +64,7 @@ export class CommunicationController {
           limit: query.limit,
         }
       );
-      sendSuccess(res, data);
+      sendSuccess(res, await withReadStatus(data, req.auth!.userId));
     } catch (err) {
       next(err);
     }
@@ -78,7 +79,7 @@ export class CommunicationController {
           req.auth!.orgRole === "PROPRIETOR" ||
           req.auth!.orgRole === "PRINCIPAL"
       );
-      sendSuccess(res, data);
+      sendSuccess(res, (await withReadStatus([data], req.auth!.userId))[0]);
     } catch (err) {
       next(err);
     }

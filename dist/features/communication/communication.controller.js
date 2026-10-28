@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.communicationController = exports.CommunicationController = void 0;
+const announcementReads_service_1 = require("./announcementReads.service");
 const communication_service_1 = require("./communication.service");
 const communication_validation_1 = require("./communication.validation");
 const http_1 = require("../../lib/http");
@@ -33,7 +34,7 @@ class CommunicationController {
                 activeOnly: query.activeOnly,
                 limit: query.limit,
             });
-            (0, http_1.sendSuccess)(res, data);
+            (0, http_1.sendSuccess)(res, await (0, announcementReads_service_1.withReadStatus)(data, req.auth.userId));
         }
         catch (err) {
             next(err);
@@ -44,7 +45,7 @@ class CommunicationController {
             const data = await communication_service_1.communicationService.getAnnouncement(req.params.id, req.auth.schoolId, req.auth.orgRole === "SCHOOL_ADMIN" ||
                 req.auth.orgRole === "PROPRIETOR" ||
                 req.auth.orgRole === "PRINCIPAL");
-            (0, http_1.sendSuccess)(res, data);
+            (0, http_1.sendSuccess)(res, (await (0, announcementReads_service_1.withReadStatus)([data], req.auth.userId))[0]);
         }
         catch (err) {
             next(err);

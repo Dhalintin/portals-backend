@@ -26,6 +26,7 @@ dashboardRoutes.get(
 dashboardRoutes.get(
   "/classes/:classId",
   requirePermission("reports:read"),
+  requirePermission("classes:read"),
   dashboardController.classSnapshot
 );
 

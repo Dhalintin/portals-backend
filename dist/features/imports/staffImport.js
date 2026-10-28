@@ -3,13 +3,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.pendingStaffRoleSchema = exports.staffImportSchema = void 0;
 exports.importStaff = importStaff;
 exports.updatePendingStaffRole = updatePendingStaffRole;
+const rbac_1 = require("../../auth/rbac");
 const node_crypto_1 = require("node:crypto");
 const zod_1 = require("zod");
 const schoolTransaction_1 = require("../../lib/schoolTransaction");
 const errors_1 = require("../../lib/errors");
 const token_1 = require("../../lib/token");
 const authEmail_1 = require("../../lib/authEmail");
-const rowSchema = zod_1.z.object({ rowNumber: zod_1.z.number().int().positive(), firstName: zod_1.z.string().trim().min(1).max(80), lastName: zod_1.z.string().trim().min(1).max(80), email: zod_1.z.string().trim().toLowerCase().email().max(254) }).strict();
+const rowSchema = zod_1.z.object({ rowNumber: zod_1.z.number().int().positive(), firstName: zod_1.z.string().trim().max(80).default(''), lastName: zod_1.z.string().trim().max(80).default(''), email: zod_1.z.string().trim().toLowerCase().email().max(254) }).strict();
 exports.staffImportSchema = zod_1.z.object({ dryRun: zod_1.z.boolean().default(true), idempotencyKey: zod_1.z.string().uuid().optional(), defaultRole: zod_1.z.enum(['TEACHER', 'STAFF']).default('TEACHER'), rows: zod_1.z.array(zod_1.z.unknown()).min(1).max(100) }).strict().superRefine((input, ctx) => { if (!input.dryRun && !input.idempotencyKey)
     ctx.addIssue({ code: 'custom', path: ['idempotencyKey'], message: 'Import retry key is required' }); });
 async function importStaff(organizationId, actorId, raw) {
@@ -50,7 +51,7 @@ async function importStaff(organizationId, actorId, raw) {
         if (!school)
             throw new errors_1.AppError(404, 'NOT_FOUND', 'School not found');
         const expiresAt = new Date(Date.now() + 48 * 3600000);
-        const prepared = rows.map(row => { const token = (0, token_1.randomToken)(32); return { row, id: (0, node_crypto_1.randomUUID)(), tokenHash: (0, token_1.sha256)(token), encryptedText: (0, authEmail_1.encryptAuthEmail)(`You have been invited to ${school.name}.\nAccept within 48 hours: ${(0, authEmail_1.authLink)('/accept-invitation', token)}\nIf you already have an account, sign in before accepting.`) }; });
+        const prepared = rows.map(row => { const token = (0, token_1.randomToken)(32); return { row, id: (0, node_crypto_1.randomUUID)(), tokenHash: (0, token_1.sha256)(token), encryptedText: (0, authEmail_1.encryptAuthEmail)(`You have been invited to ${school.name}.\nAccept within 48 hours: ${(0, authEmail_1.authLink)('/accept-invitation', token)}\nOpen the link and join with Google or a password using this invited email. If you already have a password, use that password.`) }; });
         await tx.schoolInvitation.createMany({ data: prepared.map(({ row, id, tokenHash }) => ({ id, organizationId, invitedById: actorId, firstName: row.firstName, lastName: row.lastName, email: row.email, role: input.defaultRole, tokenHash, expiresAt })) });
         await tx.authEmail.createMany({ data: prepared.map(({ row, encryptedText }) => ({ recipient: row.email, subject: `Invitation to ${school.name}`, encryptedText, expiresAt })) });
         const result = { dryRun: false, created: rows.length, errorCount: 0, errors: [], defaultRole: input.defaultRole, replayed: false };
@@ -70,6 +71,8 @@ async function updatePendingStaffRole(organizationId, actorId, id, raw) {
         const invitation = await tx.schoolInvitation.findFirst({ where: { id, organizationId, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } } });
         if (!invitation || invitation.role === 'PARENT')
             throw new errors_1.AppError(404, 'NOT_FOUND', 'Pending staff invitation not found');
+        if (actor.role === 'PRINCIPAL' && (!(0, rbac_1.principalCanManageRole)(role) || !(0, rbac_1.principalCanManageRole)(invitation.role)))
+            throw new errors_1.AppError(403, 'FORBIDDEN', 'Principals may assign academic roles only');
         if ((role === 'PROPRIETOR' || invitation.role === 'PROPRIETOR') && actor.role !== 'PROPRIETOR')
             throw new errors_1.AppError(403, 'FORBIDDEN', 'Only an owner can assign owner access');
         await tx.schoolInvitation.update({ where: { id }, data: { role, invitedById: actorId } });

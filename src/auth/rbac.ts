@@ -22,12 +22,10 @@ export const ROLE_PERMISSIONS: Record<OrgRole, readonly Permission[]> = {
     PERMISSIONS["staff:write"],
     PERMISSIONS["announcements:write"],
     PERMISSIONS["reports:read"],
+    PERMISSIONS["reports:export"],
     PERMISSIONS["settings:write"],
-    PERMISSIONS["fees:read"],
-    PERMISSIONS["payments:read"],
     PERMISSIONS["memberships:read"],
     PERMISSIONS["memberships:write"],
-    PERMISSIONS["audit:read"],
   ],
   BURSAR: [
     PERMISSIONS["announcements:read"],
@@ -80,4 +78,9 @@ export function hasAllPermissions(
 ): boolean {
   const set = new Set(granted);
   return needed.every((p) => set.has(p));
+}
+
+// A principal can manage academic staff without granting finance/admin access.
+export function principalCanManageRole(role: OrgRole) {
+  return (["PRINCIPAL", "TEACHER", "EXAM_OFFICER", "STAFF", "PARENT"] as readonly OrgRole[]).includes(role);
 }

@@ -10,79 +10,34 @@ export class DashboardService {
    * Core school home metrics — the numbers every principal/proprietor wants
    * on first load.
    */
-  async schoolHome(organizationId: string) {
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().slice(0, 10);
-
+  async schoolHome(organizationId: string, permissions: readonly string[]) {
+    const can = (permission: string) => permissions.includes(permission);
+    const todayStr = new Date().toISOString().slice(0, 10);
     const currentTerm = await prisma.term.findFirst({where:{isCurrent:true,session:{organizationId}},select:{id:true}});
-    const [
-      studentCount,
-      activeTeachers,
-      attendanceToday,
-      feeSummary,
-      absentToday,
-      incompleteResults,
-      pendingPayments,
-      staffCount, parentCount, classCount,
-    ] = await Promise.all([
-      // 1. Students
-      prisma.student.count({
-        where: { organizationId, isActive: true },
-      }),
-
-      // 2. Teachers (users with TEACHER membership)
-      prisma.membership.count({
-        where: { organizationId, role: "TEACHER", isActive: true },
-      }),
-
-      // 3. Attendance % today
-      attendanceService.attendancePercentage(organizationId, {
-        from: todayStr,
-        to: todayStr,
-      }),
-
-      // 4. Fees collected / outstanding
-      currentTerm ? feesService.bursarSummary(organizationId,{termId:currentTerm.id}) : Promise.resolve({collectedNgn:0,outstandingNgn:0,invoicesWithBalance:0,billedNgn:0}),
-
-      // 5. Who is absent today
-      attendanceService.absentToday(organizationId, todayStr),
-
-      // 6. Result sheets still in DRAFT or SUBMITTED for current term
-      this.incompleteResultSheets(organizationId),
-
-      // 7. Payments that need attention (PENDING online)
-      prisma.payment.count({
-        where: { organizationId, status: "PENDING", source: "PAYSTACK" },
-      }),
-      prisma.membership.count({where:{organizationId,isActive:true,role:{not:"PARENT"}}}),
-      prisma.parent.count({where:{organizationId,isActive:true}}),
-      prisma.class.count({where:{organizationId,isActive:true}}),
+    const financeAllowed = can("fees:read") && can("payments:read");
+    const [students, teachers, staff, parents, classes, attendance, finance, absent, results, pendingPayments] = await Promise.all([
+      can("students:read") ? prisma.student.count({where:{organizationId,isActive:true}}) : undefined,
+      can("staff:read") ? prisma.membership.count({where:{organizationId,role:"TEACHER",isActive:true}}) : undefined,
+      can("staff:read") ? prisma.membership.count({where:{organizationId,isActive:true,role:{not:"PARENT"}}}) : undefined,
+      can("parents:read") ? prisma.parent.count({where:{organizationId,isActive:true}}) : undefined,
+      can("classes:read") ? prisma.class.count({where:{organizationId,isActive:true}}) : undefined,
+      can("attendance:read") ? attendanceService.attendancePercentage(organizationId,{from:todayStr,to:todayStr}) : undefined,
+      financeAllowed ? (currentTerm ? feesService.bursarSummary(organizationId,{termId:currentTerm.id}) : {billedNgn:0,collectedNgn:0,outstandingNgn:0,invoicesWithBalance:0}) : undefined,
+      can("attendance:read") ? attendanceService.absentToday(organizationId,todayStr) : undefined,
+      can("results:read") ? this.incompleteResultSheets(organizationId) : undefined,
+      can("payments:read") ? prisma.payment.count({where:{organizationId,status:"PENDING",source:"PAYSTACK"}}) : undefined,
     ]);
-
     return {
-      students: studentCount,
-      teachers: activeTeachers,
-      staff: staffCount, parents: parentCount, classes: classCount, currentTermId: currentTerm?.id ?? null,
-      attendance: {
-        percentage: attendanceToday.percentage,
-        present: attendanceToday.present,
-        total: attendanceToday.total,
-      },
-      finance: {
-        billedNgn: feeSummary.billedNgn,
-        collectedNgn: feeSummary.collectedNgn,
-        outstandingNgn: feeSummary.outstandingNgn,
-        invoicesWithBalance: feeSummary.invoicesWithBalance,
-      },
+      ...(students !== undefined ? {students} : {}), ...(teachers !== undefined ? {teachers} : {}),
+      ...(staff !== undefined ? {staff} : {}), ...(parents !== undefined ? {parents} : {}), ...(classes !== undefined ? {classes} : {}),
+      currentTermId: currentTerm?.id ?? null,
+      ...(attendance ? {attendance:{percentage:attendance.percentage,present:attendance.present,total:attendance.total}} : {}),
+      ...(finance ? {finance:{billedNgn:finance.billedNgn,collectedNgn:finance.collectedNgn,outstandingNgn:finance.outstandingNgn,invoicesWithBalance:finance.invoicesWithBalance}} : {}),
       attention: {
-        absentToday: absentToday.slice(0, 12), // first 12 for the card
-        absentCount: absentToday.length,
-        incompleteResults: incompleteResults.count,
-        pendingPayments,
-      },
-      // Quick links the frontend can use
-      generatedAt: new Date().toISOString(),
+        ...(absent ? {absentToday:absent.slice(0,12),absentCount:absent.length} : {}),
+        ...(results ? {incompleteResults:results.count} : {}),
+        ...(pendingPayments !== undefined ? {pendingPayments} : {}),
+      }, generatedAt:new Date().toISOString(),
     };
   }
 
@@ -106,7 +61,7 @@ export class DashboardService {
   /**
    * Lightweight class-level snapshot (useful for principal view)
    */
-  async classSnapshot(organizationId: string, classId: string) {
+  async classSnapshot(organizationId: string, classId: string, permissions: readonly string[]) {
     const cls = await prisma.class.findFirst({
       where: { id: classId, organizationId },
       select: { id: true, name: true, arm: true },
@@ -119,12 +74,10 @@ export class DashboardService {
       prisma.student.count({
         where: { organizationId, classId, isActive: true },
       }),
-      attendanceService.attendancePercentage(organizationId, {
-        from: todayStr,
-        to: todayStr,
-        classId,
-      }),
-      prisma.invoice.aggregate({
+      permissions.includes("attendance:read") ? attendanceService.attendancePercentage(organizationId, {
+        from: todayStr, to: todayStr, classId,
+      }) : undefined,
+      permissions.includes("fees:read") && permissions.includes("payments:read") ? prisma.invoice.aggregate({
         where: {
           organizationId,
           student: { classId },
@@ -133,15 +86,14 @@ export class DashboardService {
         },
         _sum: { outstandingNgn: true },
         _count: true,
-      }),
+      }) : undefined,
     ]);
 
     return {
       class: cls,
       students,
-      attendance,
-      outstandingNgn: outstanding._sum.outstandingNgn ?? 0,
-      invoicesWithBalance: outstanding._count,
+      ...(attendance ? {attendance} : {}),
+      ...(outstanding ? {outstandingNgn:outstanding._sum.outstandingNgn ?? 0,invoicesWithBalance:outstanding._count} : {}),
     };
   }
 

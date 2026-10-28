@@ -15,10 +15,11 @@ export const listTeachersQuerySchema = z.object({
 export const inviteTeacherBodySchema = z.object({
   email: z
     .string()
+    .trim()
     .email()
     .transform((v) => v.toLowerCase().trim()),
-  firstName: z.string().min(1).max(100).trim(),
-  lastName: z.string().min(1).max(100).trim(),
+  firstName: z.string().trim().max(80).default(""),
+  lastName: z.string().trim().max(80).default(""),
   phone: z
     .string()
     .min(7)

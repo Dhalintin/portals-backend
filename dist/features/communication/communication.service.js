@@ -246,9 +246,10 @@ class CommunicationService {
                     ],
                 }),
         };
-        return this.db.announcement.findFirst({
-            where,
-        });
+        const announcement = await this.db.announcement.findFirst({ where });
+        if (!announcement)
+            throw new errors_1.AppError(404, "NOT_FOUND", "Announcement not found");
+        return announcement;
     }
     // async getAnnouncement(organizationId: string, id: string) {
     //   const item = await this.db.announcement.findFirst({

@@ -1,3 +1,4 @@
+import { AppError } from "../../lib/errors";
 import type { Request, Response, NextFunction } from "express";
 import { dashboardService } from "./dashboard.service";
 import { exportQuerySchema, auditLogQuerySchema } from "./dashboard.validation";
@@ -6,7 +7,7 @@ import { sendSuccess } from "../../lib/http";
 export class DashboardController {
   home = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await dashboardService.schoolHome(req.auth!.schoolId!);
+      const data = await dashboardService.schoolHome(req.auth!.schoolId!, req.auth!.permissions);
       sendSuccess(res, data);
     } catch (err) {
       next(err);
@@ -17,7 +18,8 @@ export class DashboardController {
     try {
       const data = await dashboardService.classSnapshot(
         req.auth!.schoolId!,
-        req.params.classId as string
+        req.params.classId as string,
+        req.auth!.permissions
       );
       sendSuccess(res, data);
     } catch (err) {
@@ -28,6 +30,9 @@ export class DashboardController {
   export = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const query = exportQuerySchema.parse(req.query);
+      const readPermissions = {students:"students:read",attendance:"attendance:read",results:"results:read",invoices:"fees:read",payments:"payments:read"} as const;
+      const readPermission = readPermissions[query.type];
+      if (!req.auth!.permissions.includes(readPermission)) throw new AppError(403, "FORBIDDEN", "You do not have access to this report.");
       const rows = await dashboardService.exportData(
         req.auth!.schoolId!,
         query

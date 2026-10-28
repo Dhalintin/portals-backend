@@ -155,6 +155,7 @@ model User {
   createdOrgs              Organization[]            @relation("OrgCreator")
   passwordResetTokens      PasswordResetToken[]
   invitationsSent          SchoolInvitation[] @relation("InvitationSender")
+  announcementReads        AnnouncementRead[]
   authSessions             AuthSession[]
   classTeacherOf           Class[]                   @relation("ClassTeacher")
   classSubjectTeaching     ClassSubjectTeacher[]
@@ -867,10 +868,23 @@ model Announcement {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
+  reads AnnouncementRead[]
+
   @@index([organizationId])
   @@index([organizationId, isPublished, isActive])
   @@index([isPublished, publishAt])
   @@index([organizationId, isActive, publishedAt])
+}
+
+
+model AnnouncementRead {
+  announcementId String
+  userId String
+  readAt DateTime @default(now())
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([announcementId, userId])
+  @@index([userId])
 }
 
 

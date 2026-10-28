@@ -41,7 +41,6 @@ export const teacherController = {
   async invite(req: Request, res: Response, next: NextFunction) {
     try {
       if (!req.auth) throw new UnauthorizedError();
-      console.log("Here 1");
       const invitation = await invitationsService.create(
         req.auth.schoolId!,
         req.auth.userId,

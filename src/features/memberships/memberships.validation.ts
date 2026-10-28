@@ -22,23 +22,14 @@ export const createMembershipSchema = z.object({
 
     .string()
 
+    .trim()
     .email("Please enter a valid email address.")
 
     .transform((v) => v.trim().toLowerCase()),
 
-  firstName: z
-    .string()
-    .trim()
-    .min(1, "Must be at least 1 characters long.")
-    .max(80, "Must not exceed 80 characters."),
-
-  lastName: z
-    .string()
-    .trim()
-    .min(1, "Must be at least 1 characters long.")
-    .max(80, "Must not exceed 80 characters."),
-
-  role: z.nativeEnum(OrgRole, { error: "Please select a valid role." }),
+  firstName: z.string().trim().max(80).default(""),
+  lastName: z.string().trim().max(80).default(""),
+  role: z.nativeEnum(OrgRole).default("TEACHER"),
 
   phone: z.string().trim().max(30, "Must not exceed 30 characters.").optional(),
 

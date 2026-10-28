@@ -15,10 +15,11 @@ exports.listTeachersQuerySchema = zod_1.z.object({
 exports.inviteTeacherBodySchema = zod_1.z.object({
     email: zod_1.z
         .string()
+        .trim()
         .email()
         .transform((v) => v.toLowerCase().trim()),
-    firstName: zod_1.z.string().min(1).max(100).trim(),
-    lastName: zod_1.z.string().min(1).max(100).trim(),
+    firstName: zod_1.z.string().trim().max(80).default(""),
+    lastName: zod_1.z.string().trim().max(80).default(""),
     phone: zod_1.z
         .string()
         .min(7)

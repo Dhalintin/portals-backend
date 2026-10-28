@@ -1,10 +1,11 @@
+import {principalCanManageRole} from '../../auth/rbac';
 import {createHash,randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {schoolTransaction} from '../../lib/schoolTransaction';
 import {AppError} from '../../lib/errors';
 import {randomToken,sha256} from '../../lib/token';
 import {authLink,encryptAuthEmail} from '../../lib/authEmail';
-const rowSchema=z.object({rowNumber:z.number().int().positive(),firstName:z.string().trim().min(1).max(80),lastName:z.string().trim().min(1).max(80),email:z.string().trim().toLowerCase().email().max(254)}).strict();
+const rowSchema=z.object({rowNumber:z.number().int().positive(),firstName:z.string().trim().max(80).default(''),lastName:z.string().trim().max(80).default(''),email:z.string().trim().toLowerCase().email().max(254)}).strict();
 export const staffImportSchema=z.object({dryRun:z.boolean().default(true),idempotencyKey:z.string().uuid().optional(),defaultRole:z.enum(['TEACHER','STAFF']).default('TEACHER'),rows:z.array(z.unknown()).min(1).max(100)}).strict().superRefine((input,ctx)=>{if(!input.dryRun&&!input.idempotencyKey)ctx.addIssue({code:'custom',path:['idempotencyKey'],message:'Import retry key is required'});});
 export async function importStaff(organizationId:string,actorId:string,raw:unknown){
  const input=staffImportSchema.parse(raw),errors:Array<{rowNumber:number;message:string}>=[],rows:Array<z.infer<typeof rowSchema>>=[],emails=new Set<string>(),numbers=new Set<number>();
@@ -27,7 +28,7 @@ export async function importStaff(organizationId:string,actorId:string,raw:unkno
   const school=await tx.organization.findFirst({where:{id:organizationId,isActive:true},select:{name:true}});
   if(!school)throw new AppError(404,'NOT_FOUND','School not found');
   const expiresAt=new Date(Date.now()+48*3600000);
-  const prepared=rows.map(row=>{const token=randomToken(32);return {row,id:randomUUID(),tokenHash:sha256(token),encryptedText:encryptAuthEmail(`You have been invited to ${school.name}.\nAccept within 48 hours: ${authLink('/accept-invitation',token)}\nIf you already have an account, sign in before accepting.`)};});
+  const prepared=rows.map(row=>{const token=randomToken(32);return {row,id:randomUUID(),tokenHash:sha256(token),encryptedText:encryptAuthEmail(`You have been invited to ${school.name}.\nAccept within 48 hours: ${authLink('/accept-invitation',token)}\nOpen the link and join with Google or a password using this invited email. If you already have a password, use that password.`)};});
   await tx.schoolInvitation.createMany({data:prepared.map(({row,id,tokenHash})=>({id,organizationId,invitedById:actorId,firstName:row.firstName,lastName:row.lastName,email:row.email,role:input.defaultRole,tokenHash,expiresAt}))});
   await tx.authEmail.createMany({data:prepared.map(({row,encryptedText})=>({recipient:row.email,subject:`Invitation to ${school.name}`,encryptedText,expiresAt}))});
   const result={dryRun:false,created:rows.length,errorCount:0,errors:[],defaultRole:input.defaultRole,replayed:false};
@@ -44,6 +45,7 @@ export async function updatePendingStaffRole(organizationId:string,actorId:strin
   if(!actor||!['PROPRIETOR','PRINCIPAL','SCHOOL_ADMIN'].includes(actor.role))throw new AppError(403,'FORBIDDEN','Cannot assign staff roles');
   const invitation=await tx.schoolInvitation.findFirst({where:{id,organizationId,acceptedAt:null,revokedAt:null,expiresAt:{gt:new Date()}}});
   if(!invitation||invitation.role==='PARENT')throw new AppError(404,'NOT_FOUND','Pending staff invitation not found');
+  if(actor.role==='PRINCIPAL'&&(!principalCanManageRole(role)||!principalCanManageRole(invitation.role)))throw new AppError(403,'FORBIDDEN','Principals may assign academic roles only');
   if((role==='PROPRIETOR'||invitation.role==='PROPRIETOR')&&actor.role!=='PROPRIETOR')throw new AppError(403,'FORBIDDEN','Only an owner can assign owner access');
   await tx.schoolInvitation.update({where:{id},data:{role,invitedById:actorId}});
   await tx.auditLog.create({data:{organizationId,actorId,action:'ROLE_CHANGED',entity:'SchoolInvitation',entityId:id,metadata:{from:invitation.role,to:role}}});

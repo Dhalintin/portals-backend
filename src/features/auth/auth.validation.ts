@@ -93,10 +93,15 @@ export const registerSchoolAdminSchema = z.object({
 export const refreshSchema = z.object({
   refreshToken: z.string().min(20, "Must be at least 20 characters long."),
 });
-export const acceptInvitationSchema = z.object({ token: z.string().min(40).max(200), password: passwordSchema }).strict();
+export const acceptInvitationSchema = z.object({ token: z.string().min(40).max(200), password: passwordSchema,
+  firstName: z.string().trim().min(1).max(80).optional(), lastName: z.string().trim().min(1).max(80).optional() }).strict();
 export const acceptExistingInvitationSchema = z.object({ token: z.string().min(40).max(200) }).strict();
 export const acceptExistingPasswordInvitationSchema = z.object({ token: z.string().min(40).max(200),
   currentPassword: z.string().min(1).max(128) }).strict();
+
+export const googleLoginSchema = z.object({ idToken: z.string().min(20).max(10000), nonce: z.string().min(16).max(200), schoolSlug: z.string().max(80).optional() }).strict();
+export const googleInvitationSchema = googleLoginSchema.omit({ schoolSlug: true }).extend({ token: z.string().min(40).max(200) }).strict();
+export const completeInvitationSchema = z.union([acceptInvitationSchema, acceptExistingPasswordInvitationSchema]);
 
 export const forgotPasswordSchema = z.object({
   email: z

@@ -499,3 +499,29 @@ test('exam clashes block overlapping classes and venues but allow shared papers 
 test('exam save signatures survive JSON object-key and row ordering changes',()=>{
  const {examEntriesSignature}=require('../.test-build/features/exams/exams.validation');const a={id:'a',classId:'class-a',subjectId:'math',date:'2026-11-10',startTime:'09:00',endTime:'11:00',venue:'',note:''};assert.equal(examEntriesSignature([a]),examEntriesSignature([{note:'',venue:'',endTime:'11:00',startTime:'09:00',date:'2026-11-10',subjectId:'math',classId:'class-a',id:'a'}]));
 });
+
+test('principal academic permissions exclude finance and cannot grant higher financial roles',()=>{
+ const {permissionsForOrgRole,principalCanManageRole}=require('../.test-build/auth/rbac');
+ const permissions=permissionsForOrgRole('PRINCIPAL');
+ for(const permission of ['fees:read','fees:write','payments:read','payments:write','audit:read'])assert.ok(!permissions.includes(permission));
+ for(const permission of ['classes:write','results:publish','exams:write','reports:export'])assert.ok(permissions.includes(permission));
+ for(const role of ['PROPRIETOR','SCHOOL_ADMIN','BURSAR'])assert.equal(principalCanManageRole(role),false);
+ for(const role of ['TEACHER','EXAM_OFFICER','PRINCIPAL'])assert.equal(principalCanManageRole(role),true);
+});
+
+
+test('own-account inputs reject identity changes and unsafe profile pictures',()=>{
+ const {profileUpdateSchema,passwordChangeSchema,validProfileImage}=require('../.test-build/features/auth/profile.validation');
+ const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV1sAAAAASUVORK5CYII=';
+ assert.equal(validProfileImage(image),true);
+ for(const input of [{},{email:'other@example.test'},{userId:'other',firstName:'Name'},{role:'PROPRIETOR'},{avatarUrl:'https://evil.test/photo'},{avatarUrl:'data:image/svg+xml;base64,PHN2Zz4='},{firstName:' '}])assert.equal(profileUpdateSchema.safeParse(input).success,false);
+ assert.deepEqual(profileUpdateSchema.parse({firstName:'  Alice  ',avatarUrl:null}),{firstName:'Alice',avatarUrl:null});
+ assert.equal(validProfileImage('data:image/jpeg;base64,AAAA'),false);
+ assert.equal(passwordChangeSchema.safeParse({currentPassword:'old',newPassword:'short'}).success,false);
+ assert.equal(passwordChangeSchema.safeParse({currentPassword:'old',newPassword:'Password123',userId:'other'}).success,false);
+});
+test('staff directory manager boundary excludes teaching and financial staff',()=>{
+ const {isStaffManager}=require('../.test-build/middlewares/requireStaffManager');
+ for(const role of ['PROPRIETOR','PRINCIPAL','SCHOOL_ADMIN'])assert.equal(isStaffManager(role),true);
+ for(const role of ['TEACHER','EXAM_OFFICER','BURSAR','STAFF','PARENT',undefined])assert.equal(isStaffManager(role),false);
+});

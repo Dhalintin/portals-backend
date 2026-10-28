@@ -13,7 +13,8 @@ export type GoogleProfile = {
 };
 
 export async function verifyGoogleIdToken(
-  idToken: string
+  idToken: string,
+  expectedNonce?: string
 ): Promise<GoogleProfile> {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   if (!clientId) {
@@ -26,7 +27,7 @@ export async function verifyGoogleIdToken(
   });
 
   const payload = ticket.getPayload();
-  if (!payload?.sub || !payload.email) {
+  if (!payload?.sub || !payload.email || !payload.email_verified || (expectedNonce && payload.nonce !== expectedNonce)) {
     throw new Error("Invalid Google token payload");
   }
 

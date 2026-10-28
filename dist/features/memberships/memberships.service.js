@@ -1,20 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.membershipsService = exports.MembershipsService = void 0;
+const rbac_1 = require("../../auth/rbac");
 const prisma_1 = require("../../lib/prisma");
 const errors_1 = require("../../lib/errors");
 const invitations_service_1 = require("../auth/invitations.service");
 const schoolTransaction_1 = require("../../lib/schoolTransaction");
 const staffing_1 = require("../../lib/staffing");
-const SAFE_ROLES_FOR_NON_OWNER = [
-    "PRINCIPAL",
-    "BURSAR",
-    "SCHOOL_ADMIN",
-    "TEACHER",
-    "EXAM_OFFICER",
-    "PARENT",
-    "STAFF",
-];
 class MembershipsService {
     async list(organizationId, query) {
         const skip = (query.page - 1) * query.limit;
@@ -76,6 +68,8 @@ class MembershipsService {
             if (membership.role === "PROPRIETOR" && actor.orgRole !== "PROPRIETOR") {
                 throw new errors_1.AppError(403, "FORBIDDEN", "Only a proprietor can manage another proprietor");
             }
+            if (actor.orgRole === "PRINCIPAL" && !(0, rbac_1.principalCanManageRole)(membership.role))
+                throw new errors_1.AppError(403, "FORBIDDEN", "Only an owner or school administrator can manage this role.");
             if (input.role) {
                 this.assertCanAssignRole(actor.orgRole, input.role);
             }
@@ -130,13 +124,8 @@ class MembershipsService {
             return;
         }
         if (actorRole === "PRINCIPAL") {
-            if (targetRole === "PROPRIETOR") {
-                throw new errors_1.AppError(403, "FORBIDDEN", "Cannot assign proprietor role");
-            }
-            if (!SAFE_ROLES_FOR_NON_OWNER.includes(targetRole) &&
-                targetRole !== "PRINCIPAL") {
-                // principal may assign teacher, bursar, etc.
-            }
+            if (!(0, rbac_1.principalCanManageRole)(targetRole))
+                throw new errors_1.AppError(403, "FORBIDDEN", "Principals may assign academic roles only.");
             return;
         }
         throw new errors_1.AppError(403, "FORBIDDEN", "Cannot manage memberships");

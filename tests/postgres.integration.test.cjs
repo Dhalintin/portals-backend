@@ -1319,7 +1319,7 @@ check('school members read published announcements without inactive, expired, dr
     assert.equal(response.status, 200);
     assert.ok(response.body.data.some(row => row.id === visible.id));
     assert.ok(hidden.every(row => !response.body.data.some(item => item.id === row.id)));
-    for (const row of hidden) assert.equal((await request('GET', `/communication/announcements/${row.id}`, token)).body.data, null);
+    for (const row of hidden) assert.equal((await request('GET', `/communication/announcements/${row.id}`, token)).status, 404);
     assert.equal((await request('POST', '/communication/announcements', token, { title: 'Forbidden', body: 'Not allowed' })).status, 403);
   }
 });
@@ -1906,4 +1906,173 @@ check('invitation inspection recognises existing-password accounts and rejects e
   await prisma.schoolInvitation.update({ where: { tokenHash: sha256(token) }, data: { expiresAt: new Date(0) } });
   await assert.rejects(invitationsService.inspect(token), { code: 'INVALID_INVITATION' });
   await assert.rejects(invitationsService.inspect('nonexistent'.repeat(6)), { code: 'INVALID_INVITATION' });
+});
+
+check('email-only staff invitation defaults to Teacher and completes with names and an invited session',async()=>{
+ const owner=await tokens(b.ownerId,b.id),email=`email-only-${crypto.randomUUID()}@example.test`;
+ const invited=await request('POST','/teachers/invite',owner.accessToken,{email});assert.equal(invited.status,201,JSON.stringify(invited.body));assert.equal(invited.body.data.invitation.role,'TEACHER');
+ const token=await invitationToken(email);
+ const missing=await request('POST','/auth/invitations/complete',owner.accessToken,{token,password:'ChosenPassword123'});assert.equal(missing.status,400);assert.equal(missing.body.error.code,'PROFILE_REQUIRED');
+ const accepted=await request('POST','/auth/invitations/complete',owner.accessToken,{token,password:'ChosenPassword123',firstName:'New',lastName:'Teacher'});
+ assert.equal(accepted.status,200,JSON.stringify(accepted.body));assert.equal(accepted.body.data.user.email,email);assert.equal(accepted.body.data.user.firstName,'New');assert.equal(accepted.body.data.orgRole,'TEACHER');assert.notEqual(accepted.body.data.user.id,b.ownerId);
+ const me=await request('GET','/auth/me',accepted.body.data.accessToken);assert.equal(me.status,200);assert.equal(me.body.data.user.email,email);
+ assert.equal((await request('POST','/auth/invitations/complete',undefined,{token,password:'ChosenPassword123',firstName:'New',lastName:'Teacher'})).status,400);
+});
+check('email-only bulk import previews, rejects duplicates, commits and safely retries as Teacher',async()=>{
+ const {importStaff}=require('../.test-build/features/imports/staffImport');
+ const rows=[{rowNumber:2,email:`bulk-email-${crypto.randomUUID()}@example.test`},{rowNumber:3,email:`bulk-email-${crypto.randomUUID()}@example.test`}];
+ const preview=await importStaff(b.id,b.ownerId,{rows});assert.equal(preview.canCommit,true);assert.equal(preview.defaultRole,'TEACHER');
+ const duplicates=await importStaff(b.id,b.ownerId,{rows:[rows[0],{rowNumber:3,email:rows[0].email}]});assert.equal(duplicates.canCommit,false);
+ const input={rows,dryRun:false,idempotencyKey:crypto.randomUUID()};const committed=await importStaff(b.id,b.ownerId,input);assert.equal(committed.created,2);assert.equal((await importStaff(b.id,b.ownerId,input)).replayed,true);
+ const pending=await prisma.schoolInvitation.findMany({where:{organizationId:b.id,email:{in:rows.map(row=>row.email)}}});assert.equal(pending.length,2);assert.ok(pending.every(row=>row.role==='TEACHER'&&!row.firstName&&!row.lastName));
+});
+function signedGoogleIdentity(claims={}){
+ const {generateKeyPairSync}=require('node:crypto');const {OAuth2Client}=require('google-auth-library');const jwt=require('jsonwebtoken');
+ const {privateKey,publicKey}=generateKeyPairSync('rsa',{modulusLength:2048});const cert=publicKey.export({type:'spki',format:'pem'});
+ mock.method(OAuth2Client.prototype,'getFederatedSignonCertsAsync',async()=>({certs:{test:cert},format:'PEM'}));
+ const nonce='browser-google-nonce',now=Math.floor(Date.now()/1000);
+ return {nonce,sign:overrides=>jwt.sign({iss:'https://accounts.google.com',aud:'test-client.apps.googleusercontent.com',sub:'google-'+crypto.randomUUID(),email_verified:true,given_name:'Google',family_name:'Teacher',nonce,iat:now,exp:now+3600,...claims,...overrides},privateKey,{algorithm:'RS256',keyid:'test'})};
+}
+check('Google accepts only the invited verified email, captures names and signs in as the invitee',async()=>{
+ await require('../.test-build/middlewares/rateLimit').authLimiter.resetKey('127.0.0.1');
+ const original=process.env.GOOGLE_CLIENT_ID;process.env.GOOGLE_CLIENT_ID='test-client.apps.googleusercontent.com';
+ try{
+  const owner=await tokens(b.ownerId,b.id),email=`google-invite-${crypto.randomUUID()}@example.test`;
+  assert.equal((await request('POST','/staff',owner.accessToken,{email})).status,201);
+  const token=await invitationToken(email),identity=signedGoogleIdentity({email}),sub='subject-'+crypto.randomUUID();
+  const wrong=await request('POST','/auth/invitations/accept-google',owner.accessToken,{token,nonce:identity.nonce,idToken:identity.sign({email:'wrong@example.test'})});assert.equal(wrong.status,403);assert.equal(wrong.body.error.code,'INVITATION_EMAIL_MISMATCH');
+  const wrongNonce=await request('POST','/auth/invitations/accept-google',undefined,{token,nonce:'different-browser-nonce',idToken:identity.sign({sub})});assert.equal(wrongNonce.status,401);
+  const idToken=identity.sign({sub});const accepted=await request('POST','/auth/invitations/accept-google',owner.accessToken,{token,nonce:identity.nonce,idToken});
+  assert.equal(accepted.status,200,JSON.stringify(accepted.body));assert.equal(accepted.body.data.user.email,email);assert.equal(accepted.body.data.user.firstName,'Google');assert.equal(accepted.body.data.user.lastName,'Teacher');assert.equal(accepted.body.data.orgRole,'TEACHER');
+  const user=await prisma.user.findUniqueOrThrow({where:{email}});assert.equal(user.googleId,sub);assert.equal(user.passwordHash,null);
+  const login=await request('POST','/auth/google',undefined,{nonce:identity.nonce,idToken});assert.equal(login.status,200,JSON.stringify(login.body));assert.equal(login.body.data.user.email,email);
+  assert.equal((await request('POST','/auth/invitations/accept-google',undefined,{token,nonce:identity.nonce,idToken})).status,400);
+  await prisma.membership.update({where:{userId_organizationId:{userId:user.id,organizationId:b.id}},data:{isActive:false}});
+  assert.equal((await request('POST','/auth/google',undefined,{nonce:identity.nonce,idToken})).status,403);
+ }finally{if(original===undefined)delete process.env.GOOGLE_CLIENT_ID;else process.env.GOOGLE_CLIENT_ID=original;}
+});
+check('Google login cannot silently link a password account, but a matching invitation can link it without replacing its password',async()=>{
+ await require('../.test-build/middlewares/rateLimit').authLimiter.resetKey('127.0.0.1');
+ const original=process.env.GOOGLE_CLIENT_ID;process.env.GOOGLE_CLIENT_ID='test-client.apps.googleusercontent.com';
+ try{
+  const {hashPassword}=require('../.test-build/lib/password');const email=`google-existing-${crypto.randomUUID()}@example.test`;
+  const user=await prisma.user.create({data:{email,firstName:'Existing',lastName:'Person',passwordHash:await hashPassword('OriginalPassword123'),memberships:{create:{organizationId:a.id,role:'TEACHER'}}}});
+  const identity=signedGoogleIdentity({email}),sub='subject-'+crypto.randomUUID(),idToken=identity.sign({sub});
+  const unlinked=await request('POST','/auth/google',undefined,{nonce:identity.nonce,idToken});assert.equal(unlinked.status,403);assert.equal(unlinked.body.error.code,'GOOGLE_LINK_REQUIRED');assert.equal((await prisma.user.findUniqueOrThrow({where:{id:user.id}})).googleId,null);
+  await invitationsService.create(b.id,b.ownerId,{email,firstName:'',lastName:'',role:'TEACHER'});const token=await invitationToken(email);
+  const accepted=await request('POST','/auth/invitations/accept-google',undefined,{token,nonce:identity.nonce,idToken});assert.equal(accepted.status,200,JSON.stringify(accepted.body));
+  const updated=await prisma.user.findUniqueOrThrow({where:{id:user.id}});assert.equal(updated.passwordHash,user.passwordHash);assert.equal(updated.googleId,sub);
+  const choice=await request('POST','/auth/google',undefined,{nonce:identity.nonce,idToken});assert.equal(choice.status,409);assert.equal(choice.body.error.code,'SCHOOL_SELECTION_REQUIRED');
+  const school=await prisma.organization.findUniqueOrThrow({where:{id:b.id}});
+  assert.equal((await request('POST','/auth/google',undefined,{nonce:identity.nonce,idToken,schoolSlug:school.slug})).status,200);
+ }finally{if(original===undefined)delete process.env.GOOGLE_CLIENT_ID;else process.env.GOOGLE_CLIENT_ID=original;}
+});
+
+check('principal academic dashboards never query or return finance data and direct finance URLs reject old tokens',async()=>{
+ await require('../.test-build/middlewares/rateLimit').apiLimiter.resetKey('127.0.0.1');
+ const user=await prisma.user.create({data:{email:`principal-boundary-${crypto.randomUUID()}@example.test`,firstName:'Academic',lastName:'Principal',memberships:{create:{organizationId:a.id,role:'BURSAR'}}}});
+ const session=await tokens(user.id,a.id);
+ await prisma.membership.update({where:{userId_organizationId:{userId:user.id,organizationId:a.id}},data:{role:'PRINCIPAL'}});
+ const spy=mock.method(feesService,'bursarSummary',async()=>assert.fail('Principal dashboard must not query finance'));
+ const home=await request('GET','/dashboard/home',session.accessToken);assert.equal(home.status,200,JSON.stringify(home.body));
+ assert.equal(home.body.data.finance,undefined);assert.equal(home.body.data.attention.pendingPayments,undefined);assert.equal(typeof home.body.data.students,'number');assert.equal(typeof home.body.data.staff,'number');assert.ok(home.body.data.attendance);assert.equal(spy.mock.callCount(),0);
+ const snapshot=await request('GET',`/dashboard/classes/${a.classId}`,session.accessToken);assert.equal(snapshot.status,200);assert.equal(snapshot.body.data.outstandingNgn,undefined);assert.equal(snapshot.body.data.invoicesWithBalance,undefined);
+ for(const route of ['/fees/summary','/fees/workspace','/fees/structures','/dashboard/receipts/'+crypto.randomUUID(),'/dashboard/export?type=invoices','/dashboard/export?type=payments','/dashboard/audit-logs'])assert.equal((await request('GET',route,session.accessToken)).status,403,route);
+ assert.equal((await request('GET','/dashboard/export?type=students',session.accessToken)).status,200);
+ const me=await request('GET','/auth/me',session.accessToken);assert.ok(!me.body.data.permissions.includes('fees:read'));assert.ok(me.body.data.permissions.includes('exams:write'));
+ const membership=await prisma.membership.findUniqueOrThrow({where:{userId_organizationId:{userId:user.id,organizationId:a.id}}});
+ assert.equal((await request('PATCH',`/memberships/${membership.id}`,session.accessToken,{role:'SCHOOL_ADMIN'})).status,403);
+ const {invitationsService}=require('../.test-build/features/auth/invitations.service');
+ await assert.rejects(invitationsService.create(a.id,user.id,{email:'finance-escalation@example.test',firstName:'Blocked',lastName:'Role',role:'BURSAR'}),{code:'FORBIDDEN'});
+
+});
+check('home summaries return only the sections permitted to owners, bursars and exam officers',async()=>{
+ await require('../.test-build/middlewares/rateLimit').apiLimiter.resetKey('127.0.0.1');
+ const owner=await tokens(a.ownerId,a.id);const ownerHome=await request('GET','/dashboard/home',owner.accessToken);assert.equal(ownerHome.status,200);assert.ok(ownerHome.body.data.finance);
+ const bursar=await tokens(a.bursarId,a.id);const bursarHome=await request('GET','/dashboard/home',bursar.accessToken);assert.equal(bursarHome.status,200);assert.ok(bursarHome.body.data.finance);assert.equal(bursarHome.body.data.staff,undefined);assert.equal(bursarHome.body.data.classes,undefined);assert.equal(bursarHome.body.data.attendance,undefined);assert.equal(bursarHome.body.data.attention.incompleteResults,undefined);
+ const examiner=await prisma.user.create({data:{email:`academic-summary-${crypto.randomUUID()}@example.test`,firstName:'Exam',lastName:'Officer',memberships:{create:{organizationId:a.id,role:'EXAM_OFFICER'}}}});const session=await tokens(examiner.id,a.id);const summary=await request('GET','/dashboard/home',session.accessToken);assert.equal(summary.status,200);assert.equal(summary.body.data.finance,undefined);assert.equal(summary.body.data.parents,undefined);assert.equal(summary.body.data.staff,undefined);assert.equal(summary.body.data.attendance,undefined);assert.equal(typeof summary.body.data.attention.incompleteResults,'number');
+});
+check('read-only staff see only published announcements and cannot create, edit or delete through direct API URLs',async()=>{
+ await require('../.test-build/middlewares/rateLimit').apiLimiter.resetKey('127.0.0.1');
+ const reader=await prisma.user.create({data:{email:`notice-reader-${crypto.randomUUID()}@example.test`,firstName:'Reader',lastName:'Teacher',memberships:{create:{organizationId:a.id,role:'TEACHER'}}}});const session=await tokens(reader.id,a.id);
+ const draft=await prisma.announcement.create({data:{organizationId:a.id,title:'Private draft',body:'Hidden management draft',isPublished:false}});
+ const list=await request('GET','/communication/announcements?activeOnly=false',session.accessToken);assert.equal(list.status,200);assert.ok(!JSON.stringify(list.body).includes(draft.id));assert.ok(!JSON.stringify(list.body).includes('Hidden management draft'));
+ assert.equal((await request('GET',`/communication/announcements/${draft.id}`,session.accessToken)).status,404);
+ assert.equal((await request('POST','/communication/announcements',session.accessToken,{title:'Blocked notice',body:'Should never be posted'})).status,403);
+ assert.equal((await request('PATCH',`/communication/announcements/${draft.id}`,session.accessToken,{title:'Changed'})).status,403);
+ assert.equal((await request('DELETE',`/communication/announcements/${draft.id}`,session.accessToken)).status,403);
+});
+
+
+check('staff self view never exposes administrators and directory APIs reject non-managers',async()=>{
+ await require('../.test-build/middlewares/rateLimit').apiLimiter.resetKey('127.0.0.1');
+ const teacher=(await tokens(a.teacherId,a.id)).accessToken;
+ const own=await request('GET','/staff/me?userId='+a.ownerId,teacher);
+ assert.equal(own.status,200);assert.equal(own.body.data.user.id,a.teacherId);
+ assert.equal(JSON.stringify(own.body).includes('owner.a@example.test'),false);
+ for(const route of ['/staff','/teachers','/memberships','/memberships/invitations'])assert.equal((await request('GET',route,teacher)).status,403);
+ const bursar=(await tokens(a.bursarId,a.id)).accessToken;
+ assert.equal((await request('GET','/staff/me',bursar)).status,200);
+ assert.equal((await request('GET','/memberships',bursar)).status,403);
+ const owner=(await tokens(a.ownerId,a.id)).accessToken;
+ assert.equal((await request('GET','/memberships',owner)).status,200);
+});
+check('account edits are self-only and password changes revoke every session',async()=>{
+ await require('../.test-build/middlewares/rateLimit').apiLimiter.resetKey('127.0.0.1');
+ const id=crypto.randomUUID(),email='profile-'+id+'@example.test';
+ const {hashPassword,verifyPassword}=require('../.test-build/lib/password');
+ await prisma.user.create({data:{id,email,firstName:'Before',lastName:'Account',passwordHash:await hashPassword('OldPassword123'),isActive:true}});
+ await prisma.membership.create({data:{userId:id,organizationId:a.id,role:'TEACHER',isActive:true}});
+ await prisma.membership.create({data:{userId:id,organizationId:b.id,role:'TEACHER',isActive:true}});
+ const reset=await prisma.passwordResetToken.create({data:{userId:id,tokenHash:crypto.randomUUID(),expiresAt:new Date(Date.now()+60000)}});
+ const first=await tokens(id,a.id),second=await tokens(id,b.id);
+ const profile=await request('GET','/auth/profile',first.accessToken);
+ assert.equal(profile.status,200);assert.equal(profile.body.data.hasPassword,true);assert.equal(profile.body.data.user.passwordHash,undefined);
+ assert.equal((await request('PATCH','/auth/profile',first.accessToken,{firstName:'After',userId:a.ownerId})).status,422);
+ assert.equal((await request('PATCH','/auth/profile',first.accessToken,{firstName:'After',avatarUrl:null})).status,200);
+ assert.equal((await prisma.user.findUnique({where:{id}})).firstName,'After');
+ assert.equal((await request('POST','/auth/change-password',first.accessToken,{currentPassword:'incorrect',newPassword:'NewPassword123'})).status,403);
+ assert.equal((await request('POST','/auth/change-password',first.accessToken,{currentPassword:'OldPassword123',newPassword:'OldPassword123'})).status,400);
+ assert.equal((await request('POST','/auth/change-password',first.accessToken,{currentPassword:'OldPassword123',newPassword:'NewPassword123'})).status,200);
+ const changed=await prisma.user.findUniqueOrThrow({where:{id}});
+ assert.equal(await verifyPassword('NewPassword123',changed.passwordHash),true);
+ assert.equal(await verifyPassword('OldPassword123',changed.passwordHash),false);
+ assert.equal(await prisma.authSession.count({where:{userId:id,revokedAt:null}}),0);
+ assert.ok((await prisma.passwordResetToken.findUnique({where:{id:reset.id}})).usedAt);
+ assert.equal((await request('PATCH','/auth/profile',first.accessToken,{firstName:'Stale'})).status,401);
+ assert.equal((await request('GET','/auth/profile',second.accessToken)).status,401);
+});
+check('Google-only accounts cannot set a password without email verification',async()=>{
+ await require('../.test-build/middlewares/rateLimit').apiLimiter.resetKey('127.0.0.1');
+ const id=crypto.randomUUID();await prisma.user.create({data:{id,email:'google-profile-'+id+'@example.test',firstName:'Google',lastName:'Only',isActive:true}});
+ await prisma.membership.create({data:{userId:id,organizationId:a.id,role:'TEACHER',isActive:true}});
+ const token=(await tokens(id,a.id)).accessToken;
+ const result=await request('POST','/auth/change-password',token,{currentPassword:'invented',newPassword:'NewPassword123'});
+ assert.equal(result.status,400);assert.equal(result.body.error.code,'PASSWORD_NOT_SET');
+ assert.equal((await prisma.user.findUnique({where:{id}})).passwordHash,null);
+});
+
+check('announcement read status is private, idempotent and limited to live notices in the current school',async()=>{
+ await require('../.test-build/middlewares/rateLimit').apiLimiter.resetKey('127.0.0.1');
+ const reader=(await tokens(a.teacherId,a.id)).accessToken,other=(await tokens(a.parentUserId,a.id)).accessToken;
+ const create=data=>prisma.announcement.create({data:{organizationId:a.id,title:'Unread boundary test',body:'Published notice',isPublished:true,publishedAt:new Date(),...data}});
+ const live=await create({}),draft=await create({isPublished:false}),expired=await create({expiresAt:new Date(Date.now()-1000)}),inactive=await create({isActive:false}),foreign=await create({organizationId:b.id});
+ const before=await request('GET','/communication/announcements/unread',reader);assert.equal(before.status,200);assert.ok(before.body.data.items.some(i=>i.id===live.id));
+ for(const item of [draft,expired,inactive,foreign]){assert.ok(!before.body.data.items.some(i=>i.id===item.id));assert.equal((await request('POST','/communication/announcements/'+item.id+'/read',reader,{})).status,404);}
+ assert.equal((await request('POST','/communication/announcements/'+live.id+'/read',reader,{userId:a.ownerId})).status,422);
+ const first=await request('POST','/communication/announcements/'+live.id+'/read',reader,{}),again=await request('POST','/communication/announcements/'+live.id+'/read',reader,{});
+ assert.equal(first.status,200);assert.equal(again.body.data.readAt,first.body.data.readAt);assert.equal(await prisma.announcementRead.count({where:{announcementId:live.id,userId:a.teacherId}}),1);
+ const after=await request('GET','/communication/announcements/unread',reader);assert.equal(after.body.data.count,before.body.data.count-1);assert.ok(!after.body.data.items.some(i=>i.id===live.id));
+ assert.ok((await request('GET','/communication/announcements/'+live.id,reader)).body.data.readAt);
+ assert.equal((await request('GET','/communication/announcements/'+live.id,other)).body.data.readAt,null);
+ const listed=await request('GET','/communication/announcements?limit=100',reader);assert.ok(listed.body.data.find(i=>i.id===live.id).readAt);
+ await prisma.announcement.update({where:{id:live.id},data:{isActive:false}});
+ assert.equal((await request('POST','/communication/announcements/'+live.id+'/read',reader,{})).status,404);
+});
+check('unread count includes notices beyond its bounded preview list',async()=>{
+ await require('../.test-build/middlewares/rateLimit').apiLimiter.resetKey('127.0.0.1');
+ const token=(await tokens(b.teacherId,b.id)).accessToken;
+ await prisma.announcement.createMany({data:Array.from({length:55},(_,i)=>({organizationId:b.id,title:'Unread '+i,body:'Notice',isPublished:true,publishedAt:new Date()}))});
+ const summary=await request('GET','/communication/announcements/unread',token);assert.equal(summary.status,200);assert.ok(summary.body.data.count>=55);assert.equal(summary.body.data.items.length,20);
+ assert.ok(summary.body.data.items.every(item=>item.body===undefined&&item.reads===undefined));
 });

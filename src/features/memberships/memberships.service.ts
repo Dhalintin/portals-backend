@@ -1,3 +1,4 @@
+import { principalCanManageRole } from "../../auth/rbac";
 import type { OrgRole } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
@@ -14,16 +15,6 @@ import type {
 type CreateInput = z.infer<typeof createMembershipSchema>;
 type UpdateInput = z.infer<typeof updateMembershipSchema>;
 type ListQuery = z.infer<typeof listMembershipsQuerySchema>;
-
-const SAFE_ROLES_FOR_NON_OWNER: OrgRole[] = [
-  "PRINCIPAL",
-  "BURSAR",
-  "SCHOOL_ADMIN",
-  "TEACHER",
-  "EXAM_OFFICER",
-  "PARENT",
-  "STAFF",
-];
 
 export class MembershipsService {
   async list(organizationId: string, query: ListQuery) {
@@ -102,6 +93,7 @@ export class MembershipsService {
       throw new AppError(403, "FORBIDDEN", "Only a proprietor can manage another proprietor");
     }
 
+    if (actor.orgRole === "PRINCIPAL" && !principalCanManageRole(membership.role)) throw new AppError(403, "FORBIDDEN", "Only an owner or school administrator can manage this role.");
     if (input.role) {
       this.assertCanAssignRole(actor.orgRole, input.role);
     }
@@ -167,15 +159,7 @@ export class MembershipsService {
       return;
     }
     if (actorRole === "PRINCIPAL") {
-      if (targetRole === "PROPRIETOR") {
-        throw new AppError(403, "FORBIDDEN", "Cannot assign proprietor role");
-      }
-      if (
-        !SAFE_ROLES_FOR_NON_OWNER.includes(targetRole) &&
-        targetRole !== "PRINCIPAL"
-      ) {
-        // principal may assign teacher, bursar, etc.
-      }
+      if (!principalCanManageRole(targetRole)) throw new AppError(403, "FORBIDDEN", "Principals may assign academic roles only.");
       return;
     }
     throw new AppError(403, "FORBIDDEN", "Cannot manage memberships");

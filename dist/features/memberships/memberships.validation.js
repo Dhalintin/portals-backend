@@ -19,19 +19,12 @@ exports.listMembershipsQuerySchema = zod_1.z.object({
 exports.createMembershipSchema = zod_1.z.object({
     email: zod_1.z
         .string()
+        .trim()
         .email("Please enter a valid email address.")
         .transform((v) => v.trim().toLowerCase()),
-    firstName: zod_1.z
-        .string()
-        .trim()
-        .min(1, "Must be at least 1 characters long.")
-        .max(80, "Must not exceed 80 characters."),
-    lastName: zod_1.z
-        .string()
-        .trim()
-        .min(1, "Must be at least 1 characters long.")
-        .max(80, "Must not exceed 80 characters."),
-    role: zod_1.z.nativeEnum(client_1.OrgRole, { error: "Please select a valid role." }),
+    firstName: zod_1.z.string().trim().max(80).default(""),
+    lastName: zod_1.z.string().trim().max(80).default(""),
+    role: zod_1.z.nativeEnum(client_1.OrgRole).default("TEACHER"),
     phone: zod_1.z.string().trim().max(30, "Must not exceed 30 characters.").optional(),
 }).strict();
 exports.updateMembershipSchema = zod_1.z.object({
