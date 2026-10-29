@@ -18,6 +18,7 @@ export type TeacherPublic = {
   phone: string | null;
   avatarUrl: string | null;
   role: "TEACHER" | "EXAM_OFFICER";
+  roles?: import("@prisma/client").OrgRole[];
   isActive: boolean;
   joinedAt: Date;
   assignments: TeacherAssignmentPublic[];

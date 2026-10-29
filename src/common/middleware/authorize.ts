@@ -11,7 +11,7 @@ export function authorize(...roles: Role[]): RequestHandler {
     }
 
     const allowed: readonly string[] = roles;
-    if (allowed.length && !allowed.includes(role)) {
+    if (allowed.length && ![role,...(req.auth?.orgRoles??[])].some(role=>allowed.includes(role))) {
       return next(new ForbiddenError("Insufficient permissions"));
     }
     next();

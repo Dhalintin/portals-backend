@@ -25,7 +25,7 @@ async function importStaff(organizationId, actorId, raw) {
     const requestHash = (0, node_crypto_1.createHash)('sha256').update(JSON.stringify({ defaultRole: input.defaultRole, rows: [...rows].sort((a, b) => a.rowNumber - b.rowNumber) })).digest('hex');
     return (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
         const actor = await tx.membership.findFirst({ where: { organizationId, userId: actorId, isActive: true, user: { isActive: true } } });
-        if (!actor || !['PROPRIETOR', 'PRINCIPAL', 'SCHOOL_ADMIN'].includes(actor.role))
+        if (!actor || !['PROPRIETOR', 'PRINCIPAL', 'SCHOOL_ADMIN'].includes((0, rbac_1.primaryRole)((0, rbac_1.membershipRoles)(actor))))
             throw new errors_1.AppError(403, 'FORBIDDEN', 'Staff management permission required');
         if (!input.dryRun) {
             if (errors.length)
@@ -66,14 +66,14 @@ async function updatePendingStaffRole(organizationId, actorId, id, raw) {
     const { role } = exports.pendingStaffRoleSchema.parse(raw);
     return (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
         const actor = await tx.membership.findFirst({ where: { organizationId, userId: actorId, isActive: true, user: { isActive: true } } });
-        if (!actor || !['PROPRIETOR', 'PRINCIPAL', 'SCHOOL_ADMIN'].includes(actor.role))
+        if (!actor || !['PROPRIETOR', 'PRINCIPAL', 'SCHOOL_ADMIN'].includes((0, rbac_1.primaryRole)((0, rbac_1.membershipRoles)(actor))))
             throw new errors_1.AppError(403, 'FORBIDDEN', 'Cannot assign staff roles');
         const invitation = await tx.schoolInvitation.findFirst({ where: { id, organizationId, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } } });
         if (!invitation || invitation.role === 'PARENT')
             throw new errors_1.AppError(404, 'NOT_FOUND', 'Pending staff invitation not found');
-        if (actor.role === 'PRINCIPAL' && (!(0, rbac_1.principalCanManageRole)(role) || !(0, rbac_1.principalCanManageRole)(invitation.role)))
+        if ((0, rbac_1.primaryRole)((0, rbac_1.membershipRoles)(actor)) === 'PRINCIPAL' && (!(0, rbac_1.principalCanManageRole)(role) || !(0, rbac_1.principalCanManageRole)(invitation.role)))
             throw new errors_1.AppError(403, 'FORBIDDEN', 'Principals may assign academic roles only');
-        if ((role === 'PROPRIETOR' || invitation.role === 'PROPRIETOR') && actor.role !== 'PROPRIETOR')
+        if ((role === 'PROPRIETOR' || invitation.role === 'PROPRIETOR') && (0, rbac_1.primaryRole)((0, rbac_1.membershipRoles)(actor)) !== 'PROPRIETOR')
             throw new errors_1.AppError(403, 'FORBIDDEN', 'Only an owner can assign owner access');
         await tx.schoolInvitation.update({ where: { id }, data: { role, invitedById: actorId } });
         await tx.auditLog.create({ data: { organizationId, actorId, action: 'ROLE_CHANGED', entity: 'SchoolInvitation', entityId: id, metadata: { from: invitation.role, to: role } } });

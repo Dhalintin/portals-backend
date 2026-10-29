@@ -1,5 +1,5 @@
 import {studentPaymentSchema,type StudentPaymentInput} from "./financeWorkspace";
-import { permissionsForOrgRole } from '../../auth/rbac';
+import { permissionsForMembership } from '../../auth/rbac';
 import {itemBalances,allocateItems,type ItemAmount} from "./itemBalances";
 import {parentPaymentSubaccount} from "./paymentConfig";
 import {bankTransferInstructions} from '../schools/bankAccount';
@@ -514,7 +514,7 @@ export class FeesService {
     if(remaining>0)throw new AppError(400,"OVER_OUTSTANDING","The amount exceeds the selected bills. Refresh and check the student's balance.");
     return schoolTransaction(organizationId,async tx=>{
       const membership=await tx.membership.findFirst({where:{organizationId,userId:actorId,isActive:true,user:{isActive:true},organization:{isActive:true}}});
-      if(!membership||!permissionsForOrgRole(membership.role).includes('payments:write'))throw new AppError(403,'FORBIDDEN','Current payment recording permission is required');
+      if(!membership||!permissionsForMembership(membership).includes('payments:write'))throw new AppError(403,'FORBIDDEN','Current payment recording permission is required');
       const previous=await tx.payment.findUnique({where:{organizationId_idempotencyKey:{organizationId,idempotencyKey:input.idempotencyKey}}});
       if(!previous){
         const term=await tx.term.findFirst({where:{id:input.termId,session:{organizationId}},select:{id:true}});

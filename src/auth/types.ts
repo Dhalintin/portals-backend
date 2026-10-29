@@ -9,6 +9,7 @@ export type AccessTokenClaims = {
   globalRole: GlobalRole;
   schoolId: string | null;
   orgRole: OrgRole | null;
+  orgRoles?: OrgRole[];
   permissions: Permission[];
   typ: "access";
 };
@@ -29,5 +30,6 @@ export type AuthContext = {
   globalRole: GlobalRole;
   schoolId: string | null;
   orgRole: OrgRole | null;
+  orgRoles?: OrgRole[];
   permissions: readonly Permission[];
 };

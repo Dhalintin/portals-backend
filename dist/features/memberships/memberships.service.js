@@ -36,6 +36,7 @@ class MembershipsService {
             items: rows.map((m) => ({
                 id: m.id,
                 role: m.role,
+                roles: (0, rbac_1.membershipRoles)(m),
                 isActive: m.isActive,
                 joinedAt: m.joinedAt,
                 user: m.user,
@@ -55,60 +56,33 @@ class MembershipsService {
         return (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
             const manager = await tx.membership.findFirst({ where: { organizationId, userId: actor.userId,
                     isActive: true, user: { isActive: true } } });
-            if (!manager || !["PROPRIETOR", "SCHOOL_ADMIN", "PRINCIPAL"].includes(manager.role)) {
+            if (!manager || !(0, rbac_1.membershipRoles)(manager).some(role => ["PROPRIETOR", "SCHOOL_ADMIN", "PRINCIPAL"].includes(role))) {
                 throw new errors_1.AppError(403, "FORBIDDEN", "Cannot manage memberships");
             }
-            actor = { ...actor, orgRole: manager.role };
-            const membership = await tx.membership.findFirst({
-                where: { id: membershipId, organizationId },
-            });
-            if (!membership) {
+            actor = { ...actor, orgRole: (0, rbac_1.primaryRole)((0, rbac_1.membershipRoles)(manager)) };
+            const membership = await tx.membership.findFirst({ where: { id: membershipId, organizationId } });
+            if (!membership)
                 throw new errors_1.AppError(404, "NOT_FOUND", "Membership not found");
+            const before = (0, rbac_1.membershipRoles)(membership), requested = input.roles ?? (input.role ? [input.role] : before);
+            const roles = [...new Set(requested)], role = (0, rbac_1.primaryRole)(roles);
+            if ((before.includes('PROPRIETOR') || roles.includes('PROPRIETOR')) && actor.orgRole !== 'PROPRIETOR')
+                throw new errors_1.AppError(403, 'FORBIDDEN', 'Only an owner can manage owner access');
+            if (actor.orgRole === 'PRINCIPAL' && [...before, ...roles].some(role => !(0, rbac_1.principalCanManageRole)(role)))
+                throw new errors_1.AppError(403, 'FORBIDDEN', 'Principals may manage academic roles only');
+            for (const assigned of roles)
+                this.assertCanAssignRole(actor.orgRole, assigned);
+            if (before.includes('PARENT') !== roles.includes('PARENT'))
+                throw new errors_1.AppError(400, 'ROLE_PORTAL_CHANGE', 'Parent and staff accounts cannot be converted through staff roles');
+            if (before.includes('PROPRIETOR') && (!roles.includes('PROPRIETOR') || input.isActive === false)) {
+                const count = await tx.membership.count({ where: { organizationId, isActive: true, role: 'PROPRIETOR' } });
+                if (count <= 1)
+                    throw new errors_1.AppError(400, 'LAST_PROPRIETOR', 'Cannot remove or demote the last proprietor');
             }
-            if (membership.role === "PROPRIETOR" && actor.orgRole !== "PROPRIETOR") {
-                throw new errors_1.AppError(403, "FORBIDDEN", "Only a proprietor can manage another proprietor");
-            }
-            if (actor.orgRole === "PRINCIPAL" && !(0, rbac_1.principalCanManageRole)(membership.role))
-                throw new errors_1.AppError(403, "FORBIDDEN", "Only an owner or school administrator can manage this role.");
-            if (input.role) {
-                this.assertCanAssignRole(actor.orgRole, input.role);
-            }
-            // Prevent removing last PROPRIETOR
-            if (membership.role === "PROPRIETOR" &&
-                ((input.role !== undefined && input.role !== "PROPRIETOR") ||
-                    input.isActive === false)) {
-                const proprietors = await tx.membership.count({
-                    where: {
-                        organizationId,
-                        role: "PROPRIETOR",
-                        isActive: true,
-                    },
-                });
-                if (proprietors <= 1) {
-                    throw new errors_1.AppError(400, "LAST_PROPRIETOR", "Cannot remove or demote the last proprietor");
-                }
-            }
-            const updated = await tx.membership.update({
-                where: { id: membershipId },
-                data: {
-                    role: input.role,
-                    isActive: input.isActive,
-                },
-            });
-            if (!updated.isActive || !staffing_1.TEACHING_ROLES.includes(updated.role)) {
+            const updated = await tx.membership.update({ where: { id: membershipId }, data: { role, roles, isActive: input.isActive } });
+            if (!updated.isActive || !roles.some(role => (input.role || input.roles ? ['TEACHER', 'EXAM_OFFICER'] : staffing_1.TEACHING_ROLES).includes(role)))
                 await (0, staffing_1.clearStaffAssignments)(tx, organizationId, membership.userId);
-            }
-            if (input.role && input.role !== membership.role) {
-                await tx.auditLog.create({ data: {
-                        action: "ROLE_CHANGED",
-                        actorId: actor.userId,
-                        organizationId,
-                        entity: "Membership",
-                        entityId: membershipId,
-                        metadata: { from: membership.role, to: input.role },
-                        requestId,
-                    } });
-            }
+            if (JSON.stringify(before) !== JSON.stringify((0, rbac_1.membershipRoles)(updated)))
+                await tx.auditLog.create({ data: { action: 'ROLE_CHANGED', actorId: actor.userId, organizationId, entity: 'Membership', entityId: membershipId, metadata: { from: before, to: (0, rbac_1.membershipRoles)(updated) }, requestId } });
             if (input.isActive !== undefined && input.isActive !== membership.isActive) {
                 await tx.auditLog.create({ data: { action: "SETTINGS_CHANGED", actorId: actor.userId, organizationId,
                         entity: "Membership", entityId: membershipId, requestId, metadata: { isActive: input.isActive } } });

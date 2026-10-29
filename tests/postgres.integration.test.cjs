@@ -1832,7 +1832,7 @@ check('exam timetables reject class clashes, venue clashes, foreign curriculum a
  assert.equal(await prisma.examTimetable.count({where:{organizationId:a.id,termId:f.term.id}}),0);
  const valid=[f.entries[0],{...f.entries[0],id:crypto.randomUUID(),subjectId:f.subjects[1].id,startTime:'11:00',endTime:'12:00'}];assert.equal((await request('PUT','/exams/timetable',f.officerToken,{...base,entries:valid})).status,200);
  await prisma.classSubject.delete({where:{classId_subjectId:{classId:f.classes[0].id,subjectId:f.subjects[0].id}}});
- const response=await request('POST','/exams/timetable/publish',f.officerToken,{termId:f.term.id,expectedVersion:1});assert.equal(response.body.error.code,'SUBJECT_NOT_LINKED');assert.equal((await prisma.examTimetable.findUniqueOrThrow({where:{organizationId_termId:{organizationId:a.id,termId:f.term.id}}})).publishedAt,null);
+ const response=await request('POST','/exams/timetable/publish',f.officerToken,{termId:f.term.id,expectedVersion:1});assert.equal(response.body.error.code,'SUBJECT_NOT_LINKED');assert.equal((await prisma.examTimetable.findUniqueOrThrow({where:{organizationId_termId_kind:{organizationId:a.id,termId:f.term.id,kind:'EXAM'}}})).publishedAt,null);
 });
 check('exam publication checks current role, serializes conflicting writers and leaves score assignments enforced',async()=>{
  const f=await examFixture(),service=require('../.test-build/features/exams/exams.service');const base={termId:f.term.id,expectedVersion:0,title:'Exams',entries:f.entries};
@@ -2075,4 +2075,89 @@ check('unread count includes notices beyond its bounded preview list',async()=>{
  await prisma.announcement.createMany({data:Array.from({length:55},(_,i)=>({organizationId:b.id,title:'Unread '+i,body:'Notice',isPublished:true,publishedAt:new Date()}))});
  const summary=await request('GET','/communication/announcements/unread',token);assert.equal(summary.status,200);assert.ok(summary.body.data.count>=55);assert.equal(summary.body.data.items.length,20);
  assert.ok(summary.body.data.items.every(item=>item.body===undefined&&item.reads===undefined));
+});
+
+
+async function roleFixture(role='TEACHER'){
+ const user=await prisma.user.create({data:{email:'multi-'+crypto.randomUUID()+'@example.test',firstName:'Multiple',lastName:'Duties'}});
+ const membership=await prisma.membership.create({data:{organizationId:a.id,userId:user.id,role,roles:[role]}});
+ const session=await tokens(user.id,a.id);return {user,membership,token:session.accessToken,refreshToken:session.refreshToken};
+}
+check('teacher plus exam officer keeps teaching assignments and uses live combined permissions',async()=>{
+ await require('../.test-build/middlewares/rateLimit').apiLimiter.resetKey('127.0.0.1');
+ const target=await roleFixture(),owner=(await tokens(a.ownerId,a.id)).accessToken;
+ const schoolClass=await prisma.class.create({data:{organizationId:a.id,name:'Multi '+crypto.randomUUID(),classTeacherId:target.user.id}});
+ await prisma.classSubject.create({data:{organizationId:a.id,classId:schoolClass.id,subjectId:a.subjectId}});
+ await prisma.classSubjectTeacher.create({data:{organizationId:a.id,classId:schoolClass.id,subjectId:a.subjectId,userId:target.user.id}});
+ const grant=await request('PATCH','/memberships/'+target.membership.id,owner,{roles:['TEACHER','EXAM_OFFICER']});assert.equal(grant.status,200,JSON.stringify(grant.body));
+ const me=await request('GET','/auth/me',target.token);assert.equal(me.body.data.orgRole,'EXAM_OFFICER');assert.deepEqual(me.body.data.orgRoles,['EXAM_OFFICER','TEACHER']);assert.ok(me.body.data.permissions.includes('attendance:write'));assert.ok(me.body.data.permissions.includes('exams:write'));assert.ok(!me.body.data.permissions.includes('payments:write'));
+ assert.equal((await request('GET','/exams/editor?termId='+a.termId,target.token)).status,200);
+ assert.equal((await request('GET',`/results/entry-sheet?classId=${schoolClass.id}&termId=${a.termId}&subjectId=${a.subjectId}`,target.token)).status,200);
+ assert.equal((await request('GET',`/results/entry-sheet?classId=${a.classId}&termId=${a.termId}&subjectId=${a.subjectId}`,target.token)).status,200);
+ assert.equal((await request('POST','/results/scores/bulk',target.token,{classId:a.classId,termId:a.termId,subjectId:a.subjectId,entries:[{studentId:a.studentId,exam:40}]})).status,403);
+ const pupil=await prisma.student.create({data:{organizationId:a.id,classId:schoolClass.id,admissionNumber:crypto.randomUUID(),firstName:'Role',lastName:'Student'}});
+ assert.equal((await request('POST','/results/scores/bulk',target.token,{classId:schoolClass.id,termId:a.termId,subjectId:a.subjectId,entries:[{studentId:pupil.id,ca1:10,ca2:10,exam:40}]})).status,200);
+ const refreshed=await authSessions.refresh(target.refreshToken);assert.ok(refreshed.orgRoles.includes('TEACHER'));assert.ok(refreshed.orgRoles.includes('EXAM_OFFICER'));
+ assert.equal((await request('GET','/attendance/class?classId='+a.classId+'&date=2026-11-10',target.token)).status,403);
+ assert.equal((await request('GET','/attendance/class?classId='+schoolClass.id+'&date=2026-11-10',target.token)).status,200);
+ const {assertClassTeacher}=require('../.test-build/auth/resourceAccess');await assertClassTeacher(a.id,target.user.id,schoolClass.id);await assert.rejects(assertClassTeacher(a.id,target.user.id,a.classId),{statusCode:403});
+ assert.equal((await request('GET','/staff',target.token)).status,403);
+ assert.equal((await request('GET','/teachers/'+target.user.id,owner)).status,200);
+ assert.ok((await request('GET','/teachers?role=TEACHER',owner)).body.data.items.some(item=>item.id===target.user.id));
+ assert.equal((await request('PATCH','/memberships/'+target.membership.id,owner,{roles:['TEACHER']})).status,200);
+ assert.equal((await request('GET','/exams/editor?termId='+a.termId,target.token)).status,403);
+ const reduced=await authSessions.refresh(refreshed.refreshToken);assert.deepEqual(reduced.orgRoles,['TEACHER']);
+ assert.equal(await prisma.classSubjectTeacher.count({where:{organizationId:a.id,userId:target.user.id}}),1);
+ assert.equal((await prisma.class.findUnique({where:{id:schoolClass.id}})).classTeacherId,target.user.id);
+ assert.equal((await request('PATCH','/memberships/'+target.membership.id,owner,{roles:['STAFF']})).status,200);
+ assert.equal(await prisma.classSubjectTeacher.count({where:{organizationId:a.id,userId:target.user.id}}),0);
+ assert.equal((await prisma.class.findUnique({where:{id:schoolClass.id}})).classTeacherId,null);
+});
+check('role sets preserve owner and principal boundaries and reject cross-portal mixing',async()=>{
+ await require('../.test-build/middlewares/rateLimit').apiLimiter.resetKey('127.0.0.1');
+ const owner=(await tokens(a.ownerId,a.id)).accessToken,principal=await roleFixture('PRINCIPAL'),target=await roleFixture();
+ assert.equal((await request('PATCH','/memberships/'+target.membership.id,principal.token,{roles:['TEACHER','EXAM_OFFICER']})).status,200);
+ for(const extra of ['PROPRIETOR','SCHOOL_ADMIN','BURSAR'])assert.equal((await request('PATCH','/memberships/'+target.membership.id,principal.token,{roles:['TEACHER',extra]})).status,403);
+ assert.equal((await request('PATCH','/memberships/'+target.membership.id,owner,{roles:['TEACHER','PARENT']})).status,400);
+ const ownerMember=await prisma.membership.findUnique({where:{userId_organizationId:{userId:a.ownerId,organizationId:a.id}}});
+ assert.equal((await request('PATCH','/memberships/'+ownerMember.id,owner,{roles:['TEACHER']})).status,400);
+ assert.equal((await request('PATCH','/memberships/'+target.membership.id,owner,{roles:['TEACHER','BURSAR']})).status,200);
+ assert.equal((await request('PATCH','/memberships/'+target.membership.id,principal.token,{roles:['TEACHER']})).status,403);
+ assert.equal((await request('PATCH','/teachers/'+target.user.id,principal.token,{isActive:false})).status,403);
+ assert.equal((await request('GET','/results/'+a.publishedResultId,target.token)).status,404);
+ const me=await request('GET','/auth/me',target.token);assert.ok(me.body.data.permissions.includes('payments:write'));assert.ok(me.body.data.permissions.includes('results:write'));
+ const foreign=await prisma.membership.findUnique({where:{userId_organizationId:{userId:b.teacherId,organizationId:b.id}}});assert.equal((await request('PATCH','/memberships/'+foreign.id,owner,{roles:['TEACHER','EXAM_OFFICER']})).status,404);
+});
+
+check('a financial role plus exam officer can save and publish timetables with live transaction permissions',async()=>{
+ await require('../.test-build/middlewares/rateLimit').apiLimiter.resetKey('127.0.0.1');
+ const f=await examFixture(),owner=(await tokens(a.ownerId,a.id)).accessToken;
+ const member=await prisma.membership.findUnique({where:{userId_organizationId:{userId:f.officer.id,organizationId:a.id}}});
+ assert.equal((await request('PATCH','/memberships/'+member.id,owner,{roles:['BURSAR','EXAM_OFFICER']})).status,200);
+ const body={termId:f.term.id,expectedVersion:0,title:'Combined duties exam',entries:f.entries};
+ const saved=await request('PUT','/exams/timetable',f.officerToken,body);assert.equal(saved.status,200,JSON.stringify(saved.body));
+ assert.equal((await request('POST','/exams/timetable/publish',f.officerToken,{termId:f.term.id,expectedVersion:1})).status,200);
+ assert.equal((await request('PATCH','/memberships/'+member.id,owner,{roles:['BURSAR']})).status,200);
+ assert.equal((await request('PUT','/exams/timetable',f.officerToken,{...body,expectedVersion:2})).status,403);
+ const {saveExamTimetable}=require('../.test-build/features/exams/exams.service');await assert.rejects(saveExamTimetable(a.id,f.officer.id,{...body,expectedVersion:2}),{code:'FORBIDDEN'});
+});
+
+check('exam and test plans are separate and published formats remain immutable until republished',async()=>{
+ await require('../.test-build/middlewares/rateLimit').apiLimiter.resetKey('127.0.0.1');
+ const f=await examFixture(),format={startDate:'2026-11-10',startTime:'08:00',papersPerDay:3,paperMinutes:120,breakAfter:1,breakMinutes:30,weekdays:[1,2,3,4,5]},entries=f.entries.map(entry=>({...entry,startTime:'08:00',endTime:'10:00'}));
+ const body={kind:'EXAM',termId:f.term.id,expectedVersion:0,title:'Term exams',format,entries};
+ let response=await request('PUT','/exams/timetable',f.officerToken,body);assert.equal(response.status,200,JSON.stringify(response.body));assert.equal(response.body.data.format.papersPerDay,3);
+ const testBody={...body,kind:'TEST',title:'Term tests',format:{...format,paperMinutes:60},entries:entries.map(entry=>({...entry,endTime:'09:00'}))};assert.equal((await request('PUT','/exams/timetable',f.officerToken,testBody)).status,200);
+ assert.equal(await prisma.examTimetable.count({where:{organizationId:a.id,termId:f.term.id}}),2);
+ assert.equal((await request('POST','/exams/timetable/publish',f.officerToken,{termId:f.term.id,kind:'EXAM',expectedVersion:1})).status,200);
+ let published=await request('GET','/exams/published?termId='+f.term.id+'&kind=EXAM',f.parentToken);assert.equal(published.status,400);
+ published=await request('GET','/exams/published?termId='+f.term.id+'&studentId='+f.children[0].id+'&kind=EXAM',f.parentToken);assert.equal(published.status,200);assert.equal(published.body.data.format.paperMinutes,120);assert.equal(published.body.data.entries.length,1);
+ const tests=await request('GET','/exams/published?termId='+f.term.id+'&studentId='+f.children[0].id+'&kind=TEST',f.parentToken);assert.equal(tests.body.data.publishedAt,null);assert.equal(tests.body.data.entries.length,0);
+ const edited={...body,expectedVersion:2,format:{...format,paperMinutes:90},entries:entries.map(entry=>({...entry,endTime:'09:30'}))};assert.equal((await request('PUT','/exams/timetable',f.officerToken,edited)).status,200);
+ published=await request('GET','/exams/published?termId='+f.term.id+'&studentId='+f.children[0].id,f.parentToken);assert.equal(published.body.data.format.paperMinutes,120);assert.equal(published.body.data.entries[0].endTime,'10:00');
+ assert.equal((await request('POST','/exams/timetable/publish',f.officerToken,{termId:f.term.id,expectedVersion:3})).status,200);
+ published=await request('GET','/exams/published?termId='+f.term.id+'&studentId='+f.children[0].id,f.parentToken);assert.equal(published.body.data.format.paperMinutes,90);
+ const bad={...edited,expectedVersion:4,entries:[{...edited.entries[0],startTime:'09:30',endTime:'10:00'}]};response=await request('PUT','/exams/timetable',f.officerToken,bad);assert.equal(response.status,400);assert.equal(response.body.error.code,'TIMETABLE_FORMAT_MISMATCH');
+ const testEditor=await request('GET','/exams/editor?termId='+f.term.id+'&kind=TEST',f.officerToken);assert.equal(testEditor.body.data.timetable.version,1);
+ assert.equal((await request('GET','/exams/editor?termId='+f.term.id+'&kind=UNKNOWN',f.officerToken)).status,422);
 });

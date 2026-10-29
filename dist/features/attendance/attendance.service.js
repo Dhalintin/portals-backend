@@ -62,8 +62,8 @@ class AttendanceService {
         });
     }
     async listByClassAndDate(organizationId, classId, dateStr, auth) {
-        if (auth?.orgRole === "TEACHER")
-            await (0, resourceAccess_1.assertTeachingAccess)(organizationId, auth.userId, classId);
+        if ((0, resourceAccess_1.restrictedTeachingRead)(auth, 'attendance') && !await prisma_1.prisma.class.findFirst({ where: { id: classId, isActive: true, ...(0, resourceAccess_1.teachingClassFilter)(auth, 'attendance') }, select: { id: true } }))
+            throw new errors_1.AppError(403, 'FORBIDDEN', 'You are not assigned to this class');
         const date = new Date(dateStr);
         const records = await prisma_1.prisma.attendanceRecord.findMany({
             where: { organizationId, classId, date },
@@ -87,7 +87,7 @@ class AttendanceService {
     }
     async listByStudent(organizationId, studentId, opts, auth) {
         const student = await prisma_1.prisma.student.findFirst({
-            where: { id: studentId, organizationId, ...(auth?.orgRole === "TEACHER" ? { class: (0, resourceAccess_1.teachingClassFilter)(auth) } : {}) },
+            where: { id: studentId, organizationId, ...((0, resourceAccess_1.restrictedTeachingRead)(auth, 'attendance') ? { class: (0, resourceAccess_1.teachingClassFilter)(auth, 'attendance') } : {}) },
             select: { id: true },
         });
         if (!student) {
@@ -200,7 +200,7 @@ class AttendanceService {
                 organizationId,
                 date,
                 status: { in: ["ABSENT", "LATE"] }, // or only ABSENT if preferred
-                ...(auth?.orgRole === "TEACHER" ? { class: (0, resourceAccess_1.teachingClassFilter)(auth) } : {}),
+                ...((0, resourceAccess_1.restrictedTeachingRead)(auth, 'attendance') ? { class: (0, resourceAccess_1.teachingClassFilter)(auth, 'attendance') } : {}),
             },
             include: {
                 student: {
@@ -219,7 +219,7 @@ class AttendanceService {
     async attendancePercentage(organizationId, opts, auth) {
         const where = {
             organizationId,
-            ...(auth?.orgRole === "TEACHER" ? { class: (0, resourceAccess_1.teachingClassFilter)(auth) } : {}),
+            ...((0, resourceAccess_1.restrictedTeachingRead)(auth, 'attendance') ? { class: (0, resourceAccess_1.teachingClassFilter)(auth, 'attendance') } : {}),
             date: {
                 gte: new Date(opts.from),
                 lte: new Date(opts.to),

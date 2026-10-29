@@ -1,3 +1,4 @@
+import { membershipRoles } from "./rbac";
 import type { AuthContext } from "./types";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
@@ -20,7 +21,8 @@ export async function assertTeachingAccess(
     });
     if (!linked) throw new AppError(400, "SUBJECT_NOT_LINKED", "Subject is not offered by this class");
   }
-  if (membership.role !== "TEACHER") return;
+  if (membershipRoles(membership).some(role=>["PROPRIETOR","SCHOOL_ADMIN","PRINCIPAL","EXAM_OFFICER"].includes(role))) return;
+  if (!membershipRoles(membership).includes("TEACHER")) return;
   const assignment = await db.classSubjectTeacher.findFirst({
     where: { organizationId, classId, userId: actorId, ...(subjectId ? { subjectId } : {}) },
   });
@@ -50,8 +52,12 @@ export async function assertParentChildAccess(auth: AuthContext, studentId: stri
   if (!link) throw new AppError(404, "NOT_FOUND", "Child record not found");
 }
 
-export function teachingClassFilter(auth?: AuthContext): Prisma.ClassWhereInput {
-  return auth?.orgRole === "TEACHER" ? {
+export function restrictedTeachingRead(auth?:AuthContext,domain:'academic'|'attendance'='academic'){
+ const roles=auth?.orgRoles??(auth?.orgRole?[auth.orgRole]:[]);
+ return roles.includes('TEACHER')&&!roles.some(role=>['PROPRIETOR','SCHOOL_ADMIN','PRINCIPAL',...(domain==='academic'?['EXAM_OFFICER']:[])].includes(role));
+}
+export function teachingClassFilter(auth?: AuthContext,domain:'academic'|'attendance'='academic'): Prisma.ClassWhereInput {
+  return auth && restrictedTeachingRead(auth,domain) ? {
     organizationId: auth.schoolId!,
     OR: [
       { classTeacherId: auth.userId },

@@ -28,11 +28,10 @@ exports.createMembershipSchema = zod_1.z.object({
     phone: zod_1.z.string().trim().max(30, "Must not exceed 30 characters.").optional(),
 }).strict();
 exports.updateMembershipSchema = zod_1.z.object({
-    role: zod_1.z
-        .nativeEnum(client_1.OrgRole, { error: "Please select a valid role." })
-        .optional(),
+    role: zod_1.z.nativeEnum(client_1.OrgRole).optional(),
+    roles: zod_1.z.array(zod_1.z.nativeEnum(client_1.OrgRole)).min(1).max(8).refine(roles => new Set(roles).size === roles.length, "Select each role once").refine(roles => !roles.includes('PARENT') || roles.length === 1, "Parent access uses its own portal; assign staff roles separately").optional(),
     isActive: zod_1.z.boolean().optional(),
-});
+}).strict().refine(input => !(input.role && input.roles), "Send role or roles, not both").refine(input => Object.keys(input).length > 0, "Choose something to update");
 exports.membershipIdParamsSchema = zod_1.z.object({
     membershipId: zod_1.z.string().uuid("Please provide a valid ID."),
 });

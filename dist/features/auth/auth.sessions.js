@@ -27,11 +27,12 @@ async function loadContext(tx, userId, schoolId) {
 }
 function issueTokens(user, membership, school, sessionId, expiresAt) {
     const schoolId = membership?.organizationId ?? null;
-    const orgRole = membership?.role ?? null;
-    const permissions = orgRole ? (0, rbac_1.permissionsForOrgRole)(orgRole) : [];
+    const orgRoles = membership ? (0, rbac_1.membershipRoles)(membership) : [];
+    const orgRole = orgRoles.length ? (0, rbac_1.primaryRole)(orgRoles) : null;
+    const permissions = membership ? (0, rbac_1.permissionsForMembership)(membership) : [];
     const accessToken = (0, jwt_1.signAccessToken)({
         sub: user.id, sid: sessionId, authVersion: user.authVersion,
-        globalRole: user.globalRole, schoolId, orgRole, permissions,
+        globalRole: user.globalRole, schoolId, orgRole, orgRoles, permissions,
     });
     const refreshToken = (0, jwt_1.signRefreshToken)({
         sub: user.id, sid: sessionId, jti: (0, crypto_1.randomUUID)(), authVersion: user.authVersion, schoolId,
@@ -39,7 +40,7 @@ function issueTokens(user, membership, school, sessionId, expiresAt) {
     return {
         accessToken, refreshToken, tokenType: "Bearer",
         user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, avatarUrl: user.avatarUrl, globalRole: user.globalRole },
-        school, orgRole, permissions,
+        school, orgRole, orgRoles, permissions,
     };
 }
 class AuthSessions {

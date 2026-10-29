@@ -158,7 +158,7 @@ class AuthService {
             membership = await prisma_1.prisma.membership.findFirst({
                 where: { userId, organizationId: schoolId, isActive: true },
                 select: {
-                    role: true,
+                    role: true, roles: true,
                     organization: { select: { id: true, name: true, slug: true } },
                 },
             });
@@ -166,8 +166,9 @@ class AuthService {
         return {
             user,
             school: membership?.organization ?? null,
-            orgRole: membership?.role ?? null,
-            permissions: membership ? (0, rbac_1.permissionsForOrgRole)(membership.role) : [],
+            orgRole: membership ? (0, rbac_1.primaryRole)((0, rbac_1.membershipRoles)(membership)) : null,
+            orgRoles: membership ? (0, rbac_1.membershipRoles)(membership) : [],
+            permissions: membership ? (0, rbac_1.permissionsForMembership)(membership) : [],
         };
     }
     async forgotPassword(email) {

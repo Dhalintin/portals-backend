@@ -1,4 +1,4 @@
-import { principalCanManageRole } from "../../auth/rbac";
+import { principalCanManageRole, membershipRoles, primaryRole } from "../../auth/rbac";
 import type { OrgRole } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
@@ -47,6 +47,7 @@ export class MembershipsService {
       items: rows.map((m) => ({
         id: m.id,
         role: m.role,
+        roles: membershipRoles(m),
         isActive: m.isActive,
         joinedAt: m.joinedAt,
         user: m.user,
@@ -79,69 +80,25 @@ export class MembershipsService {
     return schoolTransaction(organizationId, async tx => {
       const manager = await tx.membership.findFirst({ where: { organizationId, userId: actor.userId,
         isActive: true, user: { isActive: true } } });
-      if (!manager || !["PROPRIETOR", "SCHOOL_ADMIN", "PRINCIPAL"].includes(manager.role)) {
+      if (!manager || !membershipRoles(manager).some(role=>["PROPRIETOR", "SCHOOL_ADMIN", "PRINCIPAL"].includes(role))) {
         throw new AppError(403, "FORBIDDEN", "Cannot manage memberships");
       }
-      actor = { ...actor, orgRole: manager.role };
-    const membership = await tx.membership.findFirst({
-      where: { id: membershipId, organizationId },
-    });
-    if (!membership) {
-      throw new AppError(404, "NOT_FOUND", "Membership not found");
-    }
-    if (membership.role === "PROPRIETOR" && actor.orgRole !== "PROPRIETOR") {
-      throw new AppError(403, "FORBIDDEN", "Only a proprietor can manage another proprietor");
-    }
-
-    if (actor.orgRole === "PRINCIPAL" && !principalCanManageRole(membership.role)) throw new AppError(403, "FORBIDDEN", "Only an owner or school administrator can manage this role.");
-    if (input.role) {
-      this.assertCanAssignRole(actor.orgRole, input.role);
-    }
-
-    // Prevent removing last PROPRIETOR
-    if (
-      membership.role === "PROPRIETOR" &&
-      ((input.role !== undefined && input.role !== "PROPRIETOR") ||
-        input.isActive === false)
-    ) {
-      const proprietors = await tx.membership.count({
-        where: {
-          organizationId,
-          role: "PROPRIETOR",
-          isActive: true,
-        },
-      });
-      if (proprietors <= 1) {
-        throw new AppError(
-          400,
-          "LAST_PROPRIETOR",
-          "Cannot remove or demote the last proprietor"
-        );
+      actor = { ...actor, orgRole: primaryRole(membershipRoles(manager)) };
+      const membership=await tx.membership.findFirst({where:{id:membershipId,organizationId}});
+      if(!membership)throw new AppError(404,"NOT_FOUND","Membership not found");
+      const before=membershipRoles(membership),requested=input.roles??(input.role?[input.role]:before);
+      const roles=[...new Set(requested)],role=primaryRole(roles);
+      if((before.includes('PROPRIETOR')||roles.includes('PROPRIETOR'))&&actor.orgRole!=='PROPRIETOR')throw new AppError(403,'FORBIDDEN','Only an owner can manage owner access');
+      if(actor.orgRole==='PRINCIPAL'&&[...before,...roles].some(role=>!principalCanManageRole(role)))throw new AppError(403,'FORBIDDEN','Principals may manage academic roles only');
+      for(const assigned of roles)this.assertCanAssignRole(actor.orgRole,assigned);
+      if(before.includes('PARENT')!==roles.includes('PARENT'))throw new AppError(400,'ROLE_PORTAL_CHANGE','Parent and staff accounts cannot be converted through staff roles');
+      if(before.includes('PROPRIETOR')&&(!roles.includes('PROPRIETOR')||input.isActive===false)){
+        const count=await tx.membership.count({where:{organizationId,isActive:true,role:'PROPRIETOR'}});
+        if(count<=1)throw new AppError(400,'LAST_PROPRIETOR','Cannot remove or demote the last proprietor');
       }
-    }
-
-    const updated = await tx.membership.update({
-      where: { id: membershipId },
-      data: {
-        role: input.role,
-        isActive: input.isActive,
-      },
-    });
-    if (!updated.isActive || !(TEACHING_ROLES as readonly string[]).includes(updated.role)) {
-      await clearStaffAssignments(tx, organizationId, membership.userId);
-    }
-
-    if (input.role && input.role !== membership.role) {
-      await tx.auditLog.create({ data: {
-        action: "ROLE_CHANGED",
-        actorId: actor.userId,
-        organizationId,
-        entity: "Membership",
-        entityId: membershipId,
-        metadata: { from: membership.role, to: input.role },
-        requestId,
-      } });
-    }
+      const updated=await tx.membership.update({where:{id:membershipId},data:{role,roles,isActive:input.isActive}});
+      if(!updated.isActive||!roles.some(role=>(input.role||input.roles?['TEACHER','EXAM_OFFICER']:TEACHING_ROLES as readonly string[]).includes(role)))await clearStaffAssignments(tx,organizationId,membership.userId);
+      if(JSON.stringify(before)!==JSON.stringify(membershipRoles(updated)))await tx.auditLog.create({data:{action:'ROLE_CHANGED',actorId:actor.userId,organizationId,entity:'Membership',entityId:membershipId,metadata:{from:before,to:membershipRoles(updated)},requestId}});
 
     if (input.isActive !== undefined && input.isActive !== membership.isActive) {
       await tx.auditLog.create({ data: { action: "SETTINGS_CHANGED", actorId: actor.userId, organizationId,

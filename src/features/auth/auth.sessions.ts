@@ -3,7 +3,7 @@ import type { Membership, Prisma, User } from "@prisma/client";
 import { AppError } from "../../lib/errors";
 import { sha256 } from "../../lib/token";
 import { userTransaction } from "../../lib/userTransaction";
-import { permissionsForOrgRole } from "../../auth/rbac";
+import { permissionsForMembership, membershipRoles, primaryRole } from "../../auth/rbac";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../auth/jwt";
 
 type School = { id: string; name: string; slug: string };
@@ -27,11 +27,12 @@ async function loadContext(tx: Prisma.TransactionClient, userId: string, schoolI
 
 function issueTokens(user: User, membership: Membership | null, school: School | null, sessionId: string, expiresAt?: Date) {
   const schoolId = membership?.organizationId ?? null;
-  const orgRole = membership?.role ?? null;
-  const permissions = orgRole ? permissionsForOrgRole(orgRole) : [];
+  const orgRoles = membership ? membershipRoles(membership) : [];
+  const orgRole = orgRoles.length ? primaryRole(orgRoles) : null;
+  const permissions = membership ? permissionsForMembership(membership) : [];
   const accessToken = signAccessToken({
     sub: user.id, sid: sessionId, authVersion: user.authVersion,
-    globalRole: user.globalRole, schoolId, orgRole, permissions,
+    globalRole: user.globalRole, schoolId, orgRole, orgRoles, permissions,
   });
   const refreshToken = signRefreshToken({
     sub: user.id, sid: sessionId, jti: randomUUID(), authVersion: user.authVersion, schoolId,
@@ -39,7 +40,7 @@ function issueTokens(user: User, membership: Membership | null, school: School |
   return {
     accessToken, refreshToken, tokenType: "Bearer" as const,
     user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, avatarUrl: user.avatarUrl, globalRole: user.globalRole },
-    school, orgRole, permissions,
+    school, orgRole, orgRoles, permissions,
   };
 }
 

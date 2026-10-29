@@ -1,4 +1,4 @@
-import {principalCanManageRole} from '../../auth/rbac';
+import {principalCanManageRole,membershipRoles,primaryRole} from '../../auth/rbac';
 import {createHash,randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {schoolTransaction} from '../../lib/schoolTransaction';
@@ -13,7 +13,7 @@ export async function importStaff(organizationId:string,actorId:string,raw:unkno
  const requestHash=createHash('sha256').update(JSON.stringify({defaultRole:input.defaultRole,rows:[...rows].sort((a,b)=>a.rowNumber-b.rowNumber)})).digest('hex');
  return schoolTransaction(organizationId,async tx=>{
   const actor=await tx.membership.findFirst({where:{organizationId,userId:actorId,isActive:true,user:{isActive:true}}});
-  if(!actor||!['PROPRIETOR','PRINCIPAL','SCHOOL_ADMIN'].includes(actor.role))throw new AppError(403,'FORBIDDEN','Staff management permission required');
+  if(!actor||!['PROPRIETOR','PRINCIPAL','SCHOOL_ADMIN'].includes(primaryRole(membershipRoles(actor))))throw new AppError(403,'FORBIDDEN','Staff management permission required');
   if(!input.dryRun){
    if(errors.length)throw new AppError(400,'IMPORT_HAS_ERRORS','Fix the spreadsheet errors before importing',{errors});
    const previous=await tx.importBatch.findUnique({where:{organizationId_kind_idempotencyKey:{organizationId,kind:'STAFF_INVITATIONS',idempotencyKey:input.idempotencyKey!}}});
@@ -42,11 +42,11 @@ export async function updatePendingStaffRole(organizationId:string,actorId:strin
  z.string().uuid().parse(id);const {role}=pendingStaffRoleSchema.parse(raw);
  return schoolTransaction(organizationId,async tx=>{
   const actor=await tx.membership.findFirst({where:{organizationId,userId:actorId,isActive:true,user:{isActive:true}}});
-  if(!actor||!['PROPRIETOR','PRINCIPAL','SCHOOL_ADMIN'].includes(actor.role))throw new AppError(403,'FORBIDDEN','Cannot assign staff roles');
+  if(!actor||!['PROPRIETOR','PRINCIPAL','SCHOOL_ADMIN'].includes(primaryRole(membershipRoles(actor))))throw new AppError(403,'FORBIDDEN','Cannot assign staff roles');
   const invitation=await tx.schoolInvitation.findFirst({where:{id,organizationId,acceptedAt:null,revokedAt:null,expiresAt:{gt:new Date()}}});
   if(!invitation||invitation.role==='PARENT')throw new AppError(404,'NOT_FOUND','Pending staff invitation not found');
-  if(actor.role==='PRINCIPAL'&&(!principalCanManageRole(role)||!principalCanManageRole(invitation.role)))throw new AppError(403,'FORBIDDEN','Principals may assign academic roles only');
-  if((role==='PROPRIETOR'||invitation.role==='PROPRIETOR')&&actor.role!=='PROPRIETOR')throw new AppError(403,'FORBIDDEN','Only an owner can assign owner access');
+  if(primaryRole(membershipRoles(actor))==='PRINCIPAL'&&(!principalCanManageRole(role)||!principalCanManageRole(invitation.role)))throw new AppError(403,'FORBIDDEN','Principals may assign academic roles only');
+  if((role==='PROPRIETOR'||invitation.role==='PROPRIETOR')&&primaryRole(membershipRoles(actor))!=='PROPRIETOR')throw new AppError(403,'FORBIDDEN','Only an owner can assign owner access');
   await tx.schoolInvitation.update({where:{id},data:{role,invitedById:actorId}});
   await tx.auditLog.create({data:{organizationId,actorId,action:'ROLE_CHANGED',entity:'SchoolInvitation',entityId:id,metadata:{from:invitation.role,to:role}}});
   return {id,role};

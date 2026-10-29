@@ -36,12 +36,10 @@ export const createMembershipSchema = z.object({
 }).strict();
 
 export const updateMembershipSchema = z.object({
-  role: z
-    .nativeEnum(OrgRole, { error: "Please select a valid role." })
-    .optional(),
-
-  isActive: z.boolean().optional(),
-});
+  role:z.nativeEnum(OrgRole).optional(),
+  roles:z.array(z.nativeEnum(OrgRole)).min(1).max(8).refine(roles=>new Set(roles).size===roles.length,"Select each role once").refine(roles=>!roles.includes('PARENT')||roles.length===1,"Parent access uses its own portal; assign staff roles separately").optional(),
+  isActive:z.boolean().optional(),
+}).strict().refine(input=>!(input.role&&input.roles),"Send role or roles, not both").refine(input=>Object.keys(input).length>0,"Choose something to update");
 
 export const membershipIdParamsSchema = z.object({
   membershipId: z.string().uuid("Please provide a valid ID."),

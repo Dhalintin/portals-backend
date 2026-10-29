@@ -322,6 +322,7 @@ model Membership {
   id             String   @id @default(uuid())
   userId         String
   organizationId String
+  roles          OrgRole[] @default([])
   role           OrgRole
   isActive       Boolean  @default(true)
   joinedAt       DateTime @default(now())
@@ -1052,6 +1053,8 @@ model ExamTimetable {
   id String @id @default(uuid())
   organizationId String
   termId String
+  kind String @default("EXAM")
+  format Json?
   title String @default("Exam timetable")
   entries Json @default("[]")
   version Int @default(1)
@@ -1062,5 +1065,5 @@ model ExamTimetable {
   createdAt DateTime @default(now())
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   term Term @relation(fields: [termId], references: [id], onDelete: Cascade)
-  @@unique([organizationId, termId])
+  @@unique([organizationId, termId, kind])
 }

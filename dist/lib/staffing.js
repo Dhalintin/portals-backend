@@ -4,11 +4,12 @@ exports.TEACHING_ROLES = void 0;
 exports.requireTeachingMember = requireTeachingMember;
 exports.requireCurriculum = requireCurriculum;
 exports.clearStaffAssignments = clearStaffAssignments;
+const rbac_1 = require("../auth/rbac");
 const errors_1 = require("./errors");
 exports.TEACHING_ROLES = ["TEACHER", "EXAM_OFFICER", "PRINCIPAL", "SCHOOL_ADMIN", "PROPRIETOR", "STAFF"];
 async function requireTeachingMember(tx, organizationId, userId) {
     const membership = await tx.membership.findFirst({ where: { organizationId, userId, isActive: true,
-            user: { isActive: true }, role: { in: [...exports.TEACHING_ROLES] } } });
+            user: { isActive: true }, ...(0, rbac_1.rolesWhere)(exports.TEACHING_ROLES) } });
     if (!membership)
         throw new errors_1.AppError(400, "INVALID_TEACHER", "User is not an active teaching staff member of this school");
     return membership;

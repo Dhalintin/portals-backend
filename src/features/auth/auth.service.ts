@@ -5,7 +5,7 @@ import { hashPassword, verifyPassword } from "../../lib/password";
 import { randomToken, sha256 } from "../../lib/token";
 import { authSessions } from "./auth.sessions";
 import { userTransaction } from "../../lib/userTransaction";
-import { permissionsForOrgRole } from "../../auth/rbac";
+import { permissionsForMembership, membershipRoles, primaryRole } from "../../auth/rbac";
 import { auditService } from "../audit/audit.service";
 import { authLink, encryptAuthEmail, enqueueAuthEmail } from "../../lib/authEmail";
 import type { LoginInput, RegisterSchoolAdminInput } from "./auth.validation";
@@ -193,6 +193,7 @@ export class AuthService {
 
     let membership: {
       role: OrgRole;
+      roles: OrgRole[];
       organization: { id: string; name: string; slug: string };
     } | null = null;
 
@@ -200,7 +201,7 @@ export class AuthService {
       membership = await prisma.membership.findFirst({
         where: { userId, organizationId: schoolId, isActive: true },
         select: {
-          role: true,
+          role: true, roles: true,
           organization: { select: { id: true, name: true, slug: true } },
         },
       });
@@ -209,8 +210,9 @@ export class AuthService {
     return {
       user,
       school: membership?.organization ?? null,
-      orgRole: membership?.role ?? null,
-      permissions: membership ? permissionsForOrgRole(membership.role) : [],
+      orgRole: membership ? primaryRole(membershipRoles(membership)) : null,
+      orgRoles: membership ? membershipRoles(membership) : [],
+      permissions: membership ? permissionsForMembership(membership) : [],
     };
   }
 

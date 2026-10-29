@@ -22,7 +22,7 @@ export async function attendanceOverview(auth: AuthContext, period:'day'|'week'|
   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Lagos',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const term=period==='term'?await prisma.term.findFirst({where:{isCurrent:true,session:{organizationId}},select:{startDate:true,endDate:true}}):null;
   const {from,to}=attendanceWindow(period,today,term);
-  const classes=await prisma.class.findMany({where:{organizationId,isActive:true,...teachingClassFilter(auth)},select:{id:true,name:true,arm:true,_count:{select:{students:{where:{organizationId,isActive:true}}}}},orderBy:[{name:'asc'},{arm:'asc'}]});
+  const classes=await prisma.class.findMany({where:{organizationId,isActive:true,...teachingClassFilter(auth,'attendance')},select:{id:true,name:true,arm:true,_count:{select:{students:{where:{organizationId,isActive:true}}}}},orderBy:[{name:'asc'},{arm:'asc'}]});
   const records=await prisma.attendanceRecord.groupBy({by:['classId','date','status'],where:{organizationId,classId:{in:classes.map(c=>c.id)},date:{gte:from,lte:to}},_count:{_all:true}});
   const rows=classes.map(cls=>{
     const counts={PRESENT:0,ABSENT:0,LATE:0,EXCUSED:0};const days=new Set<string>();let todayMarked=0;

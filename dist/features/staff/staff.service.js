@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.staffService = exports.StaffService = void 0;
+const rbac_1 = require("../../auth/rbac");
 const prisma_1 = require("../../lib/prisma");
 const STAFF_ROLES = [
     "PROPRIETOR",
@@ -56,6 +57,7 @@ class StaffService {
         return memberships.map((m) => ({
             membershipId: m.id,
             role: m.role,
+            roles: (0, rbac_1.membershipRoles)(m),
             user: m.user,
             formClasses: formClasses.filter((c) => c.classTeacherId === m.userId),
             teachingAssignments: teaching

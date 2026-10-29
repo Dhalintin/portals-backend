@@ -29,7 +29,7 @@ async function attendanceOverview(auth, period) {
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     const term = period === 'term' ? await prisma_1.prisma.term.findFirst({ where: { isCurrent: true, session: { organizationId } }, select: { startDate: true, endDate: true } }) : null;
     const { from, to } = attendanceWindow(period, today, term);
-    const classes = await prisma_1.prisma.class.findMany({ where: { organizationId, isActive: true, ...(0, resourceAccess_1.teachingClassFilter)(auth) }, select: { id: true, name: true, arm: true, _count: { select: { students: { where: { organizationId, isActive: true } } } } }, orderBy: [{ name: 'asc' }, { arm: 'asc' }] });
+    const classes = await prisma_1.prisma.class.findMany({ where: { organizationId, isActive: true, ...(0, resourceAccess_1.teachingClassFilter)(auth, 'attendance') }, select: { id: true, name: true, arm: true, _count: { select: { students: { where: { organizationId, isActive: true } } } } }, orderBy: [{ name: 'asc' }, { arm: 'asc' }] });
     const records = await prisma_1.prisma.attendanceRecord.groupBy({ by: ['classId', 'date', 'status'], where: { organizationId, classId: { in: classes.map(c => c.id) }, date: { gte: from, lte: to } }, _count: { _all: true } });
     const rows = classes.map(cls => {
         const counts = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0 };

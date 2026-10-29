@@ -1,3 +1,4 @@
+import { membershipRoles } from "../../auth/rbac";
 import {requireStaffManager} from "../../middlewares/requireStaffManager";
 import {AppError} from "../../lib/errors";
 import {prisma} from "../../lib/prisma";
@@ -19,13 +20,13 @@ staffRoutes.get("/me", requireStaff, async (req, res, next) => {
   try {
     const organizationId=req.auth!.schoolId!, userId=req.auth!.userId;
     const membership=await prisma.membership.findFirst({where:{organizationId,userId,isActive:true,user:{isActive:true}},
-      select:{id:true,role:true,joinedAt:true,user:{select:{id:true,email:true,firstName:true,lastName:true,phone:true,avatarUrl:true}}}});
+      select:{id:true,role:true,roles:true,joinedAt:true,user:{select:{id:true,email:true,firstName:true,lastName:true,phone:true,avatarUrl:true}}}});
     if(!membership)throw new AppError(403,"FORBIDDEN","Your staff record is unavailable.");
     const [classes,subjects]=await Promise.all([
       prisma.class.findMany({where:{organizationId,isActive:true,classTeacherId:userId},select:{id:true,name:true,arm:true}}),
       prisma.classSubjectTeacher.findMany({where:{organizationId,userId,class:{isActive:true},subject:{isActive:true}},select:{class:{select:{id:true,name:true,arm:true}},subject:{select:{id:true,name:true}}}}),
     ]);
-    sendSuccess(res,{membershipId:membership.id,role:membership.role,joinedAt:membership.joinedAt,user:membership.user,classTeacherOf:classes,assignments:subjects});
+    sendSuccess(res,{membershipId:membership.id,role:membership.role,roles:membershipRoles(membership),joinedAt:membership.joinedAt,user:membership.user,classTeacherOf:classes,assignments:subjects});
   }catch(error){next(error);}
 });
 

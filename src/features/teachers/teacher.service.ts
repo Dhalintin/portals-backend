@@ -1,3 +1,5 @@
+import { rolesWhere, membershipRoles } from "../../auth/rbac";
+import { membershipsService } from "../memberships/memberships.service";
 // src/features/teachers/teacher.service.ts
 import { OrgRole, type Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
@@ -41,7 +43,7 @@ async function loadTeacherInOrg(organizationId: string, userId: string) {
     where: {
       organizationId,
       userId,
-      role: { in: STAFF_ROLES },
+      ...rolesWhere(STAFF_ROLES),
     },
     include: {
       user: true,
@@ -80,6 +82,7 @@ async function toTeacherPublic(
     phone: user.phone,
     avatarUrl: user.avatarUrl,
     role: mapRole(membership.role),
+    roles: membershipRoles(membership),
     isActive: membership.isActive && user.isActive,
     joinedAt: membership.joinedAt,
     assignments: subjectAssignments.map((a) => ({
@@ -106,7 +109,7 @@ export const teacherService = {
 
     const where: Prisma.MembershipWhereInput = {
       organizationId,
-      role: query.role ? (query.role as OrgRole) : { in: STAFF_ROLES },
+      ...rolesWhere(query.role ? [query.role as OrgRole] : STAFF_ROLES),
     };
 
     if (query.isActive === "true") where.isActive = true;
@@ -182,13 +185,15 @@ export const teacherService = {
   async update(
     schoolId: string | null | undefined,
     userId: string,
-    input: UpdateTeacherBody
+    input: UpdateTeacherBody,
+    actor?: {userId:string;orgRole:OrgRole|null}
   ) {
     const organizationId = requireSchoolId(schoolId);
+    if(actor){const member=await loadTeacherInOrg(organizationId,userId);await membershipsService.update(organizationId,member.id,actor,input);return toTeacherPublic(organizationId,userId);}
     await schoolTransaction(organizationId, async tx => {
-      const membership = await tx.membership.findFirst({ where: { organizationId, userId, role: { in: STAFF_ROLES } } });
+      const membership = await tx.membership.findFirst({ where: { organizationId, userId, ...rolesWhere(STAFF_ROLES) } });
       if (!membership) throw new NotFoundError("Teacher not found in this school");
-      await tx.membership.update({ where: { id: membership.id }, data: input });
+      await tx.membership.update({ where: { id: membership.id }, data: {...input,...(input.role?{roles:[input.role]}:{})} });
       if (input.isActive === false) {
         await tx.class.updateMany({ where: { organizationId, classTeacherId: userId }, data: { classTeacherId: null } });
         await tx.classSubjectTeacher.deleteMany({ where: { organizationId, userId } });
@@ -198,9 +203,9 @@ export const teacherService = {
   },
 
   /** Soft-remove from school staff */
-  async remove(schoolId: string | null | undefined, userId: string) {
+  async remove(schoolId: string | null | undefined, userId: string, actor?:{userId:string;orgRole:OrgRole|null}) {
     const organizationId = requireSchoolId(schoolId);
-    return this.update(organizationId, userId, { isActive: false });
+    return this.update(organizationId, userId, { isActive: false }, actor);
   },
 
   /** Replace subject-teacher rows for this teacher */
@@ -212,7 +217,7 @@ export const teacherService = {
     const organizationId = requireSchoolId(schoolId);
     await schoolTransaction(organizationId, async tx => {
       const member = await requireTeachingMember(tx, organizationId, userId);
-      if (!STAFF_ROLES.includes(member.role)) throw new NotFoundError("Teacher not found in this school");
+      if (!membershipRoles(member).some(role=>STAFF_ROLES.includes(role))) throw new NotFoundError("Teacher not found in this school");
       for (const assignment of input.assignments) {
         await requireCurriculum(tx, organizationId, assignment.classId, assignment.subjectId);
         const current = await tx.classSubjectTeacher.findUnique({ where: { classId_subjectId: assignment } });

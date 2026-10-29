@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const exams_validation_1 = require("./exams.validation");
 const express_1 = require("express");
 const zod_1 = require("zod");
 const authenticate_1 = require("../../middlewares/authenticate");
@@ -18,7 +19,7 @@ catch (error) {
 } });
 routes.use(requireStaff_1.requireStaff);
 routes.get('/editor', (0, requirePermission_1.requirePermission)('exams:write'), async (req, res, next) => { try {
-    (0, http_1.sendSuccess)(res, await (0, exams_service_1.getExamEditor)(req.auth.schoolId, zod_1.z.string().uuid().parse(req.query.termId)));
+    (0, http_1.sendSuccess)(res, await (0, exams_service_1.getExamEditor)(req.auth.schoolId, zod_1.z.string().uuid().parse(req.query.termId), exams_validation_1.assessmentKindSchema.parse(req.query.kind)));
 }
 catch (error) {
     next(error);

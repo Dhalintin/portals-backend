@@ -43,7 +43,7 @@ exports.teacherController = {
         try {
             if (!req.auth)
                 throw new AppError_1.UnauthorizedError();
-            const teacher = await teacher_service_1.teacherService.update(req.auth.schoolId ?? null, req.params.id, req.body);
+            const teacher = await teacher_service_1.teacherService.update(req.auth.schoolId ?? null, req.params.id, req.body, { userId: req.auth.userId, orgRole: req.auth.orgRole });
             (0, response_1.sendSuccess)(res, { teacher });
         }
         catch (err) {
@@ -54,7 +54,7 @@ exports.teacherController = {
         try {
             if (!req.auth)
                 throw new AppError_1.UnauthorizedError();
-            const teacher = await teacher_service_1.teacherService.remove(req.auth.schoolId ?? null, req.params.id);
+            const teacher = await teacher_service_1.teacherService.remove(req.auth.schoolId ?? null, req.params.id, { userId: req.auth.userId, orgRole: req.auth.orgRole });
             (0, response_1.sendSuccess)(res, { teacher });
         }
         catch (err) {

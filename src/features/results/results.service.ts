@@ -1,9 +1,9 @@
 import type { Prisma, ResultStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
-import { assertSubjectTeacher, assertTeachingAccess, teachingClassFilter } from "../../auth/resourceAccess";
+import { assertSubjectTeacher, assertTeachingAccess, restrictedTeachingRead, teachingClassFilter } from "../../auth/resourceAccess";
 import type { AuthContext } from "../../auth/types";
-import { permissionsForOrgRole } from "../../auth/rbac";
+import { permissionsForMembership } from "../../auth/rbac";
 import { schoolTransaction } from "../../lib/schoolTransaction";
 import { enqueueResultPublications } from "../../lib/studentNotifications";
 import { auditService } from "../audit/audit.service";
@@ -367,17 +367,17 @@ export class ResultsService {
     meta?: { requestId?: string }
   ) {
     const membership = await prisma.membership.findFirst({ where: { organizationId, userId: actorId, isActive: true } });
-    if (!membership || !permissionsForOrgRole(membership.role).includes("results:write")) {
+    if (!membership || !permissionsForMembership(membership).includes("results:write")) {
       throw new AppError(403, "FORBIDDEN", "Result write permission required");
     }
     if ((newStatus === "APPROVED" || newStatus === "PUBLISHED") &&
-        !permissionsForOrgRole(membership.role).includes("results:publish")) {
+        !permissionsForMembership(membership).includes("results:publish")) {
       throw new AppError(403, "FORBIDDEN", "Result approval or publishing permission required");
     }
     return schoolTransaction(organizationId, async tx => {
       const manager = await tx.membership.findFirst({ where: { organizationId, userId: actorId, isActive: true, user: { isActive: true }, organization: { isActive: true } } });
-      if (!manager || !permissionsForOrgRole(manager.role).includes("results:write") ||
-          (["APPROVED", "PUBLISHED"].includes(newStatus) && !permissionsForOrgRole(manager.role).includes("results:publish"))) {
+      if (!manager || !permissionsForMembership(manager).includes("results:write") ||
+          (["APPROVED", "PUBLISHED"].includes(newStatus) && !permissionsForMembership(manager).includes("results:publish"))) {
         throw new AppError(403, "FORBIDDEN", "Current result workflow permission required");
       }
       const result = await tx.result.findFirst({ where: { id: resultId, organizationId } });
@@ -405,7 +405,7 @@ export class ResultsService {
   ) {
     return schoolTransaction(organizationId, async tx => {
       const membership = await tx.membership.findFirst({ where: { organizationId, userId: actorId, isActive: true, user: { isActive: true }, organization: { isActive: true } } });
-      if (!membership || !permissionsForOrgRole(membership.role).includes("results:publish")) throw new AppError(403, "FORBIDDEN", "Result publishing permission required");
+      if (!membership || !permissionsForMembership(membership).includes("results:publish")) throw new AppError(403, "FORBIDDEN", "Result publishing permission required");
       await assertTeachingAccess(organizationId, actorId, classId, undefined, tx);
       if (!await tx.term.findFirst({ where: { id: termId, session: { organizationId } } })) throw new AppError(404, "NOT_FOUND", "Term not found");
       const rows = await tx.result.findMany({ where: { organizationId, termId, classId, ...(publish ? { status: "APPROVED" as const } : { isPublished: true }) } });
@@ -459,7 +459,7 @@ export class ResultsService {
   // ─── Reads ─────────────────────────────────────────────────────
   async getResult(organizationId: string, resultId: string, auth?: AuthContext) {
     const result = await prisma.result.findFirst({
-      where: { id: resultId, organizationId, ...(auth?.orgRole === "TEACHER" ? { class: teachingClassFilter(auth) } : {}) },
+      where: { id: resultId, organizationId, ...(restrictedTeachingRead(auth) ? { class: teachingClassFilter(auth) } : {}) },
       include: {
         student: {
           select: {
@@ -501,7 +501,7 @@ export class ResultsService {
   ) {
     const where: Prisma.ResultWhereInput = {
       organizationId,
-      ...(auth?.orgRole === "TEACHER" ? { class: teachingClassFilter(auth) } : {}),
+      ...(restrictedTeachingRead(auth) ? { class: teachingClassFilter(auth) } : {}),
     };
     if (query.termId) where.termId = query.termId;
     if (query.classId) where.classId = query.classId;

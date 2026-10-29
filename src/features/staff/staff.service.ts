@@ -1,3 +1,4 @@
+import { membershipRoles } from "../../auth/rbac";
 import { prisma } from "../../lib/prisma";
 
 const STAFF_ROLES = [
@@ -58,6 +59,7 @@ export class StaffService {
     return memberships.map((m) => ({
       membershipId: m.id,
       role: m.role,
+      roles: membershipRoles(m),
       user: m.user,
       formClasses: formClasses.filter((c) => c.classTeacherId === m.userId),
       teachingAssignments: teaching

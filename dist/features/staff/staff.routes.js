@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const rbac_1 = require("../../auth/rbac");
 const requireStaffManager_1 = require("../../middlewares/requireStaffManager");
 const errors_1 = require("../../lib/errors");
 const prisma_1 = require("../../lib/prisma");
@@ -21,14 +22,14 @@ staffRoutes.get("/me", requireStaff_1.requireStaff, async (req, res, next) => {
     try {
         const organizationId = req.auth.schoolId, userId = req.auth.userId;
         const membership = await prisma_1.prisma.membership.findFirst({ where: { organizationId, userId, isActive: true, user: { isActive: true } },
-            select: { id: true, role: true, joinedAt: true, user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, avatarUrl: true } } } });
+            select: { id: true, role: true, roles: true, joinedAt: true, user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, avatarUrl: true } } } });
         if (!membership)
             throw new errors_1.AppError(403, "FORBIDDEN", "Your staff record is unavailable.");
         const [classes, subjects] = await Promise.all([
             prisma_1.prisma.class.findMany({ where: { organizationId, isActive: true, classTeacherId: userId }, select: { id: true, name: true, arm: true } }),
             prisma_1.prisma.classSubjectTeacher.findMany({ where: { organizationId, userId, class: { isActive: true }, subject: { isActive: true } }, select: { class: { select: { id: true, name: true, arm: true } }, subject: { select: { id: true, name: true } } } }),
         ]);
-        (0, http_1.sendSuccess)(res, { membershipId: membership.id, role: membership.role, joinedAt: membership.joinedAt, user: membership.user, classTeacherOf: classes, assignments: subjects });
+        (0, http_1.sendSuccess)(res, { membershipId: membership.id, role: membership.role, roles: (0, rbac_1.membershipRoles)(membership), joinedAt: membership.joinedAt, user: membership.user, classTeacherOf: classes, assignments: subjects });
     }
     catch (error) {
         next(error);

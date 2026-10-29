@@ -33,10 +33,10 @@ class InvitationsService {
                 },
             });
             if (!actor ||
-                !["PROPRIETOR", "SCHOOL_ADMIN", "PRINCIPAL"].includes(actor.role) ||
-                (input.role === "PROPRIETOR" && actor.role !== "PROPRIETOR"))
+                !["PROPRIETOR", "SCHOOL_ADMIN", "PRINCIPAL"].includes((0, rbac_1.primaryRole)((0, rbac_1.membershipRoles)(actor))) ||
+                (input.role === "PROPRIETOR" && (0, rbac_1.primaryRole)((0, rbac_1.membershipRoles)(actor)) !== "PROPRIETOR"))
                 throw new errors_1.AppError(403, "FORBIDDEN", "Cannot invite this role");
-            if (actor.role === "PRINCIPAL" && !(0, rbac_1.principalCanManageRole)(input.role))
+            if ((0, rbac_1.primaryRole)((0, rbac_1.membershipRoles)(actor)) === "PRINCIPAL" && !(0, rbac_1.principalCanManageRole)(input.role))
                 throw new errors_1.AppError(403, "FORBIDDEN", "Only an owner or school administrator can grant financial or administrator roles.");
             const school = await tx.organization.findFirst({
                 where: { id: organizationId, isActive: true },
@@ -144,13 +144,13 @@ class InvitationsService {
                 },
             });
             if (!inviter ||
-                !["PROPRIETOR", "SCHOOL_ADMIN", "PRINCIPAL"].includes(inviter.role) ||
-                (invitation.role === "PROPRIETOR" && inviter.role !== "PROPRIETOR"))
+                !["PROPRIETOR", "SCHOOL_ADMIN", "PRINCIPAL"].includes((0, rbac_1.primaryRole)((0, rbac_1.membershipRoles)(inviter))) ||
+                (invitation.role === "PROPRIETOR" && (0, rbac_1.primaryRole)((0, rbac_1.membershipRoles)(inviter)) !== "PROPRIETOR"))
                 throw new errors_1.AppError(400, "INVALID_INVITATION", "Invitation is no longer authorized");
             if (profile?.google && (!profile.google.emailVerified || profile.google.email !== invitation.email)) {
                 throw new errors_1.AppError(403, "INVITATION_EMAIL_MISMATCH", "Choose the Google account for the email that received this invitation.");
             }
-            if (inviter.role === "PRINCIPAL" && !(0, rbac_1.principalCanManageRole)(invitation.role))
+            if ((0, rbac_1.primaryRole)((0, rbac_1.membershipRoles)(inviter)) === "PRINCIPAL" && !(0, rbac_1.principalCanManageRole)(invitation.role))
                 throw new errors_1.AppError(400, "INVALID_INVITATION", "Ask the school owner to reissue this invitation.");
             const firstName = profile?.firstName?.trim() || invitation.firstName;
             const lastName = profile?.lastName?.trim() || invitation.lastName;

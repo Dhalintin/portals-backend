@@ -50,7 +50,7 @@ async function resolveContext(token) {
             isActive: true,
             organization: { isActive: true },
         },
-        select: { role: true },
+        select: { role: true, roles: true },
     });
     if (!membership)
         throw new errors_1.AppError(401, "UNAUTHORIZED", "School access is no longer available");
@@ -59,8 +59,9 @@ async function resolveContext(token) {
         sessionId: session.id,
         globalRole: user.globalRole,
         schoolId: claims.schoolId,
-        orgRole: membership.role,
-        permissions: (0, rbac_1.permissionsForOrgRole)(membership.role),
+        orgRole: (0, rbac_1.primaryRole)((0, rbac_1.membershipRoles)(membership)),
+        orgRoles: (0, rbac_1.membershipRoles)(membership),
+        permissions: (0, rbac_1.permissionsForMembership)(membership),
     };
 }
 const authenticate = async (req, _res, next) => {

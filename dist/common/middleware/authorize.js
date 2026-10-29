@@ -10,7 +10,7 @@ function authorize(...roles) {
             return next(new AppError_1.UnauthorizedError());
         }
         const allowed = roles;
-        if (allowed.length && !allowed.includes(role)) {
+        if (allowed.length && ![role, ...(req.auth?.orgRoles ?? [])].some(role => allowed.includes(role))) {
             return next(new AppError_1.ForbiddenError("Insufficient permissions"));
         }
         next();

@@ -84,3 +84,11 @@ export function hasAllPermissions(
 export function principalCanManageRole(role: OrgRole) {
   return (["PRINCIPAL", "TEACHER", "EXAM_OFFICER", "STAFF", "PARENT"] as readonly OrgRole[]).includes(role);
 }
+
+// The legacy primary role remains for portal selection; permissions use every role.
+export const rolePriority:readonly OrgRole[]=['PROPRIETOR','SCHOOL_ADMIN','PRINCIPAL','BURSAR','EXAM_OFFICER','TEACHER','STAFF','PARENT'];
+export function membershipRoles(member:{role:OrgRole;roles?:readonly OrgRole[]}){return rolePriority.filter(role=>role===member.role||member.roles?.includes(role));}
+export function primaryRole(roles:readonly OrgRole[]):OrgRole{return rolePriority.find(role=>roles.includes(role))??'STAFF';}
+export function permissionsForMembership(member:{role:OrgRole;roles?:readonly OrgRole[]}){return [...new Set(membershipRoles(member).flatMap(permissionsForOrgRole))];}
+export function membershipHasRole(member:{role:OrgRole;roles?:readonly OrgRole[]},role:OrgRole){return membershipRoles(member).includes(role);}
+export function rolesWhere(roles:readonly OrgRole[]){return {OR:[{role:{in:[...roles]}},{roles:{hasSome:[...roles]}}]};}

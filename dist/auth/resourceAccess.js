@@ -4,7 +4,9 @@ exports.assertTeachingAccess = assertTeachingAccess;
 exports.assertClassTeacher = assertClassTeacher;
 exports.assertSubjectTeacher = assertSubjectTeacher;
 exports.assertParentChildAccess = assertParentChildAccess;
+exports.restrictedTeachingRead = restrictedTeachingRead;
 exports.teachingClassFilter = teachingClassFilter;
+const rbac_1 = require("./rbac");
 const prisma_1 = require("../lib/prisma");
 const errors_1 = require("../lib/errors");
 async function assertTeachingAccess(organizationId, actorId, classId, subjectId, db = prisma_1.prisma) {
@@ -24,7 +26,9 @@ async function assertTeachingAccess(organizationId, actorId, classId, subjectId,
         if (!linked)
             throw new errors_1.AppError(400, "SUBJECT_NOT_LINKED", "Subject is not offered by this class");
     }
-    if (membership.role !== "TEACHER")
+    if ((0, rbac_1.membershipRoles)(membership).some(role => ["PROPRIETOR", "SCHOOL_ADMIN", "PRINCIPAL", "EXAM_OFFICER"].includes(role)))
+        return;
+    if (!(0, rbac_1.membershipRoles)(membership).includes("TEACHER"))
         return;
     const assignment = await db.classSubjectTeacher.findFirst({
         where: { organizationId, classId, userId: actorId, ...(subjectId ? { subjectId } : {}) },
@@ -56,8 +60,12 @@ async function assertParentChildAccess(auth, studentId) {
     if (!link)
         throw new errors_1.AppError(404, "NOT_FOUND", "Child record not found");
 }
-function teachingClassFilter(auth) {
-    return auth?.orgRole === "TEACHER" ? {
+function restrictedTeachingRead(auth, domain = 'academic') {
+    const roles = auth?.orgRoles ?? (auth?.orgRole ? [auth.orgRole] : []);
+    return roles.includes('TEACHER') && !roles.some(role => ['PROPRIETOR', 'SCHOOL_ADMIN', 'PRINCIPAL', ...(domain === 'academic' ? ['EXAM_OFFICER'] : [])].includes(role));
+}
+function teachingClassFilter(auth, domain = 'academic') {
+    return auth && restrictedTeachingRead(auth, domain) ? {
         organizationId: auth.schoolId,
         OR: [
             { classTeacherId: auth.userId },

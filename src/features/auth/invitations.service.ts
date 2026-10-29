@@ -1,4 +1,4 @@
-import { principalCanManageRole } from "../../auth/rbac";
+import { principalCanManageRole, membershipRoles, primaryRole } from "../../auth/rbac";
 import type { OrgRole } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
@@ -48,11 +48,11 @@ export class InvitationsService {
       });
       if (
         !actor ||
-        !["PROPRIETOR", "SCHOOL_ADMIN", "PRINCIPAL"].includes(actor.role) ||
-        (input.role === "PROPRIETOR" && actor.role !== "PROPRIETOR")
+        !["PROPRIETOR", "SCHOOL_ADMIN", "PRINCIPAL"].includes(primaryRole(membershipRoles(actor))) ||
+        (input.role === "PROPRIETOR" && primaryRole(membershipRoles(actor)) !== "PROPRIETOR")
       )
         throw new AppError(403, "FORBIDDEN", "Cannot invite this role");
-      if (actor.role === "PRINCIPAL" && !principalCanManageRole(input.role)) throw new AppError(403, "FORBIDDEN", "Only an owner or school administrator can grant financial or administrator roles.");
+      if (primaryRole(membershipRoles(actor)) === "PRINCIPAL" && !principalCanManageRole(input.role)) throw new AppError(403, "FORBIDDEN", "Only an owner or school administrator can grant financial or administrator roles.");
       const school = await tx.organization.findFirst({
         where: { id: organizationId, isActive: true },
       });
@@ -198,8 +198,8 @@ export class InvitationsService {
       });
       if (
         !inviter ||
-        !["PROPRIETOR", "SCHOOL_ADMIN", "PRINCIPAL"].includes(inviter.role) ||
-        (invitation.role === "PROPRIETOR" && inviter.role !== "PROPRIETOR")
+        !["PROPRIETOR", "SCHOOL_ADMIN", "PRINCIPAL"].includes(primaryRole(membershipRoles(inviter))) ||
+        (invitation.role === "PROPRIETOR" && primaryRole(membershipRoles(inviter)) !== "PROPRIETOR")
       )
         throw new AppError(
           400,
@@ -209,7 +209,7 @@ export class InvitationsService {
       if (profile?.google && (!profile.google.emailVerified || profile.google.email !== invitation.email)) {
         throw new AppError(403, "INVITATION_EMAIL_MISMATCH", "Choose the Google account for the email that received this invitation.");
       }
-      if (inviter.role === "PRINCIPAL" && !principalCanManageRole(invitation.role)) throw new AppError(400, "INVALID_INVITATION", "Ask the school owner to reissue this invitation.");
+      if (primaryRole(membershipRoles(inviter)) === "PRINCIPAL" && !principalCanManageRole(invitation.role)) throw new AppError(400, "INVALID_INVITATION", "Ask the school owner to reissue this invitation.");
       const firstName = profile?.firstName?.trim() || invitation.firstName;
       const lastName = profile?.lastName?.trim() || invitation.lastName;
       let user = await tx.user.findUnique({

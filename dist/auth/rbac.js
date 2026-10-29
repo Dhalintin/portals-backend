@@ -1,9 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ROLE_PERMISSIONS = void 0;
+exports.rolePriority = exports.ROLE_PERMISSIONS = void 0;
 exports.permissionsForOrgRole = permissionsForOrgRole;
 exports.hasAllPermissions = hasAllPermissions;
 exports.principalCanManageRole = principalCanManageRole;
+exports.membershipRoles = membershipRoles;
+exports.primaryRole = primaryRole;
+exports.permissionsForMembership = permissionsForMembership;
+exports.membershipHasRole = membershipHasRole;
+exports.rolesWhere = rolesWhere;
 const permissions_1 = require("./permissions");
 exports.ROLE_PERMISSIONS = {
     PROPRIETOR: permissions_1.ALL_PERMISSIONS,
@@ -82,3 +87,10 @@ function hasAllPermissions(granted, needed) {
 function principalCanManageRole(role) {
     return ["PRINCIPAL", "TEACHER", "EXAM_OFFICER", "STAFF", "PARENT"].includes(role);
 }
+// The legacy primary role remains for portal selection; permissions use every role.
+exports.rolePriority = ['PROPRIETOR', 'SCHOOL_ADMIN', 'PRINCIPAL', 'BURSAR', 'EXAM_OFFICER', 'TEACHER', 'STAFF', 'PARENT'];
+function membershipRoles(member) { return exports.rolePriority.filter(role => role === member.role || member.roles?.includes(role)); }
+function primaryRole(roles) { return exports.rolePriority.find(role => roles.includes(role)) ?? 'STAFF'; }
+function permissionsForMembership(member) { return [...new Set(membershipRoles(member).flatMap(permissionsForOrgRole))]; }
+function membershipHasRole(member, role) { return membershipRoles(member).includes(role); }
+function rolesWhere(roles) { return { OR: [{ role: { in: [...roles] } }, { roles: { hasSome: [...roles] } }] }; }

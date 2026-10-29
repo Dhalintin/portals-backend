@@ -277,17 +277,17 @@ class ResultsService {
     // ─── Workflow ──────────────────────────────────────────────────
     async transitionStatus(organizationId, resultId, newStatus, actorId, meta) {
         const membership = await prisma_1.prisma.membership.findFirst({ where: { organizationId, userId: actorId, isActive: true } });
-        if (!membership || !(0, rbac_1.permissionsForOrgRole)(membership.role).includes("results:write")) {
+        if (!membership || !(0, rbac_1.permissionsForMembership)(membership).includes("results:write")) {
             throw new errors_1.AppError(403, "FORBIDDEN", "Result write permission required");
         }
         if ((newStatus === "APPROVED" || newStatus === "PUBLISHED") &&
-            !(0, rbac_1.permissionsForOrgRole)(membership.role).includes("results:publish")) {
+            !(0, rbac_1.permissionsForMembership)(membership).includes("results:publish")) {
             throw new errors_1.AppError(403, "FORBIDDEN", "Result approval or publishing permission required");
         }
         return (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
             const manager = await tx.membership.findFirst({ where: { organizationId, userId: actorId, isActive: true, user: { isActive: true }, organization: { isActive: true } } });
-            if (!manager || !(0, rbac_1.permissionsForOrgRole)(manager.role).includes("results:write") ||
-                (["APPROVED", "PUBLISHED"].includes(newStatus) && !(0, rbac_1.permissionsForOrgRole)(manager.role).includes("results:publish"))) {
+            if (!manager || !(0, rbac_1.permissionsForMembership)(manager).includes("results:write") ||
+                (["APPROVED", "PUBLISHED"].includes(newStatus) && !(0, rbac_1.permissionsForMembership)(manager).includes("results:publish"))) {
                 throw new errors_1.AppError(403, "FORBIDDEN", "Current result workflow permission required");
             }
             const result = await tx.result.findFirst({ where: { id: resultId, organizationId } });
@@ -314,7 +314,7 @@ class ResultsService {
     async publishClassTerm(organizationId, termId, classId, publish, actorId, meta) {
         return (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
             const membership = await tx.membership.findFirst({ where: { organizationId, userId: actorId, isActive: true, user: { isActive: true }, organization: { isActive: true } } });
-            if (!membership || !(0, rbac_1.permissionsForOrgRole)(membership.role).includes("results:publish"))
+            if (!membership || !(0, rbac_1.permissionsForMembership)(membership).includes("results:publish"))
                 throw new errors_1.AppError(403, "FORBIDDEN", "Result publishing permission required");
             await (0, resourceAccess_1.assertTeachingAccess)(organizationId, actorId, classId, undefined, tx);
             if (!await tx.term.findFirst({ where: { id: termId, session: { organizationId } } }))
@@ -363,7 +363,7 @@ class ResultsService {
     // ─── Reads ─────────────────────────────────────────────────────
     async getResult(organizationId, resultId, auth) {
         const result = await prisma_1.prisma.result.findFirst({
-            where: { id: resultId, organizationId, ...(auth?.orgRole === "TEACHER" ? { class: (0, resourceAccess_1.teachingClassFilter)(auth) } : {}) },
+            where: { id: resultId, organizationId, ...((0, resourceAccess_1.restrictedTeachingRead)(auth) ? { class: (0, resourceAccess_1.teachingClassFilter)(auth) } : {}) },
             include: {
                 student: {
                     select: {
@@ -394,7 +394,7 @@ class ResultsService {
     async listResults(organizationId, query, auth) {
         const where = {
             organizationId,
-            ...(auth?.orgRole === "TEACHER" ? { class: (0, resourceAccess_1.teachingClassFilter)(auth) } : {}),
+            ...((0, resourceAccess_1.restrictedTeachingRead)(auth) ? { class: (0, resourceAccess_1.teachingClassFilter)(auth) } : {}),
         };
         if (query.termId)
             where.termId = query.termId;

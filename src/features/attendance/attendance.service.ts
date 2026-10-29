@@ -1,7 +1,7 @@
 import type { AttendanceStatus, AttendanceRecord, Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
-import { assertClassTeacher, assertTeachingAccess, teachingClassFilter } from "../../auth/resourceAccess";
+import { assertClassTeacher, assertTeachingAccess, restrictedTeachingRead, teachingClassFilter } from "../../auth/resourceAccess";
 import type { AuthContext } from "../../auth/types";
 import { schoolTransaction } from "../../lib/schoolTransaction";
 import { syncAttendanceNotifications } from "../../lib/studentNotifications";
@@ -81,7 +81,7 @@ export class AttendanceService {
     dateStr: string,
     auth?: AuthContext
   ) {
-    if (auth?.orgRole === "TEACHER") await assertTeachingAccess(organizationId, auth.userId, classId);
+    if (restrictedTeachingRead(auth,'attendance')&&!await prisma.class.findFirst({where:{id:classId,isActive:true,...teachingClassFilter(auth,'attendance')},select:{id:true}})) throw new AppError(403,'FORBIDDEN','You are not assigned to this class');
     const date = new Date(dateStr);
 
     const records = await prisma.attendanceRecord.findMany({
@@ -113,7 +113,7 @@ export class AttendanceService {
     auth?: AuthContext
   ) {
     const student = await prisma.student.findFirst({
-      where: { id: studentId, organizationId, ...(auth?.orgRole === "TEACHER" ? { class: teachingClassFilter(auth) } : {}) },
+      where: { id: studentId, organizationId, ...(restrictedTeachingRead(auth,'attendance') ? { class: teachingClassFilter(auth,'attendance') } : {}) },
       select: { id: true },
     });
     if (!student) {
@@ -235,7 +235,7 @@ export class AttendanceService {
         organizationId,
         date,
         status: { in: ["ABSENT", "LATE"] }, // or only ABSENT if preferred
-        ...(auth?.orgRole === "TEACHER" ? { class: teachingClassFilter(auth) } : {}),
+        ...(restrictedTeachingRead(auth,'attendance') ? { class: teachingClassFilter(auth,'attendance') } : {}),
       },
       include: {
         student: {
@@ -259,7 +259,7 @@ export class AttendanceService {
   ) {
     const where: Prisma.AttendanceRecordWhereInput = {
       organizationId,
-      ...(auth?.orgRole === "TEACHER" ? { class: teachingClassFilter(auth) } : {}),
+      ...(restrictedTeachingRead(auth,'attendance') ? { class: teachingClassFilter(auth,'attendance') } : {}),
       date: {
         gte: new Date(opts.from),
         lte: new Date(opts.to),

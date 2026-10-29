@@ -2,7 +2,7 @@ import type { RequestHandler } from "express";
 import { verifyAccessToken } from "../auth/jwt";
 import type { AuthContext } from "../auth/types";
 import { AppError } from "../lib/errors";
-import { permissionsForOrgRole } from "../auth/rbac";
+import { permissionsForMembership, membershipRoles, primaryRole } from "../auth/rbac";
 import { prisma } from "../lib/prisma";
 
 async function resolveContext(token: string): Promise<AuthContext> {
@@ -71,7 +71,7 @@ async function resolveContext(token: string): Promise<AuthContext> {
       isActive: true,
       organization: { isActive: true },
     },
-    select: { role: true },
+    select: { role: true, roles: true },
   });
 
   if (!membership)
@@ -85,8 +85,9 @@ async function resolveContext(token: string): Promise<AuthContext> {
     sessionId: session.id,
     globalRole: user.globalRole,
     schoolId: claims.schoolId,
-    orgRole: membership.role,
-    permissions: permissionsForOrgRole(membership.role),
+    orgRole: primaryRole(membershipRoles(membership)),
+    orgRoles: membershipRoles(membership),
+    permissions: permissionsForMembership(membership),
   };
 }
 

@@ -473,7 +473,7 @@ class FeesService {
             throw new errors_1.AppError(400, "OVER_OUTSTANDING", "The amount exceeds the selected bills. Refresh and check the student's balance.");
         return (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
             const membership = await tx.membership.findFirst({ where: { organizationId, userId: actorId, isActive: true, user: { isActive: true }, organization: { isActive: true } } });
-            if (!membership || !(0, rbac_1.permissionsForOrgRole)(membership.role).includes('payments:write'))
+            if (!membership || !(0, rbac_1.permissionsForMembership)(membership).includes('payments:write'))
                 throw new errors_1.AppError(403, 'FORBIDDEN', 'Current payment recording permission is required');
             const previous = await tx.payment.findUnique({ where: { organizationId_idempotencyKey: { organizationId, idempotencyKey: input.idempotencyKey } } });
             if (!previous) {

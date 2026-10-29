@@ -1,6 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.teacherService = void 0;
+const rbac_1 = require("../../auth/rbac");
+const memberships_service_1 = require("../memberships/memberships.service");
 // src/features/teachers/teacher.service.ts
 const client_1 = require("@prisma/client");
 const prisma_1 = require("../../lib/prisma");
@@ -27,7 +29,7 @@ async function loadTeacherInOrg(organizationId, userId) {
         where: {
             organizationId,
             userId,
-            role: { in: STAFF_ROLES },
+            ...(0, rbac_1.rolesWhere)(STAFF_ROLES),
         },
         include: {
             user: true,
@@ -61,6 +63,7 @@ async function toTeacherPublic(organizationId, userId) {
         phone: user.phone,
         avatarUrl: user.avatarUrl,
         role: mapRole(membership.role),
+        roles: (0, rbac_1.membershipRoles)(membership),
         isActive: membership.isActive && user.isActive,
         joinedAt: membership.joinedAt,
         assignments: subjectAssignments.map((a) => ({
@@ -85,7 +88,7 @@ exports.teacherService = {
         const organizationId = requireSchoolId(schoolId);
         const where = {
             organizationId,
-            role: query.role ? query.role : { in: STAFF_ROLES },
+            ...(0, rbac_1.rolesWhere)(query.role ? [query.role] : STAFF_ROLES),
         };
         if (query.isActive === "true")
             where.isActive = true;
@@ -146,13 +149,18 @@ exports.teacherService = {
         const organizationId = requireSchoolId(schoolId);
         return toTeacherPublic(organizationId, userId);
     },
-    async update(schoolId, userId, input) {
+    async update(schoolId, userId, input, actor) {
         const organizationId = requireSchoolId(schoolId);
+        if (actor) {
+            const member = await loadTeacherInOrg(organizationId, userId);
+            await memberships_service_1.membershipsService.update(organizationId, member.id, actor, input);
+            return toTeacherPublic(organizationId, userId);
+        }
         await (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
-            const membership = await tx.membership.findFirst({ where: { organizationId, userId, role: { in: STAFF_ROLES } } });
+            const membership = await tx.membership.findFirst({ where: { organizationId, userId, ...(0, rbac_1.rolesWhere)(STAFF_ROLES) } });
             if (!membership)
                 throw new AppError_1.NotFoundError("Teacher not found in this school");
-            await tx.membership.update({ where: { id: membership.id }, data: input });
+            await tx.membership.update({ where: { id: membership.id }, data: { ...input, ...(input.role ? { roles: [input.role] } : {}) } });
             if (input.isActive === false) {
                 await tx.class.updateMany({ where: { organizationId, classTeacherId: userId }, data: { classTeacherId: null } });
                 await tx.classSubjectTeacher.deleteMany({ where: { organizationId, userId } });
@@ -161,16 +169,16 @@ exports.teacherService = {
         return toTeacherPublic(organizationId, userId);
     },
     /** Soft-remove from school staff */
-    async remove(schoolId, userId) {
+    async remove(schoolId, userId, actor) {
         const organizationId = requireSchoolId(schoolId);
-        return this.update(organizationId, userId, { isActive: false });
+        return this.update(organizationId, userId, { isActive: false }, actor);
     },
     /** Replace subject-teacher rows for this teacher */
     async setAssignments(schoolId, userId, input) {
         const organizationId = requireSchoolId(schoolId);
         await (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
             const member = await (0, staffing_1.requireTeachingMember)(tx, organizationId, userId);
-            if (!STAFF_ROLES.includes(member.role))
+            if (!(0, rbac_1.membershipRoles)(member).some(role => STAFF_ROLES.includes(role)))
                 throw new AppError_1.NotFoundError("Teacher not found in this school");
             for (const assignment of input.assignments) {
                 await (0, staffing_1.requireCurriculum)(tx, organizationId, assignment.classId, assignment.subjectId);

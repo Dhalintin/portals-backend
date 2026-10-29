@@ -525,3 +525,32 @@ test('staff directory manager boundary excludes teaching and financial staff',()
  for(const role of ['PROPRIETOR','PRINCIPAL','SCHOOL_ADMIN'])assert.equal(isStaffManager(role),true);
  for(const role of ['TEACHER','EXAM_OFFICER','BURSAR','STAFF','PARENT',undefined])assert.equal(isStaffManager(role),false);
 });
+
+
+test('membership roles combine permissions without inventing finance access',()=>{
+ const {membershipRoles,primaryRole,permissionsForMembership}=require('../.test-build/auth/rbac');
+ const teacherExam={role:'TEACHER',roles:['TEACHER','EXAM_OFFICER']};const permissions=permissionsForMembership(teacherExam);
+ assert.ok(permissions.includes('attendance:write'));assert.ok(permissions.includes('results:write'));assert.ok(permissions.includes('exams:write'));assert.ok(!permissions.includes('payments:write'));assert.equal(new Set(permissions).size,permissions.length);
+ assert.equal(primaryRole(membershipRoles(teacherExam)),'EXAM_OFFICER');assert.ok(!permissionsForMembership({role:'PRINCIPAL',roles:['PRINCIPAL','TEACHER']}).includes('fees:read'));
+});
+test('role-set validation rejects empty, duplicate, unknown and parent/staff combinations',()=>{
+ const {updateMembershipSchema}=require('../.test-build/features/memberships/memberships.validation');
+ for(const input of [{roles:[]},{roles:['TEACHER','TEACHER']},{roles:['TEACHER','PARENT']},{roles:['UNKNOWN']},{roles:['TEACHER'],role:'BURSAR'},{permissions:['payments:write']},{}])assert.equal(updateMembershipSchema.safeParse(input).success,false);
+ assert.equal(updateMembershipSchema.safeParse({roles:['TEACHER','EXAM_OFFICER']}).success,true);
+});
+test('financial plus teaching roles retain assigned-class academic read limits',()=>{
+ const {teachingClassFilter}=require('../.test-build/auth/resourceAccess');const auth={schoolId:'a',userId:'teacher',orgRole:'BURSAR',orgRoles:['BURSAR','TEACHER']};
+ assert.equal(teachingClassFilter(auth).organizationId,'a');assert.equal(teachingClassFilter({...auth,orgRole:'EXAM_OFFICER',orgRoles:['EXAM_OFFICER','TEACHER']}).organizationId,undefined);assert.equal(teachingClassFilter({...auth,orgRole:'EXAM_OFFICER',orgRoles:['EXAM_OFFICER','TEACHER']},'attendance').organizationId,'a');
+});
+
+
+test('daily timetable formats reserve breaks and reject invalid days, repeated papers and midnight overflow',()=>{
+ const {timetableFormatSchema,validateFormattedEntries,formatSignature}=require('../.test-build/features/exams/exams.validation');
+ const format=timetableFormatSchema.parse({startDate:'2026-11-10',startTime:'08:00',papersPerDay:3,paperMinutes:120,breakAfter:1,breakMinutes:30,weekdays:[1,2,3,4,5]});
+ const paper={id:'x',classId:'class',subjectId:'math',date:'2026-11-10',startTime:'10:30',endTime:'12:30',venue:'',note:''};validateFormattedEntries([paper],format);
+ assert.throws(()=>validateFormattedEntries([{...paper,startTime:'10:00',endTime:'10:30'}],format),{code:'TIMETABLE_FORMAT_MISMATCH'});
+ assert.throws(()=>validateFormattedEntries([{...paper,date:'2026-11-15'}],format),{code:'TIMETABLE_FORMAT_MISMATCH'});
+ assert.throws(()=>validateFormattedEntries([paper,{...paper,id:'y',date:'2026-11-11'}],format),{code:'DUPLICATE_CLASS_PAPER'});
+ assert.equal(timetableFormatSchema.safeParse({...format,startTime:'20:00'}).success,false);assert.equal(timetableFormatSchema.safeParse({...format,weekdays:[]}).success,false);
+ assert.equal(formatSignature(format),formatSignature({...format,weekdays:[5,4,3,2,1]}));
+});
