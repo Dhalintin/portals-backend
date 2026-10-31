@@ -1,3 +1,4 @@
+import {readMarkingScheme,updateMarkingScheme} from '../results/markingScheme';
 import rateLimit from 'express-rate-limit';
 import {readBankAccount,requestBankChange,confirmBankChange} from './bankAccount';
 import {sendSuccess} from '../../lib/http';
@@ -27,6 +28,8 @@ const bankLimit=rateLimit({windowMs:3600000,limit:20,keyGenerator:req=>req.auth!
 schoolsRoutes.get('/bank-account',async(req,res,next)=>{try{sendSuccess(res,await readBankAccount(req.auth!));}catch(e){next(e);}});
 schoolsRoutes.post('/bank-account/request',bankLimit,async(req,res,next)=>{try{sendSuccess(res,await requestBankChange(req.auth!,req.body));}catch(e){next(e);}});
 schoolsRoutes.post('/bank-account/confirm',bankLimit,async(req,res,next)=>{try{sendSuccess(res,await confirmBankChange(req.auth!,req.body));}catch(e){next(e);}});
+schoolsRoutes.get('/marking-scheme',requirePermission('results:read'),async(req,res,next)=>{try{sendSuccess(res,await readMarkingScheme(req.auth!.schoolId!));}catch(error){next(error);}});
+schoolsRoutes.patch('/marking-scheme',requirePermission('settings:write'),async(req,res,next)=>{try{sendSuccess(res,await updateMarkingScheme(req.auth!.schoolId!,req.auth!.userId,req.body));}catch(error){next(error);}});
 schoolsRoutes.get("/", c.get);
 schoolsRoutes.get("/onboarding", requirePermission(PERMISSIONS["settings:write"]), c.onboarding);
 

@@ -1,3 +1,5 @@
+import {AsyncLocalStorage} from 'node:async_hooks';
+import type {Prisma} from '@prisma/client';
 // import { PrismaClient } from "@prisma/client";
 
 // const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
@@ -9,7 +11,7 @@
 //   });
 
 // if (process.env.NODE_ENV !== "production") {
-//   globalForPrisma.prisma = prisma;
+//   globalForPrisma.prisma = client;
 // }
 
 // // src/lib/prisma.ts
@@ -40,8 +42,11 @@ function createPrismaClient() {
   });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+const client = globalForPrisma.prisma ?? createPrismaClient();
+const transactions=new AsyncLocalStorage<Prisma.TransactionClient>();
+export function inPrismaTransaction<T>(tx:Prisma.TransactionClient,work:()=>Promise<T>){return transactions.run(tx,work);}
+export const prisma=new Proxy(client,{get(target,key){const tx=transactions.getStore();if(tx&&key==='$transaction')return (work:((db:Prisma.TransactionClient)=>Promise<unknown>)|Promise<unknown>[])=>typeof work==='function'?work(tx):Promise.all(work);const source=tx??target,value=Reflect.get(source,key);return typeof value==='function'?value.bind(source):value;}});
 
 if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+  globalForPrisma.prisma = client;
 }

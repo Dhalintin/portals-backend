@@ -1,10 +1,12 @@
 "use strict";
-// import { PrismaClient } from "@prisma/client";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.prisma = void 0;
+exports.inPrismaTransaction = inPrismaTransaction;
+const node_async_hooks_1 = require("node:async_hooks");
+// import { PrismaClient } from "@prisma/client";
 // const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 // export const prisma =
 //   globalForPrisma.prisma ??
@@ -12,7 +14,7 @@ exports.prisma = void 0;
 //     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
 //   });
 // if (process.env.NODE_ENV !== "production") {
-//   globalForPrisma.prisma = prisma;
+//   globalForPrisma.prisma = client;
 // }
 // // src/lib/prisma.ts
 const client_1 = require("@prisma/client");
@@ -34,7 +36,11 @@ function createPrismaClient() {
         log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
     });
 }
-exports.prisma = globalForPrisma.prisma ?? createPrismaClient();
+const client = globalForPrisma.prisma ?? createPrismaClient();
+const transactions = new node_async_hooks_1.AsyncLocalStorage();
+function inPrismaTransaction(tx, work) { return transactions.run(tx, work); }
+exports.prisma = new Proxy(client, { get(target, key) { const tx = transactions.getStore(); if (tx && key === '$transaction')
+        return (work) => typeof work === 'function' ? work(tx) : Promise.all(work); const source = tx ?? target, value = Reflect.get(source, key); return typeof value === 'function' ? value.bind(source) : value; } });
 if (process.env.NODE_ENV !== "production") {
-    globalForPrisma.prisma = exports.prisma;
+    globalForPrisma.prisma = client;
 }

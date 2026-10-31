@@ -114,7 +114,8 @@ async function main() {
       // only against the empty database just created in this private cluster.
       await run(process.execPath, [prismaCli, 'db', 'push'], env);
       await run(process.execPath, [tscCli, '--outDir', '.test-build'], env);
-      await run(process.execPath, ['--test', 'tests/postgres.integration.test.cjs'], env);
+      const pattern=process.argv.find(value=>value.startsWith('--pattern='))?.slice('--pattern='.length);
+      await run(process.execPath, ['--test',...(pattern?['--test-name-pattern',pattern]:[]), 'tests/postgres.integration.test.cjs'], env);
     }
   } catch (error) {
     try { console.error((await fs.readFile(logFile, 'utf8')).slice(-4000)); } catch {}

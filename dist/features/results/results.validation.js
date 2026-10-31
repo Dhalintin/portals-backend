@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.listResultsQuerySchema = exports.publishClassTermSchema = exports.transitionResultSchema = exports.bulkScoresByClassSubjectSchema = exports.upsertScoresSchema = exports.scoreEntrySchema = exports.bulkCreateResultSheetsSchema = exports.createResultSheetSchema = exports.entrySheetQuerySchema = exports.upsertGradeScaleSchema = exports.gradeBandSchema = void 0;
+const markingScheme_1 = require("./markingScheme");
 const zod_1 = require("zod");
 const client_1 = require("@prisma/client");
 const resultStatusEnum = zod_1.z.nativeEnum(client_1.ResultStatus, {
@@ -69,12 +70,14 @@ exports.scoreEntrySchema = zod_1.z.object({
         .optional(),
 });
 exports.upsertScoresSchema = zod_1.z.object({
+    schemeId: markingScheme_1.markingSchemeId.optional(),
     resultId: zod_1.z.string().uuid("Please provide a valid ID."),
     scores: zod_1.z
         .array(exports.scoreEntrySchema)
         .min(1, "Please provide at least 1 item(s)."),
 });
 exports.bulkScoresByClassSubjectSchema = zod_1.z.object({
+    schemeId: markingScheme_1.markingSchemeId.optional(),
     termId: zod_1.z.string().uuid("Please provide a valid ID."),
     classId: zod_1.z.string().uuid("Please provide a valid ID."),
     subjectId: zod_1.z.string().uuid("Please provide a valid ID."),

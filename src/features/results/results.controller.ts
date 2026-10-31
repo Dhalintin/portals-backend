@@ -109,7 +109,8 @@ export class ResultsController {
         input.resultId,
         input.scores,
         req.auth!.userId,
-        { requestId: req.requestId }
+        { requestId: req.requestId },
+        input.schemeId
       );
       sendSuccess(res, data);
     } catch (err) {

@@ -28,8 +28,14 @@ export function validateFormattedEntries(entries:ExamEntry[],format:TimetableFor
  const subjects=new Set<string>();
  for(const entry of entries){if(entry.date<format.startDate||!format.weekdays.includes(new Date(entry.date+'T00:00:00Z').getUTCDay())||!slots.includes(entry.startTime+'-'+entry.endTime))throw new AppError(400,'TIMETABLE_FORMAT_MISMATCH','Each paper must use an allowed day and paper slot. Breaks are reserved.');const key=entry.classId+':'+entry.subjectId;if(subjects.has(key))throw new AppError(400,'DUPLICATE_CLASS_PAPER','A subject can appear only once per class in this timetable.');subjects.add(key);}
 }
+export const timetableGroupsSchema=z.array(z.object({id:z.string().uuid(),name:z.string().trim().min(1).max(80),classIds:z.array(z.string().uuid()).min(1).max(500),format:timetableFormatSchema}).strict()).max(50).superRefine((groups,ctx)=>{
+ const ids=new Set<string>(),names=new Set<string>(),classes=new Set<string>();
+ for(const group of groups){if(ids.has(group.id)||names.has(group.name.toLowerCase()))ctx.addIssue({code:'custom',message:'Each timetable group needs a unique name and ID'});ids.add(group.id);names.add(group.name.toLowerCase());for(const id of group.classIds){if(classes.has(id))ctx.addIssue({code:'custom',message:'A class can belong to only one timetable group'});classes.add(id);}}
+});
+export type TimetableGroup=z.infer<typeof timetableGroupsSchema>[number];
+export const groupsSignature=(groups:TimetableGroup[])=>JSON.stringify([...groups].sort((a,b)=>a.id.localeCompare(b.id)).map(group=>[group.id,group.name,[...group.classIds].sort(),formatSignature(group.format)]));
 export const saveTimetableSchema = z.object({
-  termId: z.string().uuid(), kind:assessmentKindSchema, format:timetableFormatSchema.nullable().optional(), expectedVersion: z.number().int().nonnegative(),
+  termId: z.string().uuid(), kind:assessmentKindSchema, format:timetableFormatSchema.nullable().optional(), groups:timetableGroupsSchema.optional(), expectedVersion: z.number().int().nonnegative(),
   title: z.string().trim().min(1).max(120), entries: z.array(examEntrySchema).max(500),
 }).strict().refine(input => new Set(input.entries.map(entry => entry.id)).size === input.entries.length, 'Each exam row needs a unique ID');
 export const timetableVersionSchema = z.object({ termId: z.string().uuid(), kind:assessmentKindSchema, expectedVersion: z.number().int().positive() }).strict();

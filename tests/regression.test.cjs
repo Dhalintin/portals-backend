@@ -188,6 +188,7 @@ test('partial score edits retain old components and decimal marks receive the co
   fakeTransactions(); allowTeacher();
   mock.method(prisma.result, 'findFirst', async () => ({ id: 'result-a', classId: 'class-a', status: 'DRAFT' }));
   mock.method(prisma.gradeScale, 'findFirst', async () => null);
+  mock.method(prisma.term,'findFirst',async()=>({id:'term-a',markingScheme:'CA20_20_EXAM60'}));
   mock.method(prisma.score, 'findUnique', async () => ({ ca1: 10, ca2: 15, exam: 40 }));
   const save = mock.method(prisma.score, 'upsert', async input => input.update);
   mock.method(prisma.score, 'findMany', async () => [{ total: 69.5 }]);
@@ -279,6 +280,7 @@ test('score edits above 100 are rejected before persisting', async () => {
   fakeTransactions(); allowTeacher();
   mock.method(prisma.result, 'findFirst', async () => ({ id: 'result-a', classId: 'class-a', status: 'DRAFT' }));
   mock.method(prisma.gradeScale, 'findFirst', async () => null);
+  mock.method(prisma.term,'findFirst',async()=>({id:'term-a',markingScheme:'CA20_20_EXAM60'}));
   mock.method(prisma.score, 'findUnique', async () => ({ ca1: 20, ca2: 20, exam: 50 }));
   const save = mock.method(prisma.score, 'upsert', async () => assert.fail('Invalid total persisted'));
   await assert.rejects(resultsService.upsertScores('school-a', 'result-a', [{ subjectId: 'subject-a', exam: 70 }], 'teacher-a'), { code: 'INVALID_SCORE' });
@@ -339,7 +341,7 @@ test('proxy trust accepts explicit networks and refuses blanket trust or hop cou
 
 test('read-only entry sheets include unmarked students and scope all reads to school, term and subject',async()=>{
  allowTeacher();
- mock.method(prisma.term,'findFirst',async query=>{assert.deepEqual(query.where,{id:'term-a',session:{organizationId:'school-a'}});return {id:'term-a'};});
+ mock.method(prisma.term,'findFirst',async query=>{assert.deepEqual(query.where,{id:'term-a',session:{organizationId:'school-a'}});return {id:'term-a',markingScheme:'CA20_20_EXAM60'};});
  mock.method(prisma.subject,'findFirst',async query=>{assert.deepEqual(query.where,{id:'subject-a',organizationId:'school-a',isActive:true});return {id:'subject-a',name:'Math',code:null};});
  mock.method(prisma.student,'findMany',async query=>{assert.deepEqual(query.where,{organizationId:'school-a',classId:'class-a',isActive:true});assert.deepEqual(query.select.results.where,{organizationId:'school-a',termId:'term-a'});assert.deepEqual(query.select.results.select.scores.where,{subjectId:'subject-a'});return [{id:'student-a',firstName:'Ada',lastName:'Obi',otherNames:null,admissionNumber:'A1',results:[]},{id:'student-b',firstName:'Ben',lastName:'Obi',results:[{id:'result-b',status:'SUBMITTED',scores:[{id:'score-b',ca1:10,ca2:20,exam:40,total:70,grade:'A',remark:'Good'}]}]}];});
  const sheet=await resultsService.entrySheet('school-a','teacher-a',{classId:'class-a',termId:'term-a',subjectId:'subject-a'});
@@ -554,3 +556,9 @@ test('daily timetable formats reserve breaks and reject invalid days, repeated p
  assert.equal(timetableFormatSchema.safeParse({...format,startTime:'20:00'}).success,false);assert.equal(timetableFormatSchema.safeParse({...format,weekdays:[]}).success,false);
  assert.equal(formatSignature(format),formatSignature({...format,weekdays:[5,4,3,2,1]}));
 });
+
+
+const {schemeDetails,validateSchemeMarks}=require('../.test-build/features/results/markingScheme');
+test('both marking schemes validate each component, including decimals and empty marks',()=>{assert.deepEqual(schemeDetails('CA15_15_EXAM70'),{id:'CA15_15_EXAM70',ca1:15,ca2:15,exam:70});validateSchemeMarks('CA15_15_EXAM70',{ca1:14.5,ca2:null,exam:70});for(const value of [{ca1:16},{ca2:16},{exam:71},{exam:Infinity}])assert.throws(()=>validateSchemeMarks('CA15_15_EXAM70',value),{code:'INVALID_SCORE'});assert.throws(()=>validateSchemeMarks('CA20_20_EXAM60',{exam:61}),{code:'INVALID_SCORE'});});
+
+test('timetable groups reject duplicate names, overlapping classes and invalid formats',()=>{const {timetableGroupsSchema,groupsSignature}=require('../.test-build/features/exams/exams.validation');const format={startDate:'2026-11-10',startTime:'08:00',papersPerDay:3,paperMinutes:120,breakAfter:1,breakMinutes:30,weekdays:[1,2,3,4,5]},a={id:crypto.randomUUID(),name:'Junior',classIds:[crypto.randomUUID()],format},b={id:crypto.randomUUID(),name:'Senior',classIds:[crypto.randomUUID()],format};assert.equal(timetableGroupsSchema.safeParse([a,b]).success,true);assert.equal(timetableGroupsSchema.safeParse([a,{...b,classIds:a.classIds}]).success,false);assert.equal(timetableGroupsSchema.safeParse([a,{...b,name:'junior'}]).success,false);assert.equal(timetableGroupsSchema.safeParse([{...a,classIds:[]}]).success,false);assert.equal(groupsSignature([a,b]),groupsSignature([b,a]));});

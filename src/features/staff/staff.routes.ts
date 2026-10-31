@@ -34,10 +34,10 @@ staffRoutes.get("/me/assignments", requireStaff, async (req, res, next) => {
   try {
     const organizationId = req.auth!.schoolId!, userId = req.auth!.userId;
     const [classes, subjects] = await Promise.all([
-      prisma.class.findMany({ where: { organizationId, isActive: true, classTeacherId: userId }, orderBy: { name: "asc" } }),
-      prisma.classSubjectTeacher.findMany({ where: { organizationId, userId, class: { isActive: true }, subject: { isActive: true } }, include: { class: true, subject: true } }),
+      prisma.class.findMany({ where: { organizationId, isActive: true, classTeacherId: userId }, orderBy: { name: "asc" }, include:{_count:{select:{students:{where:{isActive:true}}}}} }),
+      prisma.classSubjectTeacher.findMany({ where: { organizationId, userId, class: { isActive: true }, subject: { isActive: true } }, include: { class: {include:{_count:{select:{students:{where:{isActive:true}}}}}}, subject: true } }),
     ]);
-    sendSuccess(res, { classTeacherOf: classes.map(c => ({ id: c.id, name: c.name, arm: c.arm })), assignments: subjects.map(a => ({ classId: a.classId, className: a.class.name, classArm: a.class.arm, subjectId: a.subjectId, subjectName: a.subject.name })) });
+    sendSuccess(res, { classTeacherOf: classes.map(c => ({ id: c.id, name: c.name, arm: c.arm,studentCount:c._count.students })), assignments: subjects.map(a => ({ classId: a.classId, className: a.class.name, classArm: a.class.arm, subjectId: a.subjectId, subjectName: a.subject.name,studentCount:a.class._count.students })) });
   } catch (error) { next(error); }
 });
 staffRoutes.get("/", requireStaffManager, requirePermission("staff:read"), c.list);

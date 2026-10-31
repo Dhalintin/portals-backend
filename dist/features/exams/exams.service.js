@@ -29,16 +29,23 @@ async function requireExamPermission(db, organizationId, actorId, permission) {
 async function curriculum(db, organizationId) {
     return db.classSubject.findMany({ where: { organizationId, class: { organizationId, isActive: true }, subject: { organizationId, isActive: true } }, select: { classId: true, subjectId: true, class: { select: { name: true, arm: true } }, subject: { select: { name: true } } } });
 }
-async function validateEntries(db, organizationId, term, entries, format) {
+async function validateEntries(db, organizationId, term, entries, format, groups = []) {
     if (!term.startDate || !term.endDate)
         throw new errors_1.AppError(400, 'TERM_DATES_REQUIRED', 'Ask the school administrator to set this term’s start and end dates first.');
-    if (format) {
-        if (format.startDate < term.startDate.toISOString().slice(0, 10) || format.startDate > term.endDate.toISOString().slice(0, 10))
-            throw new errors_1.AppError(400, 'EXAM_OUTSIDE_TERM', 'The timetable start date must be within the term');
-        (0, exams_validation_1.validateFormattedEntries)(entries, format);
-    }
+    const formats = [...(format ? [format] : []), ...groups.map(group => group.format)];
+    for (const f of formats)
+        if (f.startDate < term.startDate.toISOString().slice(0, 10) || f.startDate > term.endDate.toISOString().slice(0, 10))
+            throw new errors_1.AppError(400, 'EXAM_OUTSIDE_TERM', 'Every group start date must be within the term');
+    const grouped = new Set(groups.flatMap(group => group.classIds));
+    if (format)
+        (0, exams_validation_1.validateFormattedEntries)(entries.filter(entry => !grouped.has(entry.classId)), format);
+    for (const group of groups)
+        (0, exams_validation_1.validateFormattedEntries)(entries.filter(entry => group.classIds.includes(entry.classId)), group.format);
     const start = term.startDate.toISOString().slice(0, 10), end = term.endDate.toISOString().slice(0, 10);
     const links = await curriculum(db, organizationId);
+    const available = new Set(links.map(link => link.classId));
+    if (groups.some(group => group.classIds.some(id => !available.has(id))))
+        throw new errors_1.AppError(400, 'INVALID_TIMETABLE_GROUP', 'Choose active classes with assigned subjects from this school.');
     const options = new Map(links.map(link => [link.classId + ':' + link.subjectId, link]));
     const enriched = entries.map(entry => {
         const linked = options.get(entry.classId + ':' + entry.subjectId);
@@ -55,7 +62,7 @@ async function audit(db, organizationId, actorId, id, operation, version) {
     await db.auditLog.create({ data: { organizationId, actorId, action: 'SETTINGS_CHANGED', entity: 'ExamTimetable', entityId: id, metadata: { operation, version } } });
 }
 function draftView(row) {
-    return { kind: row?.kind ?? 'EXAM', format: row?.format ? exams_validation_1.timetableFormatSchema.parse(row.format) : null, title: row?.title ?? 'Exam timetable', entries: (row?.entries ?? []), version: row?.version ?? 0, updatedAt: row?.updatedAt ?? null,
+    return { groups: exams_validation_1.timetableGroupsSchema.parse(row?.groups ?? []), kind: row?.kind ?? 'EXAM', format: row?.format ? exams_validation_1.timetableFormatSchema.parse(row.format) : null, title: row?.title ?? 'Exam timetable', entries: (row?.entries ?? []), version: row?.version ?? 0, updatedAt: row?.updatedAt ?? null,
         published: row?.publishedSnapshot ? { ...row.publishedSnapshot, publishedAt: row.publishedAt, version: row.publishedVersion } : null,
         hasUnpublishedChanges: !!row?.publishedSnapshot && row.publishedVersion !== row.version };
 }
@@ -78,17 +85,18 @@ async function saveExamTimetable(organizationId, actorId, raw) {
         await requireExamPermission(db, organizationId, actorId, 'exams:write');
         const current = await db.examTimetable.findUnique({ where: timetableKey(organizationId, input.termId, input.kind) });
         const format = input.format === undefined ? (current?.format ? exams_validation_1.timetableFormatSchema.parse(current.format) : null) : input.format;
+        const groups = input.groups ?? exams_validation_1.timetableGroupsSchema.parse(current?.groups ?? []);
         if ((current?.version ?? 0) !== input.expectedVersion) {
             // Recover a committed save after a lost response without advancing its version again.
-            if (current?.title === input.title && (0, exams_validation_1.formatSignature)(current.format ? exams_validation_1.timetableFormatSchema.parse(current.format) : null) === (0, exams_validation_1.formatSignature)(format) && (0, exams_validation_1.examEntriesSignature)(current.entries) === (0, exams_validation_1.examEntriesSignature)(input.entries))
+            if (current?.title === input.title && (0, exams_validation_1.groupsSignature)(exams_validation_1.timetableGroupsSchema.parse(current.groups ?? [])) === (0, exams_validation_1.groupsSignature)(groups) && (0, exams_validation_1.formatSignature)(current.format ? exams_validation_1.timetableFormatSchema.parse(current.format) : null) === (0, exams_validation_1.formatSignature)(format) && (0, exams_validation_1.examEntriesSignature)(current.entries) === (0, exams_validation_1.examEntriesSignature)(input.entries))
                 return draftView(current);
             throw new errors_1.AppError(409, 'TIMETABLE_CHANGED', 'This timetable changed in another tab. Reload the saved draft before replacing it. Your device draft is retained.');
         }
         const term = await loadTerm(db, organizationId, input.termId);
         if (!term)
             throw new errors_1.AppError(404, 'TERM_NOT_FOUND', 'Term not found');
-        await validateEntries(db, organizationId, term, input.entries, format);
-        const data = { format: format ?? client_1.Prisma.DbNull, title: input.title, entries: input.entries, version: (current?.version ?? 0) + 1 };
+        await validateEntries(db, organizationId, term, input.entries, format, groups);
+        const data = { groups: groups, format: format ?? client_1.Prisma.DbNull, title: input.title, entries: input.entries, version: (current?.version ?? 0) + 1 };
         const saved = current ? await db.examTimetable.update({ where: { id: current.id }, data }) : await db.examTimetable.create({ data: { organizationId, termId: input.termId, kind: input.kind, ...data } });
         await audit(db, organizationId, actorId, saved.id, 'EXAM_TIMETABLE_SAVED', saved.version);
         return draftView(saved);
@@ -120,7 +128,8 @@ async function publishExamTimetable(organizationId, actorId, raw, withdraw = fal
             if (!term)
                 throw new errors_1.AppError(404, 'TERM_NOT_FOUND', 'Term not found');
             const format = current.format ? exams_validation_1.timetableFormatSchema.parse(current.format) : null;
-            snapshot = { title: current.title, format, entries: await validateEntries(db, organizationId, term, entries, format) };
+            const groups = exams_validation_1.timetableGroupsSchema.parse(current.groups ?? []);
+            snapshot = { title: current.title, format, groups, entries: await validateEntries(db, organizationId, term, entries, format, groups) };
         }
         const saved = await db.examTimetable.update({ where: { id: current.id }, data: { version, publishedVersion: withdraw ? null : version, publishedAt: withdraw ? null : new Date(), publishedSnapshot: snapshot ? snapshot : client_1.Prisma.DbNull } });
         await audit(db, organizationId, actorId, saved.id, withdraw ? 'EXAM_TIMETABLE_WITHDRAWN' : 'EXAM_TIMETABLE_PUBLISHED', version);
@@ -144,5 +153,5 @@ async function getPublishedExams(auth, raw) {
     const snapshot = row?.publishedSnapshot;
     const visibleClasses = await prisma_1.prisma.class.findMany({ where: { organizationId, isActive: true, ...(auth.orgRole === 'PARENT' ? { id: parentClassId ?? '__none__' } : (0, resourceAccess_1.teachingClassFilter)(auth)) }, select: { id: true } });
     const classIds = new Set(visibleClasses.map(schoolClass => schoolClass.id));
-    return { kind: query.kind, format: snapshot?.format ?? null, term: termView(term), title: snapshot?.title ?? (query.kind === 'TEST' ? 'Test timetable' : 'Exam timetable'), publishedAt: row?.publishedAt ?? null, entries: snapshot?.entries.filter(entry => classIds.has(entry.classId)) ?? [] };
+    return { groups: (snapshot?.groups ?? []).map(group => ({ ...group, classIds: group.classIds.filter(id => classIds.has(id)) })).filter(group => group.classIds.length), kind: query.kind, format: snapshot?.format ?? null, term: termView(term), title: snapshot?.title ?? (query.kind === 'TEST' ? 'Test timetable' : 'Exam timetable'), publishedAt: row?.publishedAt ?? null, entries: snapshot?.entries.filter(entry => classIds.has(entry.classId)) ?? [] };
 }

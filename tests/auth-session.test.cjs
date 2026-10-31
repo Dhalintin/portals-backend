@@ -119,6 +119,8 @@ test('session issuance stores only a refresh-token hash and binds access tokens 
   const accessClaims = verifyAccessToken(tokens.accessToken);
   const refreshClaims = verifyRefreshToken(tokens.refreshToken);
   const session = state.sessions.get(accessClaims.sid);
+  assert.equal(tokens.sessionExpiresAt, session.expiresAt.toISOString());
+  assert.equal(Date.parse(tokens.sessionExpiresAt), refreshClaims.exp * 1000);
   assert.equal(session.refreshTokenHash, sha256(tokens.refreshToken));
   assert.notEqual(session.refreshTokenHash, tokens.refreshToken);
   assert.equal(refreshClaims.sid, accessClaims.sid);
@@ -134,6 +136,7 @@ test('refresh rotates the token with a new jti and preserves the absolute sessio
   state.role = 'BURSAR';
   const second = await authSessions.refresh(first.refreshToken);
   const after = verifyRefreshToken(second.refreshToken);
+  assert.equal(second.sessionExpiresAt, first.sessionExpiresAt);
   assert.notEqual(second.refreshToken, first.refreshToken);
   assert.notEqual(after.jti, before.jti);
   assert.equal(after.sid, before.sid); assert.equal(after.exp, before.exp);

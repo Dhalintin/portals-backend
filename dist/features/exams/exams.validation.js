@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.publishedQuerySchema = exports.timetableVersionSchema = exports.saveTimetableSchema = exports.timetableFormatSchema = exports.assessmentKindSchema = exports.examEntrySchema = void 0;
+exports.publishedQuerySchema = exports.timetableVersionSchema = exports.saveTimetableSchema = exports.groupsSignature = exports.timetableGroupsSchema = exports.timetableFormatSchema = exports.assessmentKindSchema = exports.examEntrySchema = void 0;
 exports.formatSignature = formatSignature;
 exports.validateFormattedEntries = validateFormattedEntries;
 exports.examEntriesSignature = examEntriesSignature;
@@ -47,8 +47,24 @@ function validateFormattedEntries(entries, format) {
         subjects.add(key);
     }
 }
+exports.timetableGroupsSchema = zod_1.z.array(zod_1.z.object({ id: zod_1.z.string().uuid(), name: zod_1.z.string().trim().min(1).max(80), classIds: zod_1.z.array(zod_1.z.string().uuid()).min(1).max(500), format: exports.timetableFormatSchema }).strict()).max(50).superRefine((groups, ctx) => {
+    const ids = new Set(), names = new Set(), classes = new Set();
+    for (const group of groups) {
+        if (ids.has(group.id) || names.has(group.name.toLowerCase()))
+            ctx.addIssue({ code: 'custom', message: 'Each timetable group needs a unique name and ID' });
+        ids.add(group.id);
+        names.add(group.name.toLowerCase());
+        for (const id of group.classIds) {
+            if (classes.has(id))
+                ctx.addIssue({ code: 'custom', message: 'A class can belong to only one timetable group' });
+            classes.add(id);
+        }
+    }
+});
+const groupsSignature = (groups) => JSON.stringify([...groups].sort((a, b) => a.id.localeCompare(b.id)).map(group => [group.id, group.name, [...group.classIds].sort(), formatSignature(group.format)]));
+exports.groupsSignature = groupsSignature;
 exports.saveTimetableSchema = zod_1.z.object({
-    termId: zod_1.z.string().uuid(), kind: exports.assessmentKindSchema, format: exports.timetableFormatSchema.nullable().optional(), expectedVersion: zod_1.z.number().int().nonnegative(),
+    termId: zod_1.z.string().uuid(), kind: exports.assessmentKindSchema, format: exports.timetableFormatSchema.nullable().optional(), groups: exports.timetableGroupsSchema.optional(), expectedVersion: zod_1.z.number().int().nonnegative(),
     title: zod_1.z.string().trim().min(1).max(120), entries: zod_1.z.array(exports.examEntrySchema).max(500),
 }).strict().refine(input => new Set(input.entries.map(entry => entry.id)).size === input.entries.length, 'Each exam row needs a unique ID');
 exports.timetableVersionSchema = zod_1.z.object({ termId: zod_1.z.string().uuid(), kind: exports.assessmentKindSchema, expectedVersion: zod_1.z.number().int().positive() }).strict();

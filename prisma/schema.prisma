@@ -209,7 +209,14 @@ model PasswordResetToken {
 // ORGANIZATION (school) — brand + public website KEPT
 // ═══════════════════════════════════════════════════════════
 
+enum MarkingScheme {
+  CA20_20_EXAM60
+  CA15_15_EXAM70
+}
+
 model Organization {
+  offlineOperations OfflineOperation[]
+  markingScheme MarkingScheme @default(CA20_20_EXAM60)
   examTimetables ExamTimetable[]
   id           String   @id @default(uuid())
   name         String
@@ -361,6 +368,7 @@ model AcademicSession {
 }
 
 model Term {
+  markingScheme MarkingScheme?
   examTimetables ExamTimetable[]
   id        String    @id @default(uuid())
   sessionId String
@@ -1055,6 +1063,7 @@ model ExamTimetable {
   termId String
   kind String @default("EXAM")
   format Json?
+  groups Json?
   title String @default("Exam timetable")
   entries Json @default("[]")
   version Int @default(1)
@@ -1066,4 +1075,16 @@ model ExamTimetable {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   term Term @relation(fields: [termId], references: [id], onDelete: Cascade)
   @@unique([organizationId, termId, kind])
+}
+
+model OfflineOperation {
+ id String @id
+ organizationId String
+ actorId String
+ requestHash String
+ response Json
+ status Int
+ createdAt DateTime @default(now())
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+ @@index([organizationId,actorId])
 }

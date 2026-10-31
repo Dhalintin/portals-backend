@@ -1,3 +1,4 @@
+import {markingSchemeId} from './markingScheme';
 import { z } from "zod";
 
 import { ResultStatus } from "@prisma/client";
@@ -87,6 +88,7 @@ export const scoreEntrySchema = z.object({
 });
 
 export const upsertScoresSchema = z.object({
+  schemeId: markingSchemeId.optional(),
   resultId: z.string().uuid("Please provide a valid ID."),
 
   scores: z
@@ -95,6 +97,7 @@ export const upsertScoresSchema = z.object({
 });
 
 export const bulkScoresByClassSubjectSchema = z.object({
+  schemeId: markingSchemeId.optional(),
   termId: z.string().uuid("Please provide a valid ID."),
 
   classId: z.string().uuid("Please provide a valid ID."),

@@ -41,6 +41,7 @@ function issueTokens(user, membership, school, sessionId, expiresAt) {
         accessToken, refreshToken, tokenType: "Bearer",
         user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, avatarUrl: user.avatarUrl, globalRole: user.globalRole },
         school, orgRole, orgRoles, permissions,
+        sessionExpiresAt: new Date((0, jwt_1.verifyRefreshToken)(refreshToken).exp * 1000).toISOString(),
     };
 }
 class AuthSessions {

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.resultsService = exports.ResultsService = void 0;
+const markingScheme_1 = require("./markingScheme");
 const prisma_1 = require("../../lib/prisma");
 const errors_1 = require("../../lib/errors");
 const resourceAccess_1 = require("../../auth/resourceAccess");
@@ -29,14 +30,14 @@ function gradeFromBands(total, bands) {
 class ResultsService {
     async entrySheet(organizationId, actorId, input) {
         await (0, resourceAccess_1.assertTeachingAccess)(organizationId, actorId, input.classId, input.subjectId);
-        const term = await prisma_1.prisma.term.findFirst({ where: { id: input.termId, session: { organizationId } }, select: { id: true } });
+        const term = await prisma_1.prisma.term.findFirst({ where: { id: input.termId, session: { organizationId } }, select: { id: true, markingScheme: true, session: { select: { organization: { select: { markingScheme: true } } } } } });
         if (!term)
             throw new errors_1.AppError(404, "TERM_NOT_FOUND", "Term not found");
         const subject = await prisma_1.prisma.subject.findFirst({ where: { id: input.subjectId, organizationId, isActive: true }, select: { id: true, name: true, code: true } });
         if (!subject)
             throw new errors_1.AppError(404, "SUBJECT_NOT_FOUND", "Subject not found");
         const students = await prisma_1.prisma.student.findMany({ where: { organizationId, classId: input.classId, isActive: true }, orderBy: [{ lastName: "asc" }, { firstName: "asc" }], select: { id: true, firstName: true, lastName: true, otherNames: true, admissionNumber: true, results: { where: { organizationId, termId: input.termId }, select: { id: true, status: true, scores: { where: { subjectId: input.subjectId }, select: { id: true, ca1: true, ca2: true, exam: true, total: true, grade: true, remark: true } } } } } });
-        return { ...input, subject, students: students.map(student => { const result = student.results[0], score = result?.scores[0]; return { studentId: student.id, firstName: student.firstName, lastName: student.lastName, otherNames: student.otherNames, admissionNumber: student.admissionNumber, resultId: result?.id ?? null, status: result?.status ?? "DRAFT", scoreId: score?.id ?? null, ca1: score?.ca1 ?? null, ca2: score?.ca2 ?? null, exam: score?.exam ?? null, total: score?.total ?? null, grade: score?.grade ?? null, remark: score?.remark ?? null }; }) };
+        return { ...input, markingScheme: (0, markingScheme_1.schemeDetails)(term.markingScheme ?? term.session.organization.markingScheme), subject, students: students.map(student => { const result = student.results[0], score = result?.scores[0]; return { studentId: student.id, firstName: student.firstName, lastName: student.lastName, otherNames: student.otherNames, admissionNumber: student.admissionNumber, resultId: result?.id ?? null, status: result?.status ?? "DRAFT", scoreId: score?.id ?? null, ca1: score?.ca1 ?? null, ca2: score?.ca2 ?? null, exam: score?.exam ?? null, total: score?.total ?? null, grade: score?.grade ?? null, remark: score?.remark ?? null }; }) };
     }
     // ─── Grade Scale ───────────────────────────────────────────────
     async getGradeScale(organizationId) {
@@ -163,7 +164,7 @@ class ResultsService {
         return { count: created.length, results: created };
     }
     // ─── Scores ────────────────────────────────────────────────────
-    async upsertScores(organizationId, resultId, scores, actorId, meta) {
+    async upsertScores(organizationId, resultId, scores, actorId, meta, expectedSchemeId) {
         const result = await prisma_1.prisma.result.findFirst({
             where: { id: resultId, organizationId },
         });
@@ -183,13 +184,17 @@ class ResultsService {
             const current = await tx.result.findFirst({ where: { id: resultId, organizationId } });
             if (!current || current.status !== "DRAFT")
                 throw new errors_1.AppError(409, "LOCKED", "Result is no longer editable");
+            const schemeId = await (0, markingScheme_1.termScheme)(tx, organizationId, current.termId, true);
+            if (expectedSchemeId && expectedSchemeId !== schemeId)
+                throw new errors_1.AppError(409, 'MARKING_SCHEME_CHANGED', 'The marking scheme changed. Reconnect and refresh the score sheet before saving. Your device draft is retained.');
             const out = [];
             for (const entry of scores) {
                 await (0, resourceAccess_1.assertSubjectTeacher)(organizationId, actorId, current.classId, entry.subjectId, tx);
                 const previous = await tx.score.findUnique({ where: { resultId_subjectId: { resultId, subjectId: entry.subjectId } } });
-                const ca1 = entry.ca1 === undefined ? previous?.ca1 ?? 0 : entry.ca1 ?? 0;
-                const ca2 = entry.ca2 === undefined ? previous?.ca2 ?? 0 : entry.ca2 ?? 0;
-                const exam = entry.exam === undefined ? previous?.exam ?? 0 : entry.exam ?? 0;
+                const ca1 = entry.ca1 === undefined ? previous?.ca1 ?? null : entry.ca1;
+                const ca2 = entry.ca2 === undefined ? previous?.ca2 ?? null : entry.ca2;
+                const exam = entry.exam === undefined ? previous?.exam ?? null : entry.exam;
+                (0, markingScheme_1.validateSchemeMarks)(schemeId, { ca1, ca2, exam });
                 const total = computeTotal(ca1, ca2, exam);
                 if (total > 100)
                     throw new errors_1.AppError(400, "INVALID_SCORE", "CA and exam total cannot exceed 100");
@@ -204,9 +209,9 @@ class ResultsService {
                     create: {
                         resultId,
                         subjectId: entry.subjectId,
-                        ca1: entry.ca1 ?? 0,
-                        ca2: entry.ca2 ?? 0,
-                        exam: entry.exam ?? 0,
+                        ca1,
+                        ca2,
+                        exam,
                         total,
                         grade,
                         remark: entry.remark ?? bandRemark ?? null,
@@ -258,6 +263,9 @@ class ResultsService {
         });
         if (studentCount !== studentIds.length)
             throw new errors_1.AppError(400, "INVALID_STUDENT", "All students must belong to this class");
+        await (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => { const id = await (0, markingScheme_1.termScheme)(tx, organizationId, input.termId); if (input.schemeId && input.schemeId !== id)
+            throw new errors_1.AppError(409, 'MARKING_SCHEME_CHANGED', 'The marking scheme changed. Refresh the score sheet before saving.'); for (const entry of input.entries)
+            (0, markingScheme_1.validateSchemeMarks)(id, entry); });
         const results = [];
         for (const entry of input.entries) {
             const sheet = await this.getOrCreateResultSheet(organizationId, entry.studentId, input.termId, input.classId);
@@ -269,7 +277,7 @@ class ResultsService {
                     exam: entry.exam,
                     remark: entry.remark,
                 },
-            ], actorId, meta);
+            ], actorId, meta, input.schemeId);
             results.push(updated);
         }
         return { count: results.length, results };
@@ -376,7 +384,7 @@ class ResultsService {
                     },
                 },
                 term: {
-                    select: { id: true, name: true, session: { select: { name: true } } },
+                    select: { id: true, name: true, markingScheme: true, session: { select: { name: true } } },
                 },
                 class: { select: { id: true, name: true, arm: true } },
                 scores: {
@@ -456,7 +464,7 @@ class ResultsService {
                     },
                 },
                 term: {
-                    select: { id: true, name: true, session: { select: { name: true } } },
+                    select: { id: true, name: true, markingScheme: true, session: { select: { name: true } } },
                 },
                 class: { select: { id: true, name: true, arm: true } },
                 scores: {

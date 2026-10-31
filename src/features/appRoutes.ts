@@ -1,3 +1,4 @@
+import {offlineOperation} from '../middlewares/offlineOperation';
 import examRoutes from "./exams/exams.routes";
 import express from "express";
 import { errorHandler } from "../common/middleware/errorHandler";
@@ -38,6 +39,7 @@ appRouter.get("/health/ready", async (_req, res) => {
 appRouter.use("/auth", authRoutes);
 appRouter.use("/public", publicLimiter, publicRoutes);
 appRouter.use(apiLimiter);
+appRouter.use(offlineOperation);
 appRouter.use("/memberships", membershipRoutes);
 appRouter.use("/schools", schoolRoutes);
 appRouter.use("/academic", academicRoutes);

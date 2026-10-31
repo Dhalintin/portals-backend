@@ -1,3 +1,4 @@
+import {schemeDetails,termScheme,validateSchemeMarks} from './markingScheme';
 import type { Prisma, ResultStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
@@ -50,12 +51,12 @@ function gradeFromBands(
 export class ResultsService {
   async entrySheet(organizationId: string, actorId: string, input: {classId:string;termId:string;subjectId:string}) {
     await assertTeachingAccess(organizationId, actorId, input.classId, input.subjectId);
-    const term = await prisma.term.findFirst({where:{id:input.termId,session:{organizationId}},select:{id:true}});
+    const term = await prisma.term.findFirst({where:{id:input.termId,session:{organizationId}},select:{id:true,markingScheme:true,session:{select:{organization:{select:{markingScheme:true}}}}}});
     if(!term) throw new AppError(404, "TERM_NOT_FOUND", "Term not found");
     const subject = await prisma.subject.findFirst({where:{id:input.subjectId,organizationId,isActive:true},select:{id:true,name:true,code:true}});
     if(!subject) throw new AppError(404, "SUBJECT_NOT_FOUND", "Subject not found");
     const students = await prisma.student.findMany({where:{organizationId,classId:input.classId,isActive:true},orderBy:[{lastName:"asc"},{firstName:"asc"}],select:{id:true,firstName:true,lastName:true,otherNames:true,admissionNumber:true,results:{where:{organizationId,termId:input.termId},select:{id:true,status:true,scores:{where:{subjectId:input.subjectId},select:{id:true,ca1:true,ca2:true,exam:true,total:true,grade:true,remark:true}}}}}});
-    return {...input,subject,students:students.map(student=>{const result=student.results[0],score=result?.scores[0];return {studentId:student.id,firstName:student.firstName,lastName:student.lastName,otherNames:student.otherNames,admissionNumber:student.admissionNumber,resultId:result?.id??null,status:result?.status??"DRAFT",scoreId:score?.id??null,ca1:score?.ca1??null,ca2:score?.ca2??null,exam:score?.exam??null,total:score?.total??null,grade:score?.grade??null,remark:score?.remark??null};})};
+    return {...input,markingScheme:schemeDetails(term.markingScheme??term.session.organization.markingScheme),subject,students:students.map(student=>{const result=student.results[0],score=result?.scores[0];return {studentId:student.id,firstName:student.firstName,lastName:student.lastName,otherNames:student.otherNames,admissionNumber:student.admissionNumber,resultId:result?.id??null,status:result?.status??"DRAFT",scoreId:score?.id??null,ca1:score?.ca1??null,ca2:score?.ca2??null,exam:score?.exam??null,total:score?.total??null,grade:score?.grade??null,remark:score?.remark??null};})};
   }
 
   // ─── Grade Scale ───────────────────────────────────────────────
@@ -224,7 +225,8 @@ export class ResultsService {
     resultId: string,
     scores: ScoreEntryInput[],
     actorId: string,
-    meta?: { requestId?: string }
+    meta?: { requestId?: string },
+    expectedSchemeId?: import('@prisma/client').MarkingScheme
   ) {
     const result = await prisma.result.findFirst({
       where: { id: resultId, organizationId },
@@ -244,13 +246,16 @@ export class ResultsService {
     const updatedScores = await schoolTransaction(organizationId, async (tx) => {
       const current = await tx.result.findFirst({ where: { id: resultId, organizationId } });
       if (!current || current.status !== "DRAFT") throw new AppError(409, "LOCKED", "Result is no longer editable");
+      const schemeId=await termScheme(tx,organizationId,current.termId,true);
+      if(expectedSchemeId&&expectedSchemeId!==schemeId)throw new AppError(409,'MARKING_SCHEME_CHANGED','The marking scheme changed. Reconnect and refresh the score sheet before saving. Your device draft is retained.');
       const out = [];
       for (const entry of scores) {
         await assertSubjectTeacher(organizationId, actorId, current.classId!, entry.subjectId, tx);
         const previous = await tx.score.findUnique({ where: { resultId_subjectId: { resultId, subjectId: entry.subjectId } } });
-        const ca1 = entry.ca1 === undefined ? previous?.ca1 ?? 0 : entry.ca1 ?? 0;
-        const ca2 = entry.ca2 === undefined ? previous?.ca2 ?? 0 : entry.ca2 ?? 0;
-        const exam = entry.exam === undefined ? previous?.exam ?? 0 : entry.exam ?? 0;
+        const ca1 = entry.ca1 === undefined ? previous?.ca1 ?? null : entry.ca1;
+        const ca2 = entry.ca2 === undefined ? previous?.ca2 ?? null : entry.ca2;
+        const exam = entry.exam === undefined ? previous?.exam ?? null : entry.exam;
+        validateSchemeMarks(schemeId,{ca1,ca2,exam});
         const total = computeTotal(ca1, ca2, exam);
         if (total > 100) throw new AppError(400, "INVALID_SCORE", "CA and exam total cannot exceed 100");
         const { grade, remark: bandRemark } = gradeFromBands(total, bands);
@@ -265,9 +270,9 @@ export class ResultsService {
           create: {
             resultId,
             subjectId: entry.subjectId,
-            ca1: entry.ca1 ?? 0,
-            ca2: entry.ca2 ?? 0,
-            exam: entry.exam ?? 0,
+            ca1,
+            ca2,
+            exam,
             total,
             grade,
             remark: entry.remark ?? bandRemark ?? null,
@@ -329,6 +334,7 @@ export class ResultsService {
       where: { organizationId, classId: input.classId, isActive: true, id: { in: studentIds } },
     });
     if (studentCount !== studentIds.length) throw new AppError(400, "INVALID_STUDENT", "All students must belong to this class");
+    await schoolTransaction(organizationId,async tx=>{const id=await termScheme(tx,organizationId,input.termId);if(input.schemeId&&input.schemeId!==id)throw new AppError(409,'MARKING_SCHEME_CHANGED','The marking scheme changed. Refresh the score sheet before saving.');for(const entry of input.entries)validateSchemeMarks(id,entry);});
     const results = [];
     for (const entry of input.entries) {
       const sheet = await this.getOrCreateResultSheet(
@@ -351,7 +357,8 @@ export class ResultsService {
           },
         ],
         actorId,
-        meta
+        meta,
+        input.schemeId
       );
       results.push(updated);
     }
@@ -472,7 +479,7 @@ export class ResultsService {
           },
         },
         term: {
-          select: { id: true, name: true, session: { select: { name: true } } },
+          select: { id: true, name: true, markingScheme:true, session: { select: { name: true } } },
         },
         class: { select: { id: true, name: true, arm: true } },
         scores: {
@@ -561,7 +568,7 @@ export class ResultsService {
           },
         },
         term: {
-          select: { id: true, name: true, session: { select: { name: true } } },
+          select: { id: true, name: true, markingScheme:true, session: { select: { name: true } } },
         },
         class: { select: { id: true, name: true, arm: true } },
         scores: {

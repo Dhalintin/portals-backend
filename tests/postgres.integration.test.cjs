@@ -37,9 +37,9 @@ async function tokens(userId, schoolId) {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   return authSessions.create(userId, schoolId, user.authVersion);
 }
-async function request(method, route, accessToken, body) {
+async function request(method, route, accessToken, body, extraHeaders={}) {
   const response = await fetch(base + route, { method, headers: {
-    'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),...extraHeaders,
   }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   return { status: response.status, body: await response.json() };
 }
@@ -2160,4 +2160,54 @@ check('exam and test plans are separate and published formats remain immutable u
  const bad={...edited,expectedVersion:4,entries:[{...edited.entries[0],startTime:'09:30',endTime:'10:00'}]};response=await request('PUT','/exams/timetable',f.officerToken,bad);assert.equal(response.status,400);assert.equal(response.body.error.code,'TIMETABLE_FORMAT_MISMATCH');
  const testEditor=await request('GET','/exams/editor?termId='+f.term.id+'&kind=TEST',f.officerToken);assert.equal(testEditor.body.data.timetable.version,1);
  assert.equal((await request('GET','/exams/editor?termId='+f.term.id+'&kind=UNKNOWN',f.officerToken)).status,422);
+});
+
+
+check('marking schemes are owner-only, validated by both score APIs and frozen for historical terms',async()=>{
+ const account=await authService.registerSchoolAdmin({email:'scheme-'+crypto.randomUUID()+'@example.test',password:'MarkingTest123!',firstName:'Scheme',lastName:'Owner',schoolName:'Marking scheme test'}),org=account.school.id,owner=account.accessToken;
+ const session=await prisma.academicSession.create({data:{organizationId:org,name:'Scheme year',isCurrent:true}}),term=await prisma.term.create({data:{sessionId:session.id,name:'FIRST',isCurrent:true}}),next=await prisma.term.create({data:{sessionId:session.id,name:'SECOND'}});
+ const cls=await prisma.class.create({data:{organizationId:org,name:'Scheme class'}}),subject=await prisma.subject.create({data:{organizationId:org,name:'Math'}}),student=await prisma.student.create({data:{organizationId:org,classId:cls.id,firstName:'Ada',lastName:'Obi',admissionNumber:'S1'}});
+ await prisma.classSubject.create({data:{organizationId:org,classId:cls.id,subjectId:subject.id}});
+ const teacher=await prisma.user.create({data:{email:'scheme-teacher-'+crypto.randomUUID()+'@example.test',firstName:'Scheme',lastName:'Teacher',memberships:{create:{organizationId:org,role:'TEACHER',roles:['TEACHER','EXAM_OFFICER','BURSAR']}}}});await prisma.classSubjectTeacher.create({data:{organizationId:org,userId:teacher.id,classId:cls.id,subjectId:subject.id}});await prisma.class.update({where:{id:cls.id},data:{classTeacherId:teacher.id}});const staff=(await tokens(teacher.id,org)).accessToken;
+ assert.equal((await request('PATCH','/schools/marking-scheme',staff,{schemeId:'CA15_15_EXAM70'})).status,403);
+ let response=await request('PATCH','/schools/marking-scheme',owner,{schemeId:'CA15_15_EXAM70'});assert.equal(response.status,200,JSON.stringify(response));assert.equal(response.body.data.currentTerm.scheme.exam,70);
+ const query='/results/entry-sheet?classId='+cls.id+'&subjectId='+subject.id+'&termId='+term.id;response=await request('GET',query,staff);assert.equal(response.status,200,JSON.stringify(response));assert.equal(response.body.data.markingScheme.ca1,15);
+ const input={classId:cls.id,subjectId:subject.id,termId:term.id,schemeId:'CA15_15_EXAM70',entries:[{studentId:student.id,ca1:15,ca2:15,exam:70}]};
+ assert.equal((await request('POST','/results/scores/bulk',staff,{...input,schemeId:'CA20_20_EXAM60'})).status,409);assert.equal(await prisma.score.count({where:{result:{organizationId:org}}}),0);
+ response=await request('POST','/results/scores/bulk',staff,input);assert.equal(response.status,200,JSON.stringify(response));const result=await prisma.result.findFirstOrThrow({where:{organizationId:org,studentId:student.id,termId:term.id}});assert.equal(result.percentage,100);
+ response=await request('PATCH','/schools/marking-scheme',owner,{schemeId:'CA20_20_EXAM60'});assert.equal(response.status,409);assert.equal(response.body.error.code,'MARKING_SCHEME_LOCKED');
+ assert.equal((await request('POST','/results/scores',staff,{resultId:result.id,schemeId:'CA15_15_EXAM70',scores:[{subjectId:subject.id,ca1:16}]})).status,400);
+ response=await request('POST','/results/scores',staff,{resultId:result.id,schemeId:'CA15_15_EXAM70',scores:[{subjectId:subject.id,ca2:null}]});assert.equal(response.status,200,JSON.stringify(response));assert.equal(response.body.data.scores[0].ca2,null);assert.equal(response.body.data.scores[0].total,85);
+ await prisma.term.update({where:{id:term.id},data:{isCurrent:false}});await prisma.term.update({where:{id:next.id},data:{isCurrent:true}});assert.equal((await request('PATCH','/schools/marking-scheme',owner,{schemeId:'CA20_20_EXAM60'})).status,200);
+ response=await request('GET',query,staff);assert.equal(response.body.data.markingScheme.exam,70);assert.equal(response.body.data.students[0].total,85);
+ assert.equal((await request('POST','/results/scores/bulk',staff,{...input,termId:next.id,schemeId:'CA20_20_EXAM60',entries:[{studentId:student.id,exam:70}]})).status,400);
+ const assignments=await request('GET','/staff/me/assignments',staff);assert.equal(assignments.body.data.assignments[0].studentCount,1);assert.equal(assignments.body.data.classTeacherOf[0].studentCount,1);
+ assert.equal((await request('GET','/exams/editor?termId='+term.id,staff)).status,200);assert.equal((await request('GET','/fees/workspace?termId='+term.id,staff)).status,200);
+ const foreign=(await tokens(b.ownerId,b.id)).accessToken;assert.notEqual((await request('GET',query,foreign)).status,200);
+});
+
+
+check('offline operation replay is atomic, permission checked and cannot create duplicate school records',async()=>{
+ const owner=await authService.registerSchoolAdmin({email:'offline-'+crypto.randomUUID()+'@example.test',password:'OfflineAcceptance123!',firstName:'Offline',lastName:'Owner',schoolName:'Offline replay school'}),org=owner.school.id,token=owner.accessToken,key=crypto.randomUUID(),headers={'X-SchoolOS-Operation':key},body={name:'Offline class'};
+ let response=await request('POST','/classes',token,body,headers);assert.equal(response.status,201,JSON.stringify(response));const id=response.body.data.id;
+ response=await request('POST','/classes',token,body,headers);assert.equal(response.status,201,JSON.stringify(response));assert.equal(response.body.data.id,id);assert.equal(await prisma.class.count({where:{organizationId:org,name:body.name}}),1);assert.equal(await prisma.offlineOperation.count({where:{id:key}}),1);
+ assert.equal((await request('POST','/classes',token,{name:'Changed request'},headers)).status,409);
+ const parallelKey=crypto.randomUUID(),parallelHeaders={'X-SchoolOS-Operation':parallelKey},parallel=await Promise.all([request('POST','/classes',token,{name:'Concurrent offline class'},parallelHeaders),request('POST','/classes',token,{name:'Concurrent offline class'},parallelHeaders)]);assert.ok(parallel.every(result=>result.status===201),JSON.stringify(parallel));assert.equal(parallel[0].body.data.id,parallel[1].body.data.id);
+ const badKey=crypto.randomUUID();assert.equal((await request('POST','/classes',token,{name:''},{'X-SchoolOS-Operation':badKey})).status,400);assert.equal(await prisma.offlineOperation.count({where:{id:badKey}}),0);
+ await prisma.membership.updateMany({where:{organizationId:org,userId:owner.user.id},data:{role:'TEACHER',roles:['TEACHER']}});response=await request('POST','/classes',token,body,headers);assert.equal(response.status,403);assert.equal(response.body.error.code,'FORBIDDEN');
+ await prisma.membership.updateMany({where:{organizationId:org,userId:owner.user.id},data:{role:'PROPRIETOR',roles:['PROPRIETOR']}});
+ const express=require('express'),{offlineOperation}=require('../.test-build/middlewares/offlineOperation'),failureApp=express();failureApp.use(express.json());failureApp.use(offlineOperation);failureApp.post('/classes',async(_req,_res,next)=>{try{await prisma.class.create({data:{organizationId:org,name:'Must roll back'}});throw Error('Failure after insert');}catch(error){next(error);}});failureApp.use((error,_req,res,_next)=>res.status(500).json({success:false,error:{message:error.message}}));const temp=failureApp.listen(0,'127.0.0.1');await new Promise(resolve=>temp.once('listening',resolve));try{const failed=await fetch('http://127.0.0.1:'+temp.address().port+'/classes',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json','X-SchoolOS-Operation':crypto.randomUUID()},body:JSON.stringify({name:'Must roll back'})});assert.equal(failed.status,500);assert.equal(await prisma.class.count({where:{organizationId:org,name:'Must roll back'}}),0);}finally{await new Promise(resolve=>temp.close(resolve));}
+});
+
+check('timetable groups persist exception formats, reject foreign classes and filter publication metadata',async()=>{
+ const f=await examFixture(),format={startDate:'2026-11-10',startTime:'09:00',papersPerDay:2,paperMinutes:120,breakAfter:1,breakMinutes:20,weekdays:[1,2,3,4,5]},groups=[{id:crypto.randomUUID(),name:'Junior',classIds:[f.classes[0].id],format},{id:crypto.randomUUID(),name:'Exam exception',classIds:[f.classes[1].id],format:{...format,startTime:'10:00',paperMinutes:60}}],entries=f.entries.map((entry,index)=>({...entry,venue:'',startTime:index?'10:00':'09:00',endTime:'11:00'})),body={termId:f.term.id,expectedVersion:0,title:'Grouped exams',groups,entries};
+ let response=await request('PUT','/exams/timetable',f.officerToken,body);assert.equal(response.status,200,JSON.stringify(response));assert.deepEqual(response.body.data.groups,groups);
+ const replay=await request('PUT','/exams/timetable',f.officerToken,body);assert.equal(replay.body.data.version,1);
+ const changed=await request('PUT','/exams/timetable',f.officerToken,{...body,groups:[{...groups[0],name:'Changed'},groups[1]]});assert.equal(changed.status,409);
+ const bad=await request('PUT','/exams/timetable',f.officerToken,{...body,expectedVersion:1,groups:[{...groups[0],classIds:[b.classId]},groups[1]]});assert.equal(bad.body.error.code,'INVALID_TIMETABLE_GROUP');
+ response=await request('POST','/exams/timetable/publish',f.officerToken,{termId:f.term.id,expectedVersion:1});assert.equal(response.status,200,JSON.stringify(response));
+ const parent=await request('GET','/exams/published?termId='+f.term.id+'&studentId='+f.children[0].id,f.parentToken);assert.equal(parent.body.data.groups.length,1);assert.deepEqual(parent.body.data.groups[0].classIds,[f.classes[0].id]);assert.equal(parent.body.data.entries.length,1);
+ const teacher=await request('GET','/exams/published?termId='+f.term.id,f.teacherToken);assert.equal(teacher.body.data.groups.length,1);assert.equal(teacher.body.data.groups[0].format.startTime,'09:00');
+ const editor=await request('GET','/exams/editor?termId='+f.term.id,f.officerToken);assert.deepEqual(editor.body.data.groups,undefined);assert.equal(editor.body.data.timetable.groups.length,2);
+ const badSlot=await request('PUT','/exams/timetable',f.officerToken,{...body,expectedVersion:2,entries:[entries[0],{...entries[1],startTime:'09:00'}]});assert.equal(badSlot.body.error.code,'TIMETABLE_FORMAT_MISMATCH');
 });

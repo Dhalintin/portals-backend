@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const markingScheme_1 = require("../results/markingScheme");
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const bankAccount_1 = require("./bankAccount");
 const http_1 = require("../../lib/http");
@@ -39,6 +40,18 @@ schoolsRoutes.post('/bank-account/confirm', bankLimit, async (req, res, next) =>
 }
 catch (e) {
     next(e);
+} });
+schoolsRoutes.get('/marking-scheme', (0, requirePermission_1.requirePermission)('results:read'), async (req, res, next) => { try {
+    (0, http_1.sendSuccess)(res, await (0, markingScheme_1.readMarkingScheme)(req.auth.schoolId));
+}
+catch (error) {
+    next(error);
+} });
+schoolsRoutes.patch('/marking-scheme', (0, requirePermission_1.requirePermission)('settings:write'), async (req, res, next) => { try {
+    (0, http_1.sendSuccess)(res, await (0, markingScheme_1.updateMarkingScheme)(req.auth.schoolId, req.auth.userId, req.body));
+}
+catch (error) {
+    next(error);
 } });
 schoolsRoutes.get("/", c.get);
 schoolsRoutes.get("/onboarding", (0, requirePermission_1.requirePermission)(permissions_1.PERMISSIONS["settings:write"]), c.onboarding);

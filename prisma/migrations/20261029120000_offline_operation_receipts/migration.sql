@@ -1,0 +1,2 @@
+CREATE TABLE "OfflineOperation" ("id" TEXT NOT NULL PRIMARY KEY,"organizationId" TEXT NOT NULL,"actorId" TEXT NOT NULL,"requestHash" TEXT NOT NULL,"response" JSONB NOT NULL,"status" INTEGER NOT NULL,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,CONSTRAINT "OfflineOperation_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE);
+CREATE INDEX "OfflineOperation_organizationId_actorId_idx" ON "OfflineOperation"("organizationId","actorId");

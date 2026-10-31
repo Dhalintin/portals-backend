@@ -78,7 +78,7 @@ class ResultsController {
     upsertScores = async (req, res, next) => {
         try {
             const input = results_validation_1.upsertScoresSchema.parse(req.body);
-            const data = await results_service_1.resultsService.upsertScores(req.auth.schoolId, input.resultId, input.scores, req.auth.userId, { requestId: req.requestId });
+            const data = await results_service_1.resultsService.upsertScores(req.auth.schoolId, input.resultId, input.scores, req.auth.userId, { requestId: req.requestId }, input.schemeId);
             (0, http_1.sendSuccess)(res, data);
         }
         catch (err) {
