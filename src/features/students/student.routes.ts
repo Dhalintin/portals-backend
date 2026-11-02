@@ -1,3 +1,5 @@
+import {studentPortal,manageStudentAccount} from "./studentPortal";
+import {sendSuccess} from "../../lib/http";
 import { Router } from "express";
 import { authenticate } from "../../middlewares/authenticate";
 import { requireSchool } from "../../middlewares/requireSchool";
@@ -18,6 +20,8 @@ const c = new StudentsController();
 const studentRoutes = Router();
 
 studentRoutes.use(authenticate, requireSchool);
+studentRoutes.use("/portal",studentPortal);
+studentRoutes.post("/:studentId/portal-account",requirePermission("students:write"),validate(studentIdParamsSchema,"params"),async(req,res,next)=>{try{sendSuccess(res,await manageStudentAccount(req.auth!.schoolId!,req.params.studentId as string,req.auth!.userId,req.body));}catch(e){next(e);}});
 
 studentRoutes.get(
   "/",

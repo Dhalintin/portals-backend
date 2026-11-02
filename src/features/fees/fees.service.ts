@@ -696,6 +696,10 @@ export class FeesService {
     const studentIds = links.map((l) => l.studentId);
     if (studentIds.length === 0) return { children: [] };
 
+    return this.familyFees(organizationId,parentUserId,studentIds);
+  }
+
+  async familyFees(organizationId:string,parentUserId:string,studentIds:string[]) {
     const invoices = await prisma.invoice.findMany({
       where: { organizationId, studentId: { in: studentIds }, status: {not: "DRAFT"} },
       include: {

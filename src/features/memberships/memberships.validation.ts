@@ -29,15 +29,15 @@ export const createMembershipSchema = z.object({
 
   firstName: z.string().trim().max(80).default(""),
   lastName: z.string().trim().max(80).default(""),
-  role: z.nativeEnum(OrgRole).default("TEACHER"),
+  role: z.nativeEnum(OrgRole).refine(role=>role!=="STUDENT","Use the student portal account action").default("TEACHER"),
 
   phone: z.string().trim().max(30, "Must not exceed 30 characters.").optional(),
 
 }).strict();
 
 export const updateMembershipSchema = z.object({
-  role:z.nativeEnum(OrgRole).optional(),
-  roles:z.array(z.nativeEnum(OrgRole)).min(1).max(8).refine(roles=>new Set(roles).size===roles.length,"Select each role once").refine(roles=>!roles.includes('PARENT')||roles.length===1,"Parent access uses its own portal; assign staff roles separately").optional(),
+  role:z.nativeEnum(OrgRole).refine(role=>role!=="STUDENT","Use the student portal account action").optional(),
+  roles:z.array(z.nativeEnum(OrgRole).refine(role=>role!=="STUDENT","Student accounts cannot be combined with staff roles")).min(1).max(8).refine(roles=>new Set(roles).size===roles.length,"Select each role once").refine(roles=>!roles.includes('PARENT')||roles.length===1,"Parent access uses its own portal; assign staff roles separately").optional(),
   isActive:z.boolean().optional(),
 }).strict().refine(input=>!(input.role&&input.roles),"Send role or roles, not both").refine(input=>Object.keys(input).length>0,"Choose something to update");
 

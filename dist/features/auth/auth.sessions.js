@@ -23,6 +23,8 @@ async function loadContext(tx, userId, schoolId) {
     });
     if (!membership)
         throw new errors_1.AppError(401, "UNAUTHORIZED", "School access is no longer available");
+    if (membership.role === 'STUDENT' && !await tx.student.findFirst({ where: { userId, organizationId: schoolId, isActive: true, portalEnabled: true }, select: { id: true } }))
+        throw new errors_1.AppError(401, 'UNAUTHORIZED', 'Student access is no longer active');
     return { user, membership, school: membership.organization };
 }
 function issueTokens(user, membership, school, sessionId, expiresAt) {

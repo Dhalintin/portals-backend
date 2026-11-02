@@ -5,6 +5,8 @@ exports.googleLogin = googleLogin;
 const prisma_1 = require("../../lib/prisma");
 const errors_1 = require("../../lib/errors");
 const goggle_1 = require("../../lib/goggle");
+const googleProfile_1 = require("./googleProfile");
+const userTransaction_1 = require("../../lib/userTransaction");
 const auth_sessions_1 = require("./auth.sessions");
 async function verifiedGoogleProfile(idToken, nonce) {
     if (!process.env.GOOGLE_CLIENT_ID)
@@ -26,6 +28,14 @@ async function googleLogin(idToken, nonce, schoolSlug) {
     const user = await prisma_1.prisma.user.findUnique({ where: { googleId: profile.googleId } });
     if (!user || !user.isActive || user.email !== profile.email)
         throw new errors_1.AppError(403, "GOOGLE_LINK_REQUIRED", "Open your school invitation and choose Google first, or sign in with your password.");
+    await (0, userTransaction_1.userTransaction)(user.id, async (tx) => {
+        const current = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
+        if (current.googleId !== profile.googleId || current.email !== profile.email || !current.isActive)
+            throw new errors_1.AppError(401, 'GOOGLE_AUTH_FAILED', 'Account changed; sign in again');
+        const data = (0, googleProfile_1.missingGoogleDetails)(current, profile);
+        if (Object.keys(data).length)
+            await tx.user.update({ where: { id: user.id }, data });
+    });
     if (user.globalRole === "SUPER_ADMIN" || user.globalRole === "PLATFORM_ADMIN")
         return auth_sessions_1.authSessions.create(user.id, null, user.authVersion);
     const memberships = await prisma_1.prisma.membership.findMany({

@@ -29,6 +29,7 @@ enum OrgRole {
   TEACHER
   EXAM_OFFICER
   PARENT
+  STUDENT
   STAFF
 }
 
@@ -151,6 +152,7 @@ model User {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
+  studentAccount           Student?
   memberships              Membership[]
   createdOrgs              Organization[]            @relation("OrgCreator")
   passwordResetTokens      PasswordResetToken[]
@@ -473,7 +475,12 @@ model ClassSubjectTeacher {
 // ═══════════════════════════════════════════════════════════
 
 model Student {
+  portalEnabled Boolean @default(true)
+  activationCodeHash String? @unique
+  activationCodeExpiresAt DateTime?
   id              String      @id @default(uuid())
+  userId          String? @unique
+  contactEmail    String?
   organizationId  String
   admissionNumber String
   firstName       String
@@ -488,6 +495,8 @@ model Student {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  parentRequests StudentParentRequest[]
   organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   class        Class?               @relation(fields: [classId], references: [id], onDelete: SetNull)
   results      Result[]
@@ -537,6 +546,7 @@ model Parent {
   organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
   children     ParentStudent[]
+  linkRequests ChildLinkRequest[]
 
   @@unique([organizationId, userId])
   @@index([userId])
@@ -1087,4 +1097,40 @@ model OfflineOperation {
  createdAt DateTime @default(now())
  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
  @@index([organizationId,actorId])
+}
+
+model ChildLinkRequest {
+ id String @id @default(uuid())
+ organizationId String
+ parentId String
+ childName String
+ childKey String
+ className String?
+ note String?
+ status String @default("PENDING")
+ studentId String?
+ reviewerId String?
+ reviewNote String?
+ reviewedAt DateTime?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ parent Parent @relation(fields: [parentId], references: [id], onDelete: Cascade)
+ @@unique([parentId, childKey])
+ @@index([organizationId, status, createdAt])
+}
+
+model StudentParentRequest {
+ id String @id @default(uuid())
+ organizationId String
+ studentId String
+ email String
+ status String @default("PENDING")
+ reviewNote String?
+ reviewerId String?
+ reviewedAt DateTime?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ student Student @relation(fields:[studentId],references:[id],onDelete:Cascade)
+ @@unique([studentId,email])
+ @@index([organizationId,status,createdAt])
 }

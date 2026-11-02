@@ -1,5 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const studentPortal_1 = require("../students/studentPortal");
+const linkRequests_1 = require("./linkRequests");
 const express_1 = require("express");
 const authenticate_1 = require("../../middlewares/authenticate");
 const requireSchool_1 = require("../../middlewares/requireSchool");
@@ -12,6 +14,8 @@ const parents_controller_1 = require("./parents.controller");
 const c = new parents_controller_1.ParentsController();
 const parentsRoutes = (0, express_1.Router)();
 parentsRoutes.use(authenticate_1.authenticate, requireSchool_1.requireSchool);
+parentsRoutes.use(linkRequests_1.childLinkRoutes);
+parentsRoutes.use(studentPortal_1.studentParentReviews);
 parentsRoutes.get("/me", c.me);
 parentsRoutes.get("/", (0, requirePermission_1.requirePermission)(permissions_1.PERMISSIONS["parents:read"]), (0, validate_1.validate)(parents_validation_1.listParentsQuerySchema, "query"), c.list);
 parentsRoutes.post("/", (0, requirePermission_1.requirePermission)(permissions_1.PERMISSIONS["parents:write"]), (0, validate_1.validate)(parents_validation_1.createParentSchema), c.create);

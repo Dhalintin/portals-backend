@@ -65,8 +65,10 @@ async function main() {
   let initialized = false;
   try {
     console.log(`[${mode}] Initializing a private PostgreSQL cluster on loopback port ${port}.`);
+    // This is a disposable cluster: skip initdb's final disk flush, which can
+    // time out under Windows disk load. Real database settings are untouched.
     await run(path.join(bin, `initdb${suffix}`), ['-D', cluster, '-U', 'schoolos_test',
-      '--auth-local=trust', '--auth-host=trust', '--encoding=UTF8', '--no-locale'], env);
+      '--auth-local=trust', '--auth-host=trust', '--encoding=UTF8', '--no-locale', '--no-sync'], env);
     initialized = true;
     await run(path.join(bin, `pg_ctl${suffix}`), ['-D', cluster, '-l', logFile,
       '-o', `-h 127.0.0.1 -p ${port} -F`, '-w', '-t', '30', 'start'], env, 45_000);

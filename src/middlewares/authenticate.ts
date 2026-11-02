@@ -80,6 +80,7 @@ async function resolveContext(token: string): Promise<AuthContext> {
       "UNAUTHORIZED",
       "School access is no longer available"
     );
+  if(membership.role==='STUDENT'&&!await prisma.student.findFirst({where:{userId:user.id,organizationId:claims.schoolId,isActive:true,portalEnabled:true},select:{id:true}}))throw new AppError(401,'UNAUTHORIZED','Student access is no longer active');
   return {
     userId: user.id,
     sessionId: session.id,

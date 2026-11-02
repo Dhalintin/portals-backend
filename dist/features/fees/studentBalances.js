@@ -8,6 +8,7 @@ const prisma_1 = require("../../lib/prisma");
 const errors_1 = require("../../lib/errors");
 exports.studentBalancesQuery = zod_1.z.object({
     termId: zod_1.z.string().uuid(),
+    classId: zod_1.z.string().uuid().optional(),
     search: zod_1.z.string().trim().max(120).default(''),
     paymentState: zod_1.z.enum(['owing', 'unpaid', 'partial', 'paid', 'all']).default('owing'),
     page: zod_1.z.coerce.number().int().min(1).default(1),
@@ -18,7 +19,7 @@ function groupStudentBalances(bills) {
     for (const bill of bills) {
         let row = groups.get(bill.studentId);
         if (!row) {
-            row = { studentId: bill.studentId, name: [bill.student.lastName, bill.student.firstName].filter(Boolean).join(', '), admissionNumber: bill.student.admissionNumber, className: bill.student.class ? [bill.student.class.name, bill.student.class.arm].filter(Boolean).join(' ') : 'Unassigned', totalNgn: 0, paidNgn: 0, outstandingNgn: 0, items: [], bills: [] };
+            row = { studentId: bill.studentId, classId: bill.student.class?.id ?? null, name: [bill.student.lastName, bill.student.firstName].filter(Boolean).join(', '), admissionNumber: bill.student.admissionNumber, className: bill.student.class ? [bill.student.class.name, bill.student.class.arm].filter(Boolean).join(' ') : 'Unassigned', totalNgn: 0, paidNgn: 0, outstandingNgn: 0, items: [], bills: [] };
             groups.set(bill.studentId, row);
         }
         row.totalNgn += bill.totalNgn;
@@ -35,7 +36,7 @@ async function studentBalances(organizationId, raw) {
     const query = exports.studentBalancesQuery.parse(raw);
     if (!await prisma_1.prisma.term.findFirst({ where: { id: query.termId, session: { organizationId } }, select: { id: true } }))
         throw new errors_1.AppError(404, 'TERM_NOT_FOUND', 'Term not found');
-    const bills = await prisma_1.prisma.invoice.findMany({ where: { organizationId, termId: query.termId, status: { notIn: ['CANCELLED', 'DRAFT'] } }, select: { id: true, studentId: true, invoiceNumber: true, totalNgn: true, paidNgn: true, outstandingNgn: true, student: { select: { firstName: true, lastName: true, admissionNumber: true, class: { select: { name: true, arm: true } } } }, items: { select: { description: true, amountNgn: true } } }, orderBy: [{ issuedAt: 'asc' }, { id: 'asc' }] });
+    const bills = await prisma_1.prisma.invoice.findMany({ where: { organizationId, termId: query.termId, ...(query.classId ? { student: { classId: query.classId } } : {}), status: { notIn: ['CANCELLED', 'DRAFT'] } }, select: { id: true, studentId: true, invoiceNumber: true, totalNgn: true, paidNgn: true, outstandingNgn: true, student: { select: { firstName: true, lastName: true, admissionNumber: true, class: { select: { id: true, name: true, arm: true } } } }, items: { select: { description: true, amountNgn: true } } }, orderBy: [{ issuedAt: 'asc' }, { id: 'asc' }] });
     const all = groupStudentBalances(bills);
     const summary = { studentsBilled: all.length, studentsOwing: all.filter(r => r.outstandingNgn > 0).length, fullyPaid: all.filter(r => r.outstandingNgn <= 0).length, unpaid: all.filter(r => r.outstandingNgn > 0 && r.paidNgn === 0).length, partlyPaid: all.filter(r => r.outstandingNgn > 0 && r.paidNgn > 0).length };
     const q = query.search.toLowerCase();

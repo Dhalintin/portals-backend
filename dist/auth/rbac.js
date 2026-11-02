@@ -66,6 +66,7 @@ exports.ROLE_PERMISSIONS = {
         permissions_1.PERMISSIONS["results:publish"],
         permissions_1.PERMISSIONS["reports:read"],
     ],
+    STUDENT: [permissions_1.PERMISSIONS["results:read"], permissions_1.PERMISSIONS["fees:read"]],
     PARENT: [
         permissions_1.PERMISSIONS["exams:read"],
         permissions_1.PERMISSIONS["announcements:read"],
@@ -88,7 +89,7 @@ function principalCanManageRole(role) {
     return ["PRINCIPAL", "TEACHER", "EXAM_OFFICER", "STAFF", "PARENT"].includes(role);
 }
 // The legacy primary role remains for portal selection; permissions use every role.
-exports.rolePriority = ['PROPRIETOR', 'SCHOOL_ADMIN', 'PRINCIPAL', 'BURSAR', 'EXAM_OFFICER', 'TEACHER', 'STAFF', 'PARENT'];
+exports.rolePriority = ['PROPRIETOR', 'SCHOOL_ADMIN', 'PRINCIPAL', 'BURSAR', 'EXAM_OFFICER', 'TEACHER', 'STAFF', 'PARENT', 'STUDENT'];
 function membershipRoles(member) { return exports.rolePriority.filter(role => role === member.role || member.roles?.includes(role)); }
 function primaryRole(roles) { return exports.rolePriority.find(role => roles.includes(role)) ?? 'STAFF'; }
 function permissionsForMembership(member) { return [...new Set(membershipRoles(member).flatMap(permissionsForOrgRole))]; }

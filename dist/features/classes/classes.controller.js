@@ -18,7 +18,6 @@ class ClassesController {
     get = async (req, res, next) => {
         try {
             const data = await classes_service_1.classesService.get((0, requireSchool_1.getSchoolId)(req), req.params.classId);
-            console.log(data);
             return (0, http_1.sendSuccess)(res, data);
         }
         catch (e) {

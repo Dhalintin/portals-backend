@@ -1,3 +1,4 @@
+import {generateAdmissionNumber} from '../../utils/helpers/admissionNumberHelper';
 import {syncStudentAssignedFees} from '../fees/feeAssignments';
 import { randomUUID, createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
@@ -67,12 +68,12 @@ export class ImportsService {
       const admissions = new Set(existing.map(row => normalized(row.admissionNumber))), seen = new Set<string>();
       const errors = [...parsed.errors], valid: (StudentRow & { classId: string | null })[] = [];
       for (const row of parsed.valid) {
-        const admission = normalized(row.admissionNumber);
-        let message = seen.has(admission) ? "Duplicate admission number in file" : admissions.has(admission) ? "Admission number already exists in school" : null;
-        seen.add(admission);
+        const admission = row.admissionNumber ? normalized(row.admissionNumber) : null;
+        let message = admission && seen.has(admission) ? "Duplicate admission number in file" : admission && admissions.has(admission) ? "Admission number already exists in school" : null;
+        if(admission)seen.add(admission);
         const classId = row.className ? classMap.get(classKey(row.className, row.classArm)) : null;
         if (row.className && !classId) message = "Class is missing, inactive or ambiguous in this school";
-        if (input.sessionId && !classId) message = "A class is required when importing session enrollments";
+
         if (message) errors.push({ rowNumber: row.rowNumber, message });
         else valid.push({ ...row, classId: classId ?? null });
       }
@@ -83,9 +84,14 @@ export class ImportsService {
         sample: valid.slice(0, 5), seatsLeft, capExceeded, canCommit: !errors.length && !capExceeded };
       rejectErrors(errors);
       if (capExceeded) throw new AppError(403, "STUDENT_CAP_REACHED", "Import exceeds the student subscription limit", { seatsLeft });
-      const students = valid.map(row => ({ id: randomUUID(), organizationId, admissionNumber: row.admissionNumber,
+      const reserved=new Set([...admissions,...seen]);
+      const students = valid.map(row => {
+        let admissionNumber=row.admissionNumber;
+        if(!admissionNumber){do {admissionNumber=generateAdmissionNumber();}while(reserved.has(normalized(admissionNumber)));}
+        reserved.add(normalized(admissionNumber));
+        return ({ id: randomUUID(), organizationId, admissionNumber,
         firstName: row.firstName, lastName: row.lastName, otherNames: row.otherNames ?? null, gender: row.gender ?? null,
-        dateOfBirth: row.dateOfBirth ?? null, classId: row.classId, parentPhone: row.parentPhone ?? null, parentEmail: row.parentEmail ?? null }));
+        dateOfBirth: row.dateOfBirth ?? null, classId: row.classId, parentPhone: row.parentPhone ?? null, parentEmail: row.parentEmail ?? null });});
       await tx.student.createMany({ data: students });
       if (input.sessionId) {
         const enrollments = students.filter(row => row.classId).map(row => ({ organizationId, studentId: row.id, classId: row.classId!, sessionId: input.sessionId! }));

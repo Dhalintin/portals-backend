@@ -91,6 +91,7 @@ export class MembershipsService {
       if((before.includes('PROPRIETOR')||roles.includes('PROPRIETOR'))&&actor.orgRole!=='PROPRIETOR')throw new AppError(403,'FORBIDDEN','Only an owner can manage owner access');
       if(actor.orgRole==='PRINCIPAL'&&[...before,...roles].some(role=>!principalCanManageRole(role)))throw new AppError(403,'FORBIDDEN','Principals may manage academic roles only');
       for(const assigned of roles)this.assertCanAssignRole(actor.orgRole,assigned);
+      if(before.includes('STUDENT')||roles.includes('STUDENT'))throw new AppError(400,'ROLE_PORTAL_CHANGE','Manage student access from the student record');
       if(before.includes('PARENT')!==roles.includes('PARENT'))throw new AppError(400,'ROLE_PORTAL_CHANGE','Parent and staff accounts cannot be converted through staff roles');
       if(before.includes('PROPRIETOR')&&(!roles.includes('PROPRIETOR')||input.isActive===false)){
         const count=await tx.membership.count({where:{organizationId,isActive:true,role:'PROPRIETOR'}});

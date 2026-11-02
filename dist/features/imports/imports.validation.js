@@ -10,7 +10,7 @@ const birthDate = zod_1.z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD"
     .refine(value => value >= "1900-01-01" && value <= new Date().toISOString().slice(0, 10), "Date of birth must be between 1900 and today")
     .transform(value => new Date(`${value}T00:00:00.000Z`)).nullable().optional();
 exports.studentImportRowSchema = zod_1.z.object({
-    rowNumber: zod_1.z.number().int().positive(), admissionNumber: zod_1.z.string().trim().min(1).max(40),
+    rowNumber: zod_1.z.number().int().positive(), admissionNumber: zod_1.z.string().trim().max(40).optional(),
     firstName: zod_1.z.string().trim().min(1).max(80), lastName: zod_1.z.string().trim().min(1).max(80),
     otherNames: optionalText(80), gender: zod_1.z.nativeEnum(client_1.GenderType).nullable().optional(), dateOfBirth: birthDate,
     className: optionalText(80), classArm: optionalText(40), parentPhone: optionalText(30), parentEmail: email,

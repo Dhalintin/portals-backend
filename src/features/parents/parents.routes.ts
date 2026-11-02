@@ -1,3 +1,5 @@
+import {studentParentReviews} from "../students/studentPortal";
+import {childLinkRoutes} from "./linkRequests";
 import { Router } from "express";
 import { authenticate } from "../../middlewares/authenticate";
 import { requireSchool } from "../../middlewares/requireSchool";
@@ -20,6 +22,8 @@ const c = new ParentsController();
 const parentsRoutes = Router();
 
 parentsRoutes.use(authenticate, requireSchool);
+parentsRoutes.use(childLinkRoutes);
+parentsRoutes.use(studentParentReviews);
 parentsRoutes.get("/me", c.me);
 
 parentsRoutes.get(

@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const studentPortal_1 = require("../students/studentPortal");
 const express_1 = require("express");
 // import { validate } from "../../middleware/validate";
 // import { authenticate } from "../../middleware/authenticate";
@@ -82,6 +83,12 @@ router.post("/invitations/accept-existing", rateLimit_1.authLimiter, authenticat
 });
 router.post("/register", rateLimit_1.authLimiter, (0, validate_1.validate)(auth_validation_1.registerSchoolAdminSchema), c.register);
 router.post("/login", rateLimit_1.authLimiter, (0, validate_1.validate)(auth_validation_1.loginSchema), c.login);
+router.post("/student-login", rateLimit_1.authLimiter, async (req, res, next) => { try {
+    (0, http_1.sendSuccess)(res, await (0, studentPortal_1.studentLogin)(req.body));
+}
+catch (e) {
+    next(e);
+} });
 router.post("/refresh", rateLimit_1.refreshLimiter, (0, validate_1.validate)(auth_validation_1.refreshSchema), c.refresh);
 router.post("/logout", authenticate_1.authenticate, c.logout);
 router.post("/logout-all", authenticate_1.authenticate, c.logoutAll);

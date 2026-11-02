@@ -20,7 +20,7 @@ exports.parentCheckoutSchema = zod_1.z.object({
 }).strict().refine(input => new Set(input.itemIds).size === input.itemIds.length, 'Select each item only once');
 async function startParentCheckout(auth, body) {
     const input = exports.parentCheckoutSchema.parse(body), organizationId = auth.schoolId;
-    if (auth.orgRole !== 'PARENT')
+    if (!['PARENT', 'STUDENT'].includes(auth.orgRole ?? ''))
         throw new errors_1.AppError(403, 'FORBIDDEN', 'Parent access required');
     await (0, resourceAccess_1.assertParentChildAccess)(auth, input.studentId);
     const subaccount = (0, paymentConfig_1.parentPaymentSubaccount)(organizationId);
@@ -40,6 +40,11 @@ async function startParentCheckout(auth, body) {
     const user = await prisma_1.prisma.user.findFirst({ where: { id: auth.userId, isActive: true }, select: { email: true } });
     if (!user)
         throw new errors_1.AppError(403, 'FORBIDDEN', 'Active account required');
+    const studentPayer = auth.orgRole === 'STUDENT' ? await prisma_1.prisma.student.findFirst({ where: { id: input.studentId, userId: auth.userId, organizationId, isActive: true }, select: { contactEmail: true } }) : null;
+    const payerEmail = studentPayer?.contactEmail ?? user.email;
+    if (auth.orgRole === 'STUDENT' && !studentPayer?.contactEmail)
+        throw new errors_1.AppError(400, 'CHECKOUT_EMAIL_REQUIRED', 'Add a payment-receipt email in your student settings before paying.');
+    const returnPath = auth.orgRole === 'STUDENT' ? '/student/fees' : '/parent/fees';
     // Retry the original request even when a webhook has already changed the balances.
     const selectionHash = JSON.stringify({ studentId: input.studentId, itemIds: [...input.itemIds].sort() });
     const previous = await prisma_1.prisma.payment.findUnique({ where: { organizationId_idempotencyKey: { organizationId, idempotencyKey: input.idempotencyKey } } });
@@ -50,8 +55,8 @@ async function startParentCheckout(auth, body) {
         if (previous.status === 'PENDING' && !payload?.checkout) {
             // A provider/network failure must not strand the original attempt or create a new charge reference.
             return fees_service_1.feesService.initializeOnlinePayment(organizationId, {
-                amountNgn: previous.amountNgn, email: user.email, idempotencyKey: input.idempotencyKey,
-                callbackUrl: origin + '/parent', subaccount: payload?.subaccount ?? subaccount, metadata: payload,
+                amountNgn: previous.amountNgn, email: payerEmail, idempotencyKey: input.idempotencyKey,
+                callbackUrl: origin + returnPath, subaccount: payload?.subaccount ?? subaccount, metadata: payload,
             }, auth.userId);
         }
         return { reference: previous.providerReference, authorizationUrl: previous.status === 'PENDING' ? payload?.checkout?.authorization_url : undefined, paymentId: previous.id };
@@ -70,14 +75,14 @@ async function startParentCheckout(auth, body) {
     if (!Number.isSafeInteger(amountNgn) || amountNgn > 2147483647)
         throw new errors_1.AppError(400, 'INVALID_AMOUNT', 'Select fewer items for one payment');
     return fees_service_1.feesService.initializeOnlinePayment(organizationId, {
-        amountNgn, email: user.email,
+        amountNgn, email: payerEmail,
         studentId: input.studentId, invoiceIds: invoices.map(invoice => invoice.id),
-        callbackUrl: origin + '/parent', subaccount, idempotencyKey: input.idempotencyKey,
+        callbackUrl: origin + returnPath, subaccount, idempotencyKey: input.idempotencyKey,
         metadata: { itemSelections, selectionHash, parentUserId: auth.userId },
     }, auth.userId);
 }
 async function parentPaymentStatus(auth, reference) {
-    if (auth.orgRole !== 'PARENT')
+    if (!['PARENT', 'STUDENT'].includes(auth.orgRole ?? ''))
         throw new errors_1.AppError(403, 'FORBIDDEN', 'Parent access required');
     const payment = await prisma_1.prisma.payment.findFirst({ where: { organizationId: auth.schoolId, source: 'PAYSTACK', providerReference: reference, recordedById: auth.userId } });
     const studentId = payment?.providerPayload?.studentId;
@@ -88,7 +93,7 @@ async function parentPaymentStatus(auth, reference) {
     return { ...result, studentId, reference };
 }
 async function parentReceipt(auth, id) {
-    if (auth.orgRole !== 'PARENT')
+    if (!['PARENT', 'STUDENT'].includes(auth.orgRole ?? ''))
         throw new errors_1.AppError(403, 'FORBIDDEN', 'Parent access required');
     const receipt = await prisma_1.prisma.receipt.findFirst({ where: { id, organizationId: auth.schoolId }, include: { payment: true, invoice: { include: { student: true, items: true, term: { include: { session: true } } } }, organization: { select: { name: true } } } });
     const studentId = receipt?.invoice?.studentId ?? receipt?.payment.providerPayload?.studentId;

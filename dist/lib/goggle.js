@@ -17,12 +17,13 @@ async function verifyGoogleIdToken(idToken, expectedNonce) {
     if (!payload?.sub || !payload.email || !payload.email_verified || (expectedNonce && payload.nonce !== expectedNonce)) {
         throw new Error("Invalid Google token payload");
     }
+    const words = payload.name?.trim().split(/\s+/) ?? [];
     return {
         googleId: payload.sub,
         email: payload.email.toLowerCase().trim(),
         emailVerified: Boolean(payload.email_verified),
-        firstName: payload.given_name ?? "User",
-        lastName: payload.family_name ?? "",
+        firstName: payload.given_name?.trim() || words[0] || "User",
+        lastName: payload.family_name?.trim() || words.slice(1).join(" "),
         avatarUrl: payload.picture ?? null,
     };
 }

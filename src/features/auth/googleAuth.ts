@@ -1,6 +1,8 @@
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import { verifyGoogleIdToken } from "../../lib/goggle";
+import {missingGoogleDetails} from "./googleProfile";
+import {userTransaction} from "../../lib/userTransaction";
 import { authSessions } from "./auth.sessions";
 
 export async function verifiedGoogleProfile(idToken: string, nonce: string) {
@@ -20,6 +22,12 @@ export async function googleLogin(idToken: string, nonce: string, schoolSlug?: s
   const profile = await verifiedGoogleProfile(idToken, nonce);
   const user = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
   if (!user || !user.isActive || user.email !== profile.email) throw new AppError(403, "GOOGLE_LINK_REQUIRED", "Open your school invitation and choose Google first, or sign in with your password.");
+  await userTransaction(user.id,async tx=>{
+    const current=await tx.user.findUniqueOrThrow({where:{id:user.id}});
+    if(current.googleId!==profile.googleId||current.email!==profile.email||!current.isActive)throw new AppError(401,'GOOGLE_AUTH_FAILED','Account changed; sign in again');
+    const data=missingGoogleDetails(current,profile);
+    if(Object.keys(data).length)await tx.user.update({where:{id:user.id},data});
+  });
   if (user.globalRole === "SUPER_ADMIN" || user.globalRole === "PLATFORM_ADMIN") return authSessions.create(user.id, null, user.authVersion);
   const memberships = await prisma.membership.findMany({
     where: { userId: user.id, isActive: true, organization: { isActive: true, ...(schoolSlug ? { slug: schoolSlug } : {}) } },

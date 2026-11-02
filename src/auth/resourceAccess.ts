@@ -10,7 +10,7 @@ export async function assertTeachingAccess(
   const membership = await db.membership.findFirst({
     where: { organizationId, userId: actorId, isActive: true, user: { isActive: true }, organization: { isActive: true } },
   });
-  if (!membership || membership.role === "PARENT") {
+  if (!membership || ["PARENT","STUDENT"].includes(membership.role)) {
     throw new AppError(403, "FORBIDDEN", "Staff membership required");
   }
   const schoolClass = await db.class.findFirst({ where: { id: classId, organizationId, isActive: true } });
@@ -42,6 +42,12 @@ export async function assertSubjectTeacher(organizationId: string, actorId: stri
 }
 
 export async function assertParentChildAccess(auth: AuthContext, studentId: string) {
+  if(auth.orgRole==='STUDENT'){
+    const student=await prisma.student.findFirst({where:{id:studentId,organizationId:auth.schoolId!,userId:auth.userId,isActive:true},select:{id:true}});
+    if(!student)throw new AppError(404,'NOT_FOUND','Student record not found');
+    return;
+  }
+
   const link = await prisma.parentStudent.findFirst({
     where: {
       organizationId: auth.schoolId!, studentId,

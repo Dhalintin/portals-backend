@@ -22,6 +22,7 @@ async function loadContext(tx: Prisma.TransactionClient, userId: string, schoolI
     include: { organization: { select: { id: true, name: true, slug: true } } },
   });
   if (!membership) throw new AppError(401, "UNAUTHORIZED", "School access is no longer available");
+  if(membership.role==='STUDENT'&&!await tx.student.findFirst({where:{userId,organizationId:schoolId,isActive:true,portalEnabled:true},select:{id:true}}))throw new AppError(401,'UNAUTHORIZED','Student access is no longer active');
   return { user, membership, school: membership.organization };
 }
 

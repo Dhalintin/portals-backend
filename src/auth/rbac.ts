@@ -57,6 +57,7 @@ export const ROLE_PERMISSIONS: Record<OrgRole, readonly Permission[]> = {
     PERMISSIONS["results:publish"],
     PERMISSIONS["reports:read"],
   ],
+  STUDENT: [PERMISSIONS["results:read"],PERMISSIONS["fees:read"]],
   PARENT: [
     PERMISSIONS["exams:read"],
     PERMISSIONS["announcements:read"],
@@ -86,7 +87,7 @@ export function principalCanManageRole(role: OrgRole) {
 }
 
 // The legacy primary role remains for portal selection; permissions use every role.
-export const rolePriority:readonly OrgRole[]=['PROPRIETOR','SCHOOL_ADMIN','PRINCIPAL','BURSAR','EXAM_OFFICER','TEACHER','STAFF','PARENT'];
+export const rolePriority:readonly OrgRole[]=['PROPRIETOR','SCHOOL_ADMIN','PRINCIPAL','BURSAR','EXAM_OFFICER','TEACHER','STAFF','PARENT','STUDENT'];
 export function membershipRoles(member:{role:OrgRole;roles?:readonly OrgRole[]}){return rolePriority.filter(role=>role===member.role||member.roles?.includes(role));}
 export function primaryRole(roles:readonly OrgRole[]):OrgRole{return rolePriority.find(role=>roles.includes(role))??'STAFF';}
 export function permissionsForMembership(member:{role:OrgRole;roles?:readonly OrgRole[]}){return [...new Set(membershipRoles(member).flatMap(permissionsForOrgRole))];}

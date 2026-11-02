@@ -1,3 +1,4 @@
+import {missingGoogleDetails} from "./googleProfile";
 import { principalCanManageRole, membershipRoles, primaryRole } from "../../auth/rbac";
 import type { OrgRole } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
@@ -223,7 +224,7 @@ export class InvitationsService {
         if (profile?.google) {
           if (user.googleId && user.googleId !== profile.google.googleId) throw new AppError(409, "GOOGLE_ACCOUNT_MISMATCH", "This account is linked to a different Google account.");
           user = await tx.user.update({ where: { id: user.id }, data: { googleId: profile.google.googleId,
-            ...(!user.firstName ? { firstName } : {}), ...(!user.lastName ? { lastName } : {}) } });
+            ...missingGoogleDetails(user,profile.google) } });
         } else if (!user.passwordHash && passwordHash && !signedInUserId) {
           // Imported accounts have not chosen a password yet. The invitation proves
           // ownership of their email; only initialise an absent password.

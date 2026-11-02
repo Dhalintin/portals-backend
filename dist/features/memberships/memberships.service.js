@@ -71,6 +71,8 @@ class MembershipsService {
                 throw new errors_1.AppError(403, 'FORBIDDEN', 'Principals may manage academic roles only');
             for (const assigned of roles)
                 this.assertCanAssignRole(actor.orgRole, assigned);
+            if (before.includes('STUDENT') || roles.includes('STUDENT'))
+                throw new errors_1.AppError(400, 'ROLE_PORTAL_CHANGE', 'Manage student access from the student record');
             if (before.includes('PARENT') !== roles.includes('PARENT'))
                 throw new errors_1.AppError(400, 'ROLE_PORTAL_CHANGE', 'Parent and staff accounts cannot be converted through staff roles');
             if (before.includes('PROPRIETOR') && (!roles.includes('PROPRIETOR') || input.isActive === false)) {

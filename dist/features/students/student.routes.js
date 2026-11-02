@@ -1,5 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const studentPortal_1 = require("./studentPortal");
+const http_1 = require("../../lib/http");
 const express_1 = require("express");
 const authenticate_1 = require("../../middlewares/authenticate");
 const requireSchool_1 = require("../../middlewares/requireSchool");
@@ -11,6 +13,13 @@ const students_controller_1 = require("./students.controller");
 const c = new students_controller_1.StudentsController();
 const studentRoutes = (0, express_1.Router)();
 studentRoutes.use(authenticate_1.authenticate, requireSchool_1.requireSchool);
+studentRoutes.use("/portal", studentPortal_1.studentPortal);
+studentRoutes.post("/:studentId/portal-account", (0, requirePermission_1.requirePermission)("students:write"), (0, validate_1.validate)(students_validation_1.studentIdParamsSchema, "params"), async (req, res, next) => { try {
+    (0, http_1.sendSuccess)(res, await (0, studentPortal_1.manageStudentAccount)(req.auth.schoolId, req.params.studentId, req.auth.userId, req.body));
+}
+catch (e) {
+    next(e);
+} });
 studentRoutes.get("/", (0, requirePermission_1.requirePermission)(permissions_1.PERMISSIONS["students:read"]), (0, validate_1.validate)(students_validation_1.listStudentsQuerySchema, "query"), c.list);
 studentRoutes.get("/export", (0, requirePermission_1.requirePermission)(permissions_1.PERMISSIONS["students:read"]), c.exportRows);
 studentRoutes.post("/", (0, requirePermission_1.requirePermission)(permissions_1.PERMISSIONS["students:write"]), (0, validate_1.validate)(students_validation_1.createStudentSchema), c.create);

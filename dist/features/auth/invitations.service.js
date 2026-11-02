@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.invitationsService = exports.InvitationsService = void 0;
+const googleProfile_1 = require("./googleProfile");
 const rbac_1 = require("../../auth/rbac");
 const prisma_1 = require("../../lib/prisma");
 const errors_1 = require("../../lib/errors");
@@ -166,7 +167,7 @@ class InvitationsService {
                     if (user.googleId && user.googleId !== profile.google.googleId)
                         throw new errors_1.AppError(409, "GOOGLE_ACCOUNT_MISMATCH", "This account is linked to a different Google account.");
                     user = await tx.user.update({ where: { id: user.id }, data: { googleId: profile.google.googleId,
-                            ...(!user.firstName ? { firstName } : {}), ...(!user.lastName ? { lastName } : {}) } });
+                            ...(0, googleProfile_1.missingGoogleDetails)(user, profile.google) } });
                 }
                 else if (!user.passwordHash && passwordHash && !signedInUserId) {
                     // Imported accounts have not chosen a password yet. The invitation proves

@@ -110,12 +110,12 @@ export class StudentsService {
       ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
       ...(query.q
         ? {
-            OR: [
-              { admissionNumber: { contains: query.q, mode: "insensitive" } },
-              { firstName: { contains: query.q, mode: "insensitive" } },
-              { lastName: { contains: query.q, mode: "insensitive" } },
-              { otherNames: { contains: query.q, mode: "insensitive" } },
-            ],
+            AND: query.q.trim().split(/\s+/).filter(Boolean).map(word=>({OR:[
+              { admissionNumber: { contains: word, mode: "insensitive" as const } },
+              { firstName: { contains: word, mode: "insensitive" as const } },
+              { lastName: { contains: word, mode: "insensitive" as const } },
+              { otherNames: { contains: word, mode: "insensitive" as const } },
+            ]})),
           }
         : {}),
     };

@@ -54,6 +54,8 @@ async function resolveContext(token) {
     });
     if (!membership)
         throw new errors_1.AppError(401, "UNAUTHORIZED", "School access is no longer available");
+    if (membership.role === 'STUDENT' && !await prisma_1.prisma.student.findFirst({ where: { userId: user.id, organizationId: claims.schoolId, isActive: true, portalEnabled: true }, select: { id: true } }))
+        throw new errors_1.AppError(401, 'UNAUTHORIZED', 'Student access is no longer active');
     return {
         userId: user.id,
         sessionId: session.id,

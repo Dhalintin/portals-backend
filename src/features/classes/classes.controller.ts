@@ -20,7 +20,6 @@ export class ClassesController {
         getSchoolId(req),
         req.params.classId as string
       );
-      console.log(data);
       return sendSuccess(res, data);
     } catch (e) {
       return next(e);

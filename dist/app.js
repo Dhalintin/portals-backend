@@ -14,6 +14,8 @@ const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 exports.app = app;
+// Student relations appear in several responses. Never serialize activation hashes.
+app.set('json replacer', (key, value) => key === 'activationCodeHash' ? undefined : value);
 const httpServer = (0, http_1.createServer)(app);
 exports.httpServer = httpServer;
 (0, index_middleware_1.default)(app);

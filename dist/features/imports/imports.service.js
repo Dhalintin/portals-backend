@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.importsService = exports.ImportsService = void 0;
+const admissionNumberHelper_1 = require("../../utils/helpers/admissionNumberHelper");
 const feeAssignments_1 = require("../fees/feeAssignments");
 const node_crypto_1 = require("node:crypto");
 const errors_1 = require("../../lib/errors");
@@ -72,14 +73,13 @@ class ImportsService {
             const admissions = new Set(existing.map(row => normalized(row.admissionNumber))), seen = new Set();
             const errors = [...parsed.errors], valid = [];
             for (const row of parsed.valid) {
-                const admission = normalized(row.admissionNumber);
-                let message = seen.has(admission) ? "Duplicate admission number in file" : admissions.has(admission) ? "Admission number already exists in school" : null;
-                seen.add(admission);
+                const admission = row.admissionNumber ? normalized(row.admissionNumber) : null;
+                let message = admission && seen.has(admission) ? "Duplicate admission number in file" : admission && admissions.has(admission) ? "Admission number already exists in school" : null;
+                if (admission)
+                    seen.add(admission);
                 const classId = row.className ? classMap.get(classKey(row.className, row.classArm)) : null;
                 if (row.className && !classId)
                     message = "Class is missing, inactive or ambiguous in this school";
-                if (input.sessionId && !classId)
-                    message = "A class is required when importing session enrollments";
                 if (message)
                     errors.push({ rowNumber: row.rowNumber, message });
                 else
@@ -94,9 +94,19 @@ class ImportsService {
             rejectErrors(errors);
             if (capExceeded)
                 throw new errors_1.AppError(403, "STUDENT_CAP_REACHED", "Import exceeds the student subscription limit", { seatsLeft });
-            const students = valid.map(row => ({ id: (0, node_crypto_1.randomUUID)(), organizationId, admissionNumber: row.admissionNumber,
-                firstName: row.firstName, lastName: row.lastName, otherNames: row.otherNames ?? null, gender: row.gender ?? null,
-                dateOfBirth: row.dateOfBirth ?? null, classId: row.classId, parentPhone: row.parentPhone ?? null, parentEmail: row.parentEmail ?? null }));
+            const reserved = new Set([...admissions, ...seen]);
+            const students = valid.map(row => {
+                let admissionNumber = row.admissionNumber;
+                if (!admissionNumber) {
+                    do {
+                        admissionNumber = (0, admissionNumberHelper_1.generateAdmissionNumber)();
+                    } while (reserved.has(normalized(admissionNumber)));
+                }
+                reserved.add(normalized(admissionNumber));
+                return ({ id: (0, node_crypto_1.randomUUID)(), organizationId, admissionNumber,
+                    firstName: row.firstName, lastName: row.lastName, otherNames: row.otherNames ?? null, gender: row.gender ?? null,
+                    dateOfBirth: row.dateOfBirth ?? null, classId: row.classId, parentPhone: row.parentPhone ?? null, parentEmail: row.parentEmail ?? null });
+            });
             await tx.student.createMany({ data: students });
             if (input.sessionId) {
                 const enrollments = students.filter(row => row.classId).map(row => ({ organizationId, studentId: row.id, classId: row.classId, sessionId: input.sessionId }));

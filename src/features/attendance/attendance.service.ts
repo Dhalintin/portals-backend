@@ -234,7 +234,7 @@ export class AttendanceService {
       where: {
         organizationId,
         date,
-        status: { in: ["ABSENT", "LATE"] }, // or only ABSENT if preferred
+        status: { in: ["ABSENT", "EXCUSED"] }, // Excused remains an absence; late students attended.
         ...(restrictedTeachingRead(auth,'attendance') ? { class: teachingClassFilter(auth,'attendance') } : {}),
       },
       include: {

@@ -10,7 +10,7 @@ const birthDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
   .transform(value => new Date(`${value}T00:00:00.000Z`)).nullable().optional();
 
 export const studentImportRowSchema = z.object({
-  rowNumber: z.number().int().positive(), admissionNumber: z.string().trim().min(1).max(40),
+  rowNumber: z.number().int().positive(), admissionNumber: z.string().trim().max(40).optional(),
   firstName: z.string().trim().min(1).max(80), lastName: z.string().trim().min(1).max(80),
   otherNames: optionalText(80), gender: z.nativeEnum(GenderType).nullable().optional(), dateOfBirth: birthDate,
   className: optionalText(80), classArm: optionalText(40), parentPhone: optionalText(30), parentEmail: email,

@@ -1,3 +1,4 @@
+import {studentLogin} from "../students/studentPortal";
 import { Router } from "express";
 // import { validate } from "../../middleware/validate";
 // import { authenticate } from "../../middleware/authenticate";
@@ -65,6 +66,7 @@ router.post(
   c.register
 );
 router.post("/login", authLimiter, validate(loginSchema), c.login);
+router.post("/student-login",authLimiter,async(req,res,next)=>{try{sendSuccess(res,await studentLogin(req.body));}catch(e){next(e);}});
 
 router.post("/refresh", refreshLimiter, validate(refreshSchema), c.refresh);
 

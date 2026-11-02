@@ -1612,6 +1612,10 @@ check('fee balance endpoint combines all student bills and excludes cancelled or
  assert.equal((await request('GET','/fees/student-balances?termId='+term.id,(await tokens(a.ownerId,a.id)).accessToken)).status,404);
  assert.equal((await request('GET','/fees/student-balances?termId='+term.id,(await tokens(a.parentUserId,a.id)).accessToken)).status,403);
  assert.equal((await request('GET','/fees/student-balances?termId='+term.id+'&pageSize=999',token)).status,422);
+ const ownClass=await prisma.class.create({data:{organizationId:org,name:'Balance class'}});await prisma.student.update({where:{id:student.id},data:{classId:ownClass.id}});
+ const matching=await request('GET','/fees/student-balances?termId='+term.id+'&classId='+ownClass.id,token);assert.equal(matching.body.data.items.length,1);assert.equal(matching.body.data.items[0].classId,ownClass.id);
+ const other=await request('GET','/fees/student-balances?termId='+term.id+'&classId='+a.classId,token);assert.equal(other.body.data.items.length,0);
+
 });
 
 check('term dates are editable and required on every activation route without disturbing the current calendar',async()=>{
@@ -2210,4 +2214,99 @@ check('timetable groups persist exception formats, reject foreign classes and fi
  const teacher=await request('GET','/exams/published?termId='+f.term.id,f.teacherToken);assert.equal(teacher.body.data.groups.length,1);assert.equal(teacher.body.data.groups[0].format.startTime,'09:00');
  const editor=await request('GET','/exams/editor?termId='+f.term.id,f.officerToken);assert.deepEqual(editor.body.data.groups,undefined);assert.equal(editor.body.data.timetable.groups.length,2);
  const badSlot=await request('PUT','/exams/timetable',f.officerToken,{...body,expectedVersion:2,entries:[entries[0],{...entries[1],startTime:'09:00'}]});assert.equal(badSlot.body.error.code,'TIMETABLE_FORMAT_MISMATCH');
+});
+
+check('child-link requests require school review and cannot cross tenants or grant themselves access', async()=>{
+ const parent=(await tokens(a.parentUserId,a.id)).accessToken,owner=(await tokens(a.ownerId,a.id)).accessToken,otherOwner=(await tokens(b.ownerId,b.id)).accessToken;
+ const student=await prisma.student.create({data:{organizationId:a.id,admissionNumber:'LINK-REQUEST-1',firstName:'Maya',lastName:'LinkTest',classId:a.classId}});
+ const created=await request('POST','/parents/me/link-requests',parent,{childName:'Maya LinkTest',className:'JSS 1',note:'Please verify with the office.'});
+ assert.equal(created.status,201);const id=created.body.data.id;
+ const repeated=await request('POST','/parents/me/link-requests',parent,{childName:'  MAYA   LinkTest  '});assert.equal(repeated.body.data.id,id);
+ assert.equal((await request('GET','/parents/me',parent)).body.data.children.some(link=>link.student.id===student.id),false);
+ assert.equal((await request('POST',`/parents/link-requests/${id}/review`,parent,{decision:'APPROVED',studentId:student.id})).status,403);
+ assert.equal((await request('POST',`/parents/link-requests/${id}/review`,otherOwner,{decision:'APPROVED',studentId:student.id})).status,404);
+ assert.equal((await request('POST',`/parents/link-requests/${id}/review`,owner,{decision:'APPROVED',studentId:b.studentId})).status,404);
+ assert.equal((await request('GET','/parents/link-requests',parent)).status,403);
+ const queue=await request('GET','/parents/link-requests',owner);assert.equal(queue.status,200);assert.ok(queue.body.data.items.some(item=>item.id===id));
+ assert.equal((await request('POST',`/parents/link-requests/${id}/review`,owner,{decision:'APPROVED',studentId:student.id})).status,200);
+ assert.equal((await request('GET','/parents/me',parent)).body.data.children.some(link=>link.student.id===student.id),true);
+ assert.equal((await request('POST',`/parents/link-requests/${id}/review`,owner,{decision:'DECLINED',reviewNote:'Wrong student'})).status,409);
+ const decline=await request('POST','/parents/me/link-requests',parent,{childName:'Another Child LinkTest'});
+ assert.equal((await request('POST',`/parents/link-requests/${decline.body.data.id}/review`,owner,{decision:'DECLINED',reviewNote:'Please contact the school office to verify the relationship.'})).status,200);
+ const mine=await request('GET','/parents/me/link-requests',parent);assert.ok(mine.body.data.items.some(item=>item.status==='DECLINED'&&item.reviewNote));
+ assert.equal((await request('GET','/parents/me/link-requests',(await tokens(b.parentUserId,b.id)).accessToken)).body.data.items.some(item=>item.id===id),false);
+});
+
+check('student portal isolates admission login, published records, parent requests and password resets',async()=>{
+ const owner=(await tokens(a.ownerId,a.id)).accessToken,otherOwner=(await tokens(b.ownerId,b.id)).accessToken,parent=(await tokens(a.parentUserId,a.id)).accessToken;
+ const enabled=await request('POST',`/students/${a.studentId}/portal-account`,owner,{action:'enable'});assert.equal(enabled.status,200);assert.ok(enabled.body.data.temporaryPassword);
+ const initial=enabled.body.data.temporaryPassword;
+ const repeat=await request('POST',`/students/${a.studentId}/portal-account`,owner,{action:'enable'});assert.equal(repeat.status,200);assert.equal(repeat.body.data.temporaryPassword,undefined);
+ assert.equal((await request('POST',`/students/${a.studentId}/portal-account`,otherOwner,{action:'reset'})).status,404);
+ assert.equal((await request('POST',`/students/${a.studentId}/portal-account`,parent,{action:'reset'})).status,403);
+ const login=await request('POST','/auth/student-login',null,{admissionNumber:'S001',password:initial,schoolSlug:a.slug});assert.equal(login.status,200);assert.equal(login.body.data.orgRole,'STUDENT');const token=login.body.data.accessToken;
+ assert.equal((await request('POST','/auth/student-login',null,{admissionNumber:'S001',password:initial,schoolSlug:b.slug})).status,401);
+ const profile=await request('GET','/students/portal/me',token);assert.equal(profile.status,200);assert.equal(profile.body.data.id,a.studentId);
+ for(const path of ['/students','/staff','/parents/link-requests','/results','/fees/invoices','/fees/workspace'])assert.equal((await request('GET',path,token)).status,403,path);
+ const results=await request('GET','/students/portal/results',token);assert.equal(results.status,200);assert.ok(results.body.data.every(item=>item.studentId===a.studentId&&item.isPublished&&item.status==='PUBLISHED'));
+ assert.equal((await request('GET',`/students/portal/results/${b.publishedResultId}/report-card`,token)).status,404);
+ assert.equal((await request('GET',`/students/portal/results/${a.ownDraftResultId}/report-card`,token)).status,404);
+ assert.equal((await request('GET',`/students/portal/results/${a.publishedResultId}/report-card`,token)).status,200);
+ assert.equal((await request('POST','/fees/parent/payments',token,{studentId:b.studentId,itemIds:[crypto.randomUUID()],idempotencyKey:crypto.randomUUID(),callbackOrigin:'http://localhost:3000'})).status,404);
+ const fees=await request('GET','/students/portal/fees',token);assert.equal(fees.status,200);assert.ok(fees.body.data.invoices.every(item=>item.studentId===a.studentId));
+ assert.equal((await request('PATCH','/students/portal/me',token,{admissionNumber:'ATTACK'})).status,422);
+ assert.equal((await request('PATCH','/students/portal/me',token,{contactEmail:'receipts.student@example.test'})).status,200);
+ const created=await request('POST','/students/portal/parent-requests',token,{email:'new.guardian@example.test'});assert.equal(created.status,201);const id=created.body.data.id;
+ const again=await request('POST','/students/portal/parent-requests',token,{email:' NEW.GUARDIAN@example.test '});assert.equal(again.body.data.id,id);
+ assert.equal((await request('POST',`/parents/student-parent-requests/${id}/review`,token,{decision:'APPROVED',firstName:'New',lastName:'Guardian'})).status,403);
+ assert.equal((await request('POST',`/parents/student-parent-requests/${id}/review`,otherOwner,{decision:'APPROVED',firstName:'New',lastName:'Guardian'})).status,404);
+ const reviewed=await request('POST',`/parents/student-parent-requests/${id}/review`,owner,{decision:'APPROVED',firstName:'New',lastName:'Guardian'});assert.equal(reviewed.status,200);
+ assert.ok(await prisma.parentStudent.findFirst({where:{parentId:reviewed.body.data.parentId,studentId:a.studentId,organizationId:a.id}}));
+ assert.equal((await request('GET','/students/portal/parent-requests',token)).body.data.items[0].status,'APPROVED');
+ const changed=await request('POST','/auth/change-password',token,{currentPassword:initial,newPassword:'StudentChanged42!'});assert.equal(changed.status,200);assert.equal((await request('GET','/students/portal/me',token)).status,401);
+ const changedLogin=await request('POST','/auth/student-login',null,{admissionNumber:'S001',password:'StudentChanged42!',schoolSlug:a.slug});assert.equal(changedLogin.status,200);
+ const reset=await request('POST',`/students/${a.studentId}/portal-account`,owner,{action:'reset'});assert.equal(reset.status,200);assert.equal((await request('GET','/students/portal/me',changedLogin.body.data.accessToken)).status,401);
+ assert.equal((await request('POST','/auth/student-login',null,{admissionNumber:'S001',password:'StudentChanged42!',schoolSlug:a.slug})).status,401);
+ const resetLogin=await request('POST','/auth/student-login',null,{admissionNumber:'S001',password:reset.body.data.temporaryPassword,schoolSlug:a.slug});assert.equal(resetLogin.status,200);
+ assert.equal((await request('POST',`/students/${a.studentId}/portal-account`,owner,{action:'disable'})).status,200);assert.equal((await request('GET','/students/portal/me',resetLogin.body.data.accessToken)).status,401);
+});
+
+check('default student activation is private, single-use, expiring and school scoped',async()=>{
+ const owner=(await tokens(a.ownerId,a.id)).accessToken,other=(await tokens(b.ownerId,b.id)).accessToken;
+ const student=await prisma.student.create({data:{organizationId:a.id,admissionNumber:'ACTIVATE-DEFAULT',firstName:'New',lastName:'Student'}});
+ assert.equal(student.portalEnabled,true);assert.equal(student.userId,null);
+ assert.equal((await request('POST',`/students/${student.id}/portal-account`,other,{action:'activation'})).status,404);
+ const issued=await request('POST',`/students/${student.id}/portal-account`,owner,{action:'activation'});assert.equal(issued.status,200);const code=issued.body.data.activationCode;assert.ok(code.length>=24);
+ const stored=await prisma.student.findUnique({where:{id:student.id},select:{activationCodeHash:true}});assert.equal(stored.activationCodeHash,sha256(code));assert.equal((await request('GET',`/students/${student.id}`,owner)).body.data.activationCodeHash,undefined);
+ const body={admissionNumber:student.admissionNumber,password:'StudentPass42!',activationCode:code,schoolSlug:a.slug};
+ assert.equal((await request('POST','/auth/student-login',null,{...body,schoolSlug:b.slug})).status,400);
+ assert.equal((await request('POST','/auth/student-login',null,{...body,password:'short'})).status,422);
+ const activated=await request('POST','/auth/student-login',null,body);assert.equal(activated.status,200,JSON.stringify(activated));assert.equal(activated.body.data.orgRole,'STUDENT');
+ assert.equal((await request('POST','/auth/student-login',null,body)).status,400);
+ assert.equal((await request('GET','/students/portal/me',activated.body.data.accessToken)).body.data.id,student.id);
+ assert.equal((await request('POST',`/students/${student.id}/portal-account`,owner,{action:'activation'})).status,409);
+ const second=await prisma.student.create({data:{organizationId:a.id,admissionNumber:'ACTIVATE-EXPIRED',firstName:'Another',lastName:'Student'}});
+ const issue=async()=>{const r=await request('POST',`/students/${second.id}/portal-account`,owner,{action:'activation'});assert.equal(r.status,200);return r.body.data.activationCode;};
+ const old=await issue(),fresh=await issue(),input={admissionNumber:second.admissionNumber,password:'StudentPass42!',schoolSlug:a.slug};
+ assert.equal((await request('POST','/auth/student-login',null,{...input,activationCode:old})).status,400);
+ await prisma.student.update({where:{id:second.id},data:{activationCodeExpiresAt:new Date(Date.now()-1000)}});
+ assert.equal((await request('POST','/auth/student-login',null,{...input,activationCode:fresh})).status,400);
+ const disabledCode=await issue();await request('POST',`/students/${second.id}/portal-account`,owner,{action:'disable'});
+ assert.equal((await request('POST','/auth/student-login',null,{...input,activationCode:disabledCode})).status,400);
+});
+check('names-only student imports generate admissions, allow unassigned students and replay safely',async()=>{
+ const {importsService}=require('../.test-build/features/imports/imports.service');
+ const rows=[{rowNumber:2,firstName:'NamesOnly',lastName:'Unassigned'},{rowNumber:3,firstName:'NamesOnly',lastName:'Assigned',className:'JSS 1',classArm:'A'}];
+ // Use the actual seeded class label so this test remains valid if fixtures change.
+ const cls=await prisma.class.findUniqueOrThrow({where:{id:a.classId}});rows[1].className=cls.name;rows[1].classArm=cls.arm||undefined;
+ const preview=await importsService.importStudents(a.id,{rows,dryRun:true},a.ownerId);assert.equal(preview.canCommit,true);
+ const body={rows,dryRun:false,sessionId:a.sessionId,idempotencyKey:crypto.randomUUID()};
+ const committed=await importsService.importStudents(a.id,body,a.ownerId);assert.equal(committed.created,2);
+ const added=await prisma.student.findMany({where:{organizationId:a.id,firstName:'NamesOnly'}});assert.equal(added.length,2);assert.equal(new Set(added.map(s=>s.admissionNumber)).size,2);assert.ok(added.every(s=>/^ADM-/.test(s.admissionNumber)&&s.portalEnabled));
+ assert.equal(added.find(s=>s.lastName==='Unassigned').classId,null);assert.equal(added.find(s=>s.lastName==='Assigned').classId,a.classId);
+ assert.equal(await prisma.studentEnrollment.count({where:{studentId:{in:added.map(s=>s.id)},sessionId:a.sessionId}}),1);
+ assert.equal((await importsService.importStudents(a.id,body,a.ownerId)).replayed,true);
+ assert.equal(await prisma.student.count({where:{organizationId:a.id,firstName:'NamesOnly'}}),2);
+ const invalid=await importsService.importStudents(a.id,{rows:[{rowNumber:2,firstName:'MissingLastName'}],dryRun:true},a.ownerId);assert.equal(invalid.canCommit,false);
+ const duplicate=await importsService.importStudents(a.id,{rows:[{rowNumber:2,firstName:'A',lastName:'B',admissionNumber:added[0].admissionNumber}],dryRun:true},a.ownerId);assert.equal(duplicate.canCommit,false);
 });
