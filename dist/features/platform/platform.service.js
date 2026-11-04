@@ -4,14 +4,7 @@ exports.platformService = exports.PlatformService = void 0;
 const prisma_1 = require("../../lib/prisma");
 const errors_1 = require("../../lib/errors");
 const password_1 = require("../../lib/password");
-const audit_service_1 = require("../audit/audit.service");
-const PLAN_CAPS = {
-    FREE: 100,
-    STARTER: 250,
-    GROWTH: 600,
-    PRO: 1500,
-    ENTERPRISE: 100_000,
-};
+const schoolTransaction_1 = require("../../lib/schoolTransaction");
 class PlatformService {
     // ─── Schools ───────────────────────────────────────────────────
     async listSchools(query) {
@@ -104,58 +97,17 @@ class PlatformService {
         });
         if (!school)
             throw new errors_1.AppError(404, "SCHOOL_NOT_FOUND", "School not found");
-        const updated = await prisma_1.prisma.organization.update({
-            where: { id: organizationId },
-            data: { isActive },
+        if (!reason || reason.trim().length < 5)
+            throw new errors_1.AppError(400, "REASON_REQUIRED", "Enter a clear reason for changing school access.");
+        return (0, schoolTransaction_1.schoolTransaction)(organizationId, async (tx) => {
+            const updated = await tx.organization.update({ where: { id: organizationId }, data: { isActive } });
+            await tx.auditLog.create({ data: { organizationId, actorId, action: "SETTINGS_CHANGED", entity: "Organization", entityId: organizationId, metadata: { operation: "SCHOOL_ACCESS_CHANGED", isActive, reason }, requestId: meta?.requestId } });
+            return updated;
         });
-        await audit_service_1.auditService.write({
-            action: "SETTINGS_CHANGED",
-            actorId,
-            organizationId,
-            entity: "Organization",
-            entityId: organizationId,
-            metadata: { isActive, reason },
-            requestId: meta?.requestId,
-        });
-        return updated;
     }
     // ─── Subscriptions ─────────────────────────────────────────────
     async updateSubscription(organizationId, data, actorId, meta) {
-        const existing = await prisma_1.prisma.subscription.findUnique({
-            where: { organizationId },
-        });
-        if (!existing) {
-            throw new errors_1.AppError(404, "NO_SUBSCRIPTION", "School has no subscription record");
-        }
-        // Auto-set cap when plan changes (unless explicitly overridden)
-        let studentCap = data.studentCap;
-        if (data.plan && studentCap === undefined) {
-            studentCap = PLAN_CAPS[data.plan];
-        }
-        const updated = await prisma_1.prisma.subscription.update({
-            where: { organizationId },
-            data: {
-                plan: data.plan,
-                status: data.status,
-                studentCap,
-                sponsorship: data.sponsorship,
-                currentPeriodEnd: data.currentPeriodEnd === undefined
-                    ? undefined
-                    : data.currentPeriodEnd
-                        ? new Date(data.currentPeriodEnd)
-                        : null,
-            },
-        });
-        await audit_service_1.auditService.write({
-            action: "SETTINGS_CHANGED",
-            actorId,
-            organizationId,
-            entity: "Subscription",
-            entityId: updated.id,
-            metadata: data,
-            requestId: meta?.requestId,
-        });
-        return updated;
+        throw new errors_1.AppError(410, "LEGACY_BILLING_RETIRED", "Use term subscription bills and verified payments.");
     }
     // ─── Platform admin assignments ────────────────────────────────
     async assignPlatformAdmin(data, assignedById) {
@@ -165,6 +117,8 @@ class PlatformService {
         ]);
         if (!user)
             throw new errors_1.AppError(404, "USER_NOT_FOUND", "User not found");
+        if (!["PLATFORM_ADMIN", "SUPER_ADMIN"].includes(user.globalRole))
+            throw new errors_1.AppError(400, "PLATFORM_ROLE_REQUIRED", "Choose an existing platform administrator.");
         if (!org)
             throw new errors_1.AppError(404, "SCHOOL_NOT_FOUND", "School not found");
         return prisma_1.prisma.platformAdminAssignment.upsert({
@@ -214,7 +168,7 @@ class PlatformService {
         });
     }
     // ─── Platform user creation (SUPER_ADMIN only) ─────────────────
-    async createPlatformUser(input) {
+    async createPlatformUser(input, actorId) {
         const existing = await prisma_1.prisma.user.findUnique({
             where: { email: input.email },
         });
@@ -222,22 +176,26 @@ class PlatformService {
             throw new errors_1.AppError(409, "EMAIL_IN_USE", "Email already registered");
         }
         const passwordHash = await (0, password_1.hashPassword)(input.password);
-        return prisma_1.prisma.user.create({
-            data: {
-                email: input.email,
-                firstName: input.firstName,
-                lastName: input.lastName,
-                passwordHash,
-                globalRole: input.globalRole,
-            },
-            select: {
-                id: true,
-                email: true,
-                firstName: true,
-                lastName: true,
-                globalRole: true,
-                createdAt: true,
-            },
+        return prisma_1.prisma.$transaction(async (tx) => {
+            const created = await tx.user.create({
+                data: {
+                    email: input.email,
+                    firstName: input.firstName,
+                    lastName: input.lastName,
+                    passwordHash,
+                    globalRole: input.globalRole,
+                },
+                select: {
+                    id: true,
+                    email: true,
+                    firstName: true,
+                    lastName: true,
+                    globalRole: true,
+                    createdAt: true,
+                },
+            });
+            await tx.auditLog.create({ data: { actorId: actorId ?? created.id, action: "SETTINGS_CHANGED", entity: "PlatformUser", entityId: created.id, metadata: { operation: "PLATFORM_USER_CREATED", globalRole: created.globalRole } } });
+            return created;
         });
     }
     // ─── Platform metrics (lightweight) ────────────────────────────

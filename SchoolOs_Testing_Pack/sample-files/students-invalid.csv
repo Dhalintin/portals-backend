@@ -1,0 +1,6 @@
+﻿firstName,lastName,admissionNumber,className,classArm
+,MissingFirst,BAD-001,,
+MissingLast,,BAD-002,,
+Duplicate,One,BAD-DUP,,
+Duplicate,Two,BAD-DUP,,
+Unknown,Class,BAD-003,CLASS DOES NOT EXIST,Z

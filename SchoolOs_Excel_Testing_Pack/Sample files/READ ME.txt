@@ -1,0 +1,8 @@
+Use these invented sample records in a disposable school.
+
+The baseline file needs JSS 1 A, JSS 2 A and SS 1 A to exist first.
+Names-only and pagination files should be uploaded into a separate disposable class or school.
+Replace the staff template example.test addresses with controlled test inboxes before sending invitations.
+Invalid files are supposed to fail.
+Keep admission numbers with leading zeros formatted as Text in Excel.
+Never put passwords or activation codes in a spreadsheet or report.

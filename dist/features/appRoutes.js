@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const requireTermSubscription_1 = require("../middlewares/requireTermSubscription");
 const offlineOperation_1 = require("../middlewares/offlineOperation");
 const exams_routes_1 = __importDefault(require("./exams/exams.routes"));
 const express_1 = __importDefault(require("express"));
@@ -45,6 +46,7 @@ appRouter.get("/health/ready", async (_req, res) => {
 appRouter.use("/auth", auth_routes_1.default);
 appRouter.use("/public", rateLimit_1.publicLimiter, public_routes_1.default);
 appRouter.use(rateLimit_1.apiLimiter);
+appRouter.use(requireTermSubscription_1.requireTermSubscription);
 appRouter.use(offlineOperation_1.offlineOperation);
 appRouter.use("/memberships", memberships_routes_1.default);
 appRouter.use("/schools", schools_routes_1.default);

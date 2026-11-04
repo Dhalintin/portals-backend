@@ -1,0 +1,3960 @@
+[
+  {
+    "code": "01",
+    "title": "Landing page and signing in",
+    "roles": "Everyone; new school owner",
+    "needs": "A signed-out browser, two controlled email inboxes, and the school address from the coordinator.",
+    "cases": [
+      {
+        "id": "01-01",
+        "title": "Understand the landing page",
+        "role": "Visitor",
+        "steps": [
+          "Open the SchoolOs address.",
+          "Read the main heading and one feature card.",
+          "Without help, say what the app does and who it is for."
+        ],
+        "expect": "You can explain the main purpose. Each feature description is short; images help explain it. Record anything confusing.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "01-02",
+        "title": "Use landing page links",
+        "role": "Visitor",
+        "steps": [
+          "Open Features, Get started and Sign in.",
+          "Return and choose Set up your school.",
+          "Open Student sign in."
+        ],
+        "expect": "Each link opens the matching section or page. No broken links or unexpected school records appear.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "01-03",
+        "title": "Register a school",
+        "role": "New owner",
+        "steps": [
+          "Open Register.",
+          "Enter your name, a controlled email and a new password.",
+          "Enter a new test school name and finish.",
+          "Sign out and sign back in."
+        ],
+        "expect": "One new school opens. You do not have to invent a school code or type a school slug.",
+        "needs": "Use a new test school name and unused inbox. Password: at least 8 characters, including a letter and number.",
+        "special": "Creates a school"
+      },
+      {
+        "id": "01-04",
+        "title": "Correct registration mistakes",
+        "role": "New owner",
+        "steps": [
+          "Try a blank required field, invalid email and mismatched passwords separately.",
+          "Try a 7-character, letters-only and numbers-only password.",
+          "Correct the values and continue."
+        ],
+        "expect": "Clear messages identify the problem. Correcting it works without creating duplicate schools.",
+        "needs": "Use a new unused inbox for a disposable registration.",
+        "special": ""
+      },
+      {
+        "id": "01-05",
+        "title": "Prevent duplicate registration",
+        "role": "New owner",
+        "steps": [
+          "Try registering again with an email already registered.",
+          "Return to Sign in and use that account."
+        ],
+        "expect": "A duplicate account is not created. The existing account still works.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "01-06",
+        "title": "Sign in with email and password",
+        "role": "Each staff role and parent",
+        "steps": [
+          "Enter the assigned email and password.",
+          "Choose Sign in.",
+          "Check your name, school and available menu items.",
+          "Reload the page."
+        ],
+        "expect": "The correct school and permitted home open. Reload does not immediately sign you out.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "01-07",
+        "title": "Reject a wrong password",
+        "role": "Any account",
+        "steps": [
+          "Try a wrong password once.",
+          "Try an unknown email once.",
+          "Enter your correct details."
+        ],
+        "expect": "Incorrect details do not open private records. Correct details still work.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "01-08",
+        "title": "Choose between two schools",
+        "role": "Staff member of two schools",
+        "steps": [
+          "Sign in with the shared test account.",
+          "Choose School A by name.",
+          "Sign out, sign in again and choose School B."
+        ],
+        "expect": "School names, menus and records match the chosen school. A wrong password must not reveal the school list.",
+        "needs": "Coordinator supplies one account belonging to both test schools.",
+        "special": ""
+      },
+      {
+        "id": "01-09",
+        "title": "Sign in with Google",
+        "role": "Google user",
+        "steps": [
+          "Choose Continue with Google.",
+          "Select the assigned Google account.",
+          "Check your name and picture in Account.",
+          "Sign out and sign in again."
+        ],
+        "expect": "The intended account opens. Missing name/photo are filled from Google; existing saved details are preserved.",
+        "needs": "Coordinator has configured Google sign-in and provided a controlled Google account.",
+        "special": "Google setup required"
+      },
+      {
+        "id": "01-10",
+        "title": "Recover a forgotten password",
+        "role": "Staff or parent",
+        "steps": [
+          "Choose Forgot password and enter your controlled email.",
+          "Open the reset message.",
+          "Set a new password and sign in.",
+          "Try the old password and reuse the reset link."
+        ],
+        "expect": "New password works. Old password and reused link fail. Do not copy the reset link into your report.",
+        "needs": "A working test inbox. Student passwords are reset through the school, not this email flow.",
+        "special": "Email required"
+      },
+      {
+        "id": "01-11",
+        "title": "Check unknown email recovery",
+        "role": "Visitor",
+        "steps": [
+          "Open Forgot password.",
+          "Enter an unregistered test email.",
+          "Read the response."
+        ],
+        "expect": "The message does not disclose whether someone owns an account. It does not expose private details.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "01-12",
+        "title": "Cancel Google sign-in",
+        "role": "Google user",
+        "steps": [
+          "Start Google sign-in.",
+          "Cancel the Google window.",
+          "Try ordinary sign-in again."
+        ],
+        "expect": "Cancellation leaves you signed out with a usable page; another account is not silently selected.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "01-13",
+        "title": "Sign out safely",
+        "role": "Any account",
+        "steps": [
+          "Open a private page.",
+          "Use your avatar menu to sign out.",
+          "Press browser Back and reload."
+        ],
+        "expect": "Private records cannot be used as a signed-in session after sign-out.",
+        "needs": "Save all reports and synchronise pending work first.",
+        "special": ""
+      },
+      {
+        "id": "01-14",
+        "title": "Keep separate accounts separate",
+        "role": "Two testers",
+        "steps": [
+          "Tester A signs in and opens their records.",
+          "Sign out and let Tester B sign in using the same browser.",
+          "Check the school name, children and records."
+        ],
+        "expect": "Tester B never receives Tester A's private records or queued work.",
+        "needs": "Use only controlled accounts. Do not clear storage if work is waiting to sync.",
+        "special": ""
+      },
+      {
+        "id": "01-15",
+        "title": "View a school public page",
+        "role": "Visitor",
+        "steps": [
+          "Open the school public link supplied by the coordinator.",
+          "Read its school name, logo and contact information.",
+          "Choose its sign-in link."
+        ],
+        "expect": "Public school information is readable on phone/desktop and routes to the correct school. It does not reveal private pupils, balances or results.",
+        "needs": "Coordinator supplies the supported school public URL; no site-editing test is assumed.",
+        "special": ""
+      }
+    ],
+    "filename": "01-landing-page-and-signing-in.html"
+  },
+  {
+    "code": "02",
+    "title": "Staff invitations and roles",
+    "roles": "Owner; principal; school administrator; invited staff",
+    "needs": "Controlled staff inboxes, a Google inbox, and sample-files staff email templates. Replace example emails before sending.",
+    "cases": [
+      {
+        "id": "02-01",
+        "title": "Invite with only an email",
+        "role": "Staff manager",
+        "steps": [
+          "Open Staff and choose Invite staff.",
+          "Enter one controlled email and send.",
+          "Read the notification at the top of the screen.",
+          "Open Recent invitations."
+        ],
+        "expect": "An invitation is acknowledged once and appears in the list. Name, phone and role are not required; the default role is Teacher.",
+        "needs": "",
+        "special": "Email required"
+      },
+      {
+        "id": "02-02",
+        "title": "Reject an invalid email",
+        "role": "Staff manager",
+        "steps": [
+          "Try an empty invitation and then an invalid email.",
+          "Correct it to a controlled email and send."
+        ],
+        "expect": "Helpful errors appear. The corrected invitation can be sent without restarting.",
+        "needs": "",
+        "special": "Email required"
+      },
+      {
+        "id": "02-03",
+        "title": "Upload email invitations",
+        "role": "Staff manager",
+        "steps": [
+          "Open Upload staff spreadsheet.",
+          "Choose the prepared email-only file.",
+          "Review the checked rows and confirm.",
+          "Open Recent invitations."
+        ],
+        "expect": "Each valid address gets one invitation with Teacher as the initial role. The file does not need names.",
+        "needs": "Replace example.test addresses in the template with controlled inboxes.",
+        "special": "Email required"
+      },
+      {
+        "id": "02-04",
+        "title": "Check spreadsheet errors",
+        "role": "Staff manager",
+        "steps": [
+          "Upload staff-invalid.csv.",
+          "Read the row errors.",
+          "Upload staff-valid-template.csv after replacing its emails."
+        ],
+        "expect": "Bad email rows are identified. Nothing is sent until a valid upload is deliberately confirmed.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "02-05",
+        "title": "Accept using a password",
+        "role": "New invitee",
+        "steps": [
+          "Open the latest invitation while signed out.",
+          "Choose password registration and enter matching valid passwords.",
+          "Enter your first and last names when requested.",
+          "Finish and check the account name."
+        ],
+        "expect": "The invited email is correct, fields are usable, and the intended school opens with Teacher access.",
+        "needs": "A fresh controlled invitation. Never report the password or full invitation URL.",
+        "special": "Email required"
+      },
+      {
+        "id": "02-06",
+        "title": "Accept using Google",
+        "role": "New invitee",
+        "steps": [
+          "Open an invitation sent to the assigned Google address.",
+          "Choose Google and use that same address.",
+          "Finish and check your profile."
+        ],
+        "expect": "The invitation is accepted for its recipient. Google supplies missing names/photo.",
+        "needs": "Google sign-in configured.",
+        "special": "Google and email required"
+      },
+      {
+        "id": "02-07",
+        "title": "Reject the wrong Google account",
+        "role": "Invitee",
+        "steps": [
+          "Open a fresh invitation.",
+          "Choose a Google address different from the invitation recipient.",
+          "Return and use the invited account."
+        ],
+        "expect": "The wrong address cannot claim the invitation; the correct one can.",
+        "needs": "Two controlled Google accounts.",
+        "special": "Google and email required"
+      },
+      {
+        "id": "02-08",
+        "title": "Accept while the owner is already signed in",
+        "role": "Owner and invitee",
+        "steps": [
+          "Keep the owner signed in in one browser.",
+          "Open another person's invitation in that browser.",
+          "Check the displayed recipient before continuing.",
+          "Complete acceptance only using the intended recipient's sign-in details."
+        ],
+        "expect": "The invitation never becomes the owner's account. The correct recipient is clearly identified and usable.",
+        "needs": "Use a disposable invite and controlled recipient.",
+        "special": "Paired test"
+      },
+      {
+        "id": "02-09",
+        "title": "Use an existing account",
+        "role": "Existing staff account",
+        "steps": [
+          "Invite a controlled existing account to School B.",
+          "Open the invitation and follow the existing-account option.",
+          "Use that person's current password or matching Google account.",
+          "Sign in to both schools."
+        ],
+        "expect": "Both school memberships work. Acceptance does not silently replace the existing password or profile.",
+        "needs": "",
+        "special": "Email required"
+      },
+      {
+        "id": "02-10",
+        "title": "Change a pending role",
+        "role": "Staff manager",
+        "steps": [
+          "Find a pending invitation.",
+          "Change the offered role to Bursar using the role control.",
+          "Accept the invitation with that recipient."
+        ],
+        "expect": "The account receives the saved permitted role. A principal must not grant owner or finance access.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "02-11",
+        "title": "Add more than one role",
+        "role": "Owner or school administrator",
+        "steps": [
+          "Open a teacher's roles.",
+          "Add Exam officer and save.",
+          "Have that teacher sign in again."
+        ],
+        "expect": "Teacher tools remain; Result progress and Exam timetable are added. Removing Exam officer removes those additional tools.",
+        "needs": "A teacher test account; keep a record of its original roles.",
+        "special": "Changes permissions"
+      },
+      {
+        "id": "02-12",
+        "title": "Combine teaching and accounts work",
+        "role": "Owner and teacher",
+        "steps": [
+          "Add Bursar to a teacher test account.",
+          "Sign in as the teacher and open Fees and payments.",
+          "Confirm My classes and score entry still work.",
+          "Remove the added role after checking."
+        ],
+        "expect": "The account has the combined features without switching identities. Permission removal takes effect on the next live access check.",
+        "needs": "",
+        "special": "Changes permissions"
+      },
+      {
+        "id": "02-13",
+        "title": "Revoke and replace an invitation",
+        "role": "Staff manager and invitee",
+        "steps": [
+          "Revoke a pending invitation.",
+          "Try its old link.",
+          "Send a replacement and accept the new link."
+        ],
+        "expect": "Revoked and superseded links fail. The newest valid invitation works.",
+        "needs": "",
+        "special": "Email required"
+      },
+      {
+        "id": "02-14",
+        "title": "Try used or expired invitations",
+        "role": "Invitee",
+        "steps": [
+          "Reopen an invitation already accepted.",
+          "Open an expired invitation supplied by the coordinator."
+        ],
+        "expect": "Neither creates extra membership. A clear message explains the next step.",
+        "needs": "Coordinator supplies expired test invitation; otherwise mark Cannot test.",
+        "special": ""
+      },
+      {
+        "id": "02-15",
+        "title": "Check staff tabs and own record",
+        "role": "Manager then teacher and general staff",
+        "steps": [
+          "As manager, open each staff-type tab and Recent invitations.",
+          "As teacher or general staff, open My details from your account menu.",
+          "Look for editing of other people."
+        ],
+        "expect": "Managers see the correct group per tab. Other staff see only their own details and cannot edit the staff directory.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "02-16",
+        "title": "Disable and restore a staff account",
+        "role": "Owner and disposable staff account",
+        "steps": [
+          "Disable the disposable staff member's school access.",
+          "Ask them to refresh an online private page.",
+          "Re-enable access and have them sign in."
+        ],
+        "expect": "Disabled access is rejected online. Restored access works; verify teaching assignments rather than assuming they return.",
+        "needs": "Do not disable the tester conducting the test or the last owner.",
+        "special": "Changes access"
+      }
+    ],
+    "filename": "02-staff-invitations-and-roles.html"
+  },
+  {
+    "code": "03",
+    "title": "School settings calendar and bank account",
+    "roles": "Owner; principal; school administrator",
+    "needs": "A disposable school, controlled owner inbox, sample school logo, and two terms with known dates. Coordinate changes with all testers.",
+    "cases": [
+      {
+        "id": "03-01",
+        "title": "Review the owner home",
+        "role": "Owner",
+        "steps": [
+          "Open Home.",
+          "Check student, staff, parent, attendance, fees and results summaries.",
+          "Select each available summary card."
+        ],
+        "expect": "Figures match the prepared records. Cards lead to the relevant pages without offering the owner score-entry or attendance duties by default.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "03-02",
+        "title": "Finish school setup",
+        "role": "New owner",
+        "steps": [
+          "Open the setup checklist.",
+          "Complete its requested calendar, class, subject, teacher, student and parent setup.",
+          "Reload Home after completion.",
+          "Sign out and sign in again."
+        ],
+        "expect": "The checklist is descriptive and compact. Once the school confirms completion, it stays hidden.",
+        "needs": "A new disposable school with incomplete setup.",
+        "special": ""
+      },
+      {
+        "id": "03-03",
+        "title": "Save the school profile",
+        "role": "Owner or school administrator",
+        "steps": [
+          "Open Settings then School profile.",
+          "Change a test contact field and save.",
+          "Reload and check it from another signed-in browser."
+        ],
+        "expect": "The saved value persists for this school only. A message confirms the save.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "03-04",
+        "title": "Correct school profile errors",
+        "role": "School administrator",
+        "steps": [
+          "Try an invalid contact email or a blank required name.",
+          "Read the message and correct it.",
+          "Save again."
+        ],
+        "expect": "Invalid values are rejected clearly. Other entered values are not unnecessarily lost.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "03-05",
+        "title": "Use a logo and a long school name",
+        "role": "Owner",
+        "steps": [
+          "Save the supplied sample school logo and a long test school name.",
+          "Look at desktop sidebar, mobile navigation and login.",
+          "Restore the agreed test school name."
+        ],
+        "expect": "Logo and school name remain readable. A missing/broken logo uses a suitable SchoolOs fallback; long names do not overlap controls.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "03-06",
+        "title": "Check school colours and device appearance",
+        "role": "Owner",
+        "steps": [
+          "Open Branding and review the offered green/gold controls.",
+          "Save an agreed test colour if permitted.",
+          "Switch the device between light and dark appearance.",
+          "Reload key pages."
+        ],
+        "expect": "The school-office palette remains readable in both device modes. Saved supported colour choices persist without changing another school.",
+        "needs": "Use only an agreed disposable branding change.",
+        "special": ""
+      },
+      {
+        "id": "03-07",
+        "title": "Create a school year",
+        "role": "Owner or school administrator",
+        "steps": [
+          "Open School year.",
+          "Create the agreed test year and its three terms.",
+          "Reload the page."
+        ],
+        "expect": "One school year and the intended terms are present; names are not duplicated.",
+        "needs": "Use a new year label supplied by the coordinator.",
+        "special": ""
+      },
+      {
+        "id": "03-08",
+        "title": "Set term dates",
+        "role": "School administrator",
+        "steps": [
+          "Edit a term and enter its agreed start and end dates.",
+          "Save and reload.",
+          "Try an end date before the start date."
+        ],
+        "expect": "Valid dates persist. Reversed dates are rejected and do not replace the saved dates.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "03-09",
+        "title": "Choose the current term",
+        "role": "School administrator",
+        "steps": [
+          "Set the agreed year and term as current.",
+          "Check the top term label, attendance and score selectors.",
+          "Reload."
+        ],
+        "expect": "The same current term is used consistently. Historical records are not moved into it.",
+        "needs": "Do not change the shared current term while other testers are saving work.",
+        "special": ""
+      },
+      {
+        "id": "03-10",
+        "title": "Choose the marking structure",
+        "role": "School creator",
+        "steps": [
+          "Before entering any scores, open Settings then Academic.",
+          "Choose 20, 20, 60 and save.",
+          "Open a score sheet.",
+          "On a separate clean term, choose 15, 15, 70."
+        ],
+        "expect": "Score columns and allowed maximums match the selected structure.",
+        "needs": "Use clean terms with no scores. Restore the agreed baseline before shared testing.",
+        "special": ""
+      },
+      {
+        "id": "03-11",
+        "title": "Protect a marking structure already in use",
+        "role": "School creator",
+        "steps": [
+          "Save a score in the current term.",
+          "Try changing that term to a different marking structure.",
+          "Reopen the original score."
+        ],
+        "expect": "The change is blocked with an explanation. Existing marks and their maximums remain correct.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "03-12",
+        "title": "Start a receiving bank change",
+        "role": "Original school creator",
+        "steps": [
+          "Open Receiving bank account.",
+          "Enter the agreed test account and current password.",
+          "Choose Send verification code.",
+          "Check the masked recipient and inbox."
+        ],
+        "expect": "Only the creator can request the change. The proposed account is clearly shown; the old account stays active until verification.",
+        "needs": "Use an approved test bank account. Google-only owner may need to set a password first.",
+        "special": "Owner and email required"
+      },
+      {
+        "id": "03-13",
+        "title": "Verify the exact bank account",
+        "role": "Original school creator",
+        "steps": [
+          "Check the proposed bank name, account name and number.",
+          "Enter the received 6-digit code and save.",
+          "Reload Settings and check the confirmation email."
+        ],
+        "expect": "The exact proposed account persists. Verification does not claim to prove ownership of the bank account.",
+        "needs": "Coordinate this test before any payment testing.",
+        "special": "Changes bank details"
+      },
+      {
+        "id": "03-14",
+        "title": "Reject a wrong or expired bank code",
+        "role": "Original school creator",
+        "steps": [
+          "On a separate prepared request, enter one wrong code.",
+          "Wait until the code expires, then try it.",
+          "Check that the receiving account has not changed."
+        ],
+        "expect": "Wrong/expired codes fail. The old account remains unchanged.",
+        "needs": "Code expires after 10 minutes; five wrong attempts invalidate it. Use a disposable request.",
+        "special": "Timed test"
+      },
+      {
+        "id": "03-15",
+        "title": "Prevent casual bank changes",
+        "role": "Original creator then principal and bursar",
+        "steps": [
+          "After a successful bank update, try another update within 24 hours.",
+          "As principal and bursar, look for bank-edit controls.",
+          "Try the Settings address supplied by the coordinator."
+        ],
+        "expect": "The 24-hour restriction is explained. Other roles cannot change receiving bank details.",
+        "needs": "Run after the planned bank setup so it does not block the main payment test.",
+        "special": ""
+      },
+      {
+        "id": "03-16",
+        "title": "Open help and account settings",
+        "role": "Each staff role",
+        "steps": [
+          "Open Help.",
+          "Use the avatar menu to open Account.",
+          "Check that your own details are shown."
+        ],
+        "expect": "Help is easy to find. Account settings refer to the signed-in person, not another user.",
+        "needs": "",
+        "special": ""
+      }
+    ],
+    "filename": "03-school-settings-calendar-and-bank-account.html"
+  },
+  {
+    "code": "04",
+    "title": "Classes subjects and teaching assignments",
+    "roles": "Owner; principal; school administrator; teacher",
+    "needs": "Three classes, Mathematics and English, a teacher and an unassigned teacher. Use disposable subjects/classes for removal.",
+    "cases": [
+      {
+        "id": "04-01",
+        "title": "Create and edit a class",
+        "role": "School manager",
+        "steps": [
+          "Open Classes or Class management.",
+          "Add a class with its name, arm and level.",
+          "Edit its name, save and reload."
+        ],
+        "expect": "The correct class changes. Existing students remain attached to the same class record.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "04-02",
+        "title": "Find a class in a long list",
+        "role": "School manager",
+        "steps": [
+          "Open the class list and search for a known class.",
+          "Use available filters.",
+          "Scroll a long list using mouse and phone."
+        ],
+        "expect": "The correct classes appear. Scrolling works with a thin themed scrollbar where needed; controls do not disappear.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "04-03",
+        "title": "Reject a duplicate class",
+        "role": "School manager",
+        "steps": [
+          "Try adding the same class name and arm twice.",
+          "Correct one field and try again."
+        ],
+        "expect": "The duplicate is rejected clearly. A genuinely different class can be created.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "04-04",
+        "title": "Create and edit a subject",
+        "role": "School manager",
+        "steps": [
+          "Open Subjects and add a disposable subject.",
+          "Click its pencil button.",
+          "Change the name or code, save and reload."
+        ],
+        "expect": "A clear edit form opens and only that subject changes.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "04-05",
+        "title": "Confirm subject deletion",
+        "role": "School manager",
+        "steps": [
+          "Click the delete icon for an unused subject.",
+          "Cancel first.",
+          "Repeat and confirm only for the disposable subject."
+        ],
+        "expect": "Cancel changes nothing. Confirmation names the subject; successful removal is reflected after reload.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "04-06",
+        "title": "Protect a subject with history",
+        "role": "School manager",
+        "steps": [
+          "Try removing a subject already used in a released test result.",
+          "Read the warning or error.",
+          "Check that the old report still makes sense."
+        ],
+        "expect": "Historical records are not silently lost or corrupted. Record the exact outcome if removal is prevented.",
+        "needs": "Do not confirm removal of a real or shared subject.",
+        "special": ""
+      },
+      {
+        "id": "04-07",
+        "title": "Assign subjects to a class",
+        "role": "School manager",
+        "steps": [
+          "Open a class and its Subjects section.",
+          "Select Mathematics and English and save.",
+          "Reload the class."
+        ],
+        "expect": "Both subjects belong to that class and other classes are unchanged.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "04-08",
+        "title": "Change a class curriculum",
+        "role": "School manager",
+        "steps": [
+          "On a disposable class, remove an unused subject assignment.",
+          "Save and reload.",
+          "Review its teaching assignments."
+        ],
+        "expect": "The intended curriculum change persists; removed assignments are not shown as active.",
+        "needs": "Avoid subjects with marks during this test.",
+        "special": ""
+      },
+      {
+        "id": "04-09",
+        "title": "Assign a class teacher",
+        "role": "School manager",
+        "steps": [
+          "Open the class teacher control.",
+          "Choose the test teacher by name and save.",
+          "Reload and have that teacher open Attendance."
+        ],
+        "expect": "The class appears for that class teacher without copying any technical identifier.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "04-10",
+        "title": "Handle more than one class assignment",
+        "role": "School manager and teacher",
+        "steps": [
+          "Assign the test teacher as class teacher to a second test class.",
+          "Sign in as that teacher and open Attendance.",
+          "Choose between the assigned classes."
+        ],
+        "expect": "Each assigned class can be selected. The single-class teacher experience remains simpler.",
+        "needs": "Use a separate teacher so other attendance testers are not interrupted.",
+        "special": ""
+      },
+      {
+        "id": "04-11",
+        "title": "Assign and clear a subject teacher",
+        "role": "School manager",
+        "steps": [
+          "Choose Mathematics in a class and assign the test teacher.",
+          "Save and reload.",
+          "Clear the assignment and save on the disposable class."
+        ],
+        "expect": "Saved and cleared states persist. An unrelated subject assignment is not changed.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "04-12",
+        "title": "View My classes as a teacher",
+        "role": "Teacher",
+        "steps": [
+          "Open My classes.",
+          "Read each class card.",
+          "Open a subject card and use Mark attendance where offered."
+        ],
+        "expect": "Cards show class, subject and student count. Score entry opens the matching class/subject; attendance appears only for a class-teacher assignment.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "04-13",
+        "title": "Prevent access to an unassigned class",
+        "role": "Teacher",
+        "steps": [
+          "Open a class assigned to another teacher using the coordinator's link.",
+          "Try opening its score sheet and attendance."
+        ],
+        "expect": "Private teaching work is unavailable unless the tester has the necessary assignment or an additional authorised role.",
+        "needs": "Use only the second prepared test class.",
+        "special": ""
+      },
+      {
+        "id": "04-14",
+        "title": "Deactivate a disposable class",
+        "role": "School manager",
+        "steps": [
+          "Open an unused test class.",
+          "Use the offered deactivate control and confirm.",
+          "Check active and inactive lists."
+        ],
+        "expect": "The class is no longer offered as active. Existing school history is not erased.",
+        "needs": "",
+        "special": ""
+      }
+    ],
+    "filename": "04-classes-subjects-and-teaching-assignments.html"
+  },
+  {
+    "code": "05",
+    "title": "Student records upload and activation",
+    "roles": "Owner; principal; school administrator",
+    "needs": "Six baseline students, an unassigned student, an unused student for activation, and sample-files student CSV files. Pause shared fee tests while adding students.",
+    "cases": [
+      {
+        "id": "05-01",
+        "title": "View student statistics before the list",
+        "role": "School manager",
+        "steps": [
+          "Open Students.",
+          "Read the student summary.",
+          "Select a class and then Without a class."
+        ],
+        "expect": "Statistics appear immediately. Students are listed only after a class/unassigned choice; each list contains the matching students.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "05-02",
+        "title": "Search and page through students",
+        "role": "School manager",
+        "steps": [
+          "Select the disposable class containing 30 test students.",
+          "Search a known name or admission number.",
+          "Clear search and use Next, Previous and page-size controls."
+        ],
+        "expect": "Default pages contain 25 students at most. No student is skipped or repeated between pages.",
+        "needs": "Import students-pagination-30.csv into a separate disposable class first.",
+        "special": ""
+      },
+      {
+        "id": "05-03",
+        "title": "Add a student using a form",
+        "role": "School manager",
+        "steps": [
+          "Choose Add student.",
+          "Enter first and last names; leave optional fields blank.",
+          "Save and reopen the student."
+        ],
+        "expect": "The record persists, with an admission number generated if omitted. A class is optional.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "05-04",
+        "title": "Edit through the student menu",
+        "role": "School manager",
+        "steps": [
+          "Open the last student's action menu in a scrolled list.",
+          "Choose Edit student details.",
+          "Change a harmless field and save.",
+          "Repeat on a phone."
+        ],
+        "expect": "Every menu item is visible and clickable. The popup stays inside the screen and above the list.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "05-05",
+        "title": "Upload names without a class",
+        "role": "School manager",
+        "steps": [
+          "Open Upload students.",
+          "Choose students-names-only.csv.",
+          "Read the automatically checked preview and confirm.",
+          "Open Without a class."
+        ],
+        "expect": "The students appear without a class. Admission numbers are generated; a school year is not required.",
+        "needs": "Use an untouched disposable school or rename sample people to avoid confusion.",
+        "special": ""
+      },
+      {
+        "id": "05-06",
+        "title": "Upload directly into a class",
+        "role": "School manager",
+        "steps": [
+          "Select the disposable class before opening Upload students, or select it on the upload page.",
+          "Choose students-names-only.csv.",
+          "Confirm the preview."
+        ],
+        "expect": "The chosen class is used. The successful flow is class choice if needed, file selection and one confirmation; no separate Check button.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "05-07",
+        "title": "Upload different classes in one file",
+        "role": "School manager",
+        "steps": [
+          "Prepare students-with-classes.csv with exact existing class names and arms.",
+          "Upload and confirm.",
+          "Check each affected class and Without a class."
+        ],
+        "expect": "Each row uses its intended class; blank-class rows remain unassigned. Unknown class names are reported before saving.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "05-08",
+        "title": "Catch bad or duplicate rows",
+        "role": "School manager",
+        "steps": [
+          "Upload students-invalid.csv.",
+          "Read the row-specific errors.",
+          "Try a file containing an existing admission number.",
+          "Correct the file and upload again."
+        ],
+        "expect": "Invalid rows and duplicate admission numbers are explained. No partial import is described as a complete success.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "05-09",
+        "title": "Keep leading zeros",
+        "role": "School manager",
+        "steps": [
+          "Use a spreadsheet with admission number 000123 stored as Text.",
+          "Upload and confirm.",
+          "Search for 000123."
+        ],
+        "expect": "Leading zeros remain intact. Excel/CSV formatting is explained where needed.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "05-10",
+        "title": "Recover an interrupted upload",
+        "role": "School manager",
+        "steps": [
+          "In a separate prepared test session, confirm a small upload while the coordinator interrupts the connection.",
+          "Reconnect and use Retry saved upload.",
+          "Count the added students."
+        ],
+        "expect": "The saved attempt is confirmed once, without duplicate students.",
+        "needs": "Coordinator controls the interruption. Do not deliberately start a different upload as a retry.",
+        "special": "Paired connection test"
+      },
+      {
+        "id": "05-11",
+        "title": "Observe the student limit",
+        "role": "School manager",
+        "steps": [
+          "Use the coordinator's near-limit school.",
+          "Upload more students than available spaces.",
+          "Read the preview and try to confirm only if enabled."
+        ],
+        "expect": "The available limit and failure are clear; too many students are not partly imported.",
+        "needs": "A disposable school close to its configured student limit.",
+        "special": ""
+      },
+      {
+        "id": "05-12",
+        "title": "Issue a student activation code",
+        "role": "School manager",
+        "steps": [
+          "Open Student access for a new active student.",
+          "Choose New student and Create activation code.",
+          "Copy the private details and give them to that assigned tester."
+        ],
+        "expect": "All active students are eligible without a separate enable step. A private code and school-specific link are provided.",
+        "needs": "Do not put the code or password in a report.",
+        "special": "Creates private access"
+      },
+      {
+        "id": "05-13",
+        "title": "Use an activation code once",
+        "role": "Student and manager",
+        "steps": [
+          "Open the supplied student link.",
+          "Enter admission number, code and a chosen valid password.",
+          "Sign out and try the same code again."
+        ],
+        "expect": "The first activation creates the correct student account. Reuse fails, but normal sign-in with the chosen password works.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "05-14",
+        "title": "Replace an activation code",
+        "role": "School manager and student",
+        "steps": [
+          "Issue a code for another unused student.",
+          "Issue a second code.",
+          "Try the first code, then activate with the second."
+        ],
+        "expect": "Only the newest code works. An expired code also fails when the coordinator supplies one.",
+        "needs": "Expiry is seven days; do not change device clocks to simulate it.",
+        "special": ""
+      },
+      {
+        "id": "05-15",
+        "title": "Reset and disable student access",
+        "role": "School manager and student",
+        "steps": [
+          "Reset a disposable student's password and share it privately.",
+          "Check the old password and previous online session.",
+          "Disable the student and try signing in.",
+          "Use Reset password to restore access if needed."
+        ],
+        "expect": "Old credentials stop working online. Disabled access is blocked. Restored credentials work.",
+        "needs": "Use a disposable account; offline saved records cannot be erased remotely.",
+        "special": "Changes access"
+      }
+    ],
+    "filename": "05-student-records-upload-and-activation.html"
+  },
+  {
+    "code": "06",
+    "title": "Parent records and child linking",
+    "roles": "Owner; principal; school administrator; parent; student",
+    "needs": "Parent A linked to Ada and John; Parent B linked only to Mary; a parent with no children; one student awaiting a parent link.",
+    "cases": [
+      {
+        "id": "06-01",
+        "title": "View parent summaries first",
+        "role": "School manager",
+        "steps": [
+          "Open Parents.",
+          "Read the statistics before requesting a list.",
+          "Choose the offered class/search/list action."
+        ],
+        "expect": "Summary figures appear first. Parent records are not all displayed automatically.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "06-02",
+        "title": "Add and edit a parent",
+        "role": "School manager",
+        "steps": [
+          "Add a parent with the controlled contact details.",
+          "Save and edit a harmless field.",
+          "Reload."
+        ],
+        "expect": "The intended parent record persists; an invalid email is rejected clearly.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "06-03",
+        "title": "Link two children to one parent",
+        "role": "School manager",
+        "steps": [
+          "Open Parent A.",
+          "Link Ada and John using the named student choices.",
+          "Reload and sign in as Parent A."
+        ],
+        "expect": "Both intended children appear. Other families' children do not appear.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "06-04",
+        "title": "Invite an existing parent record",
+        "role": "School manager and parent",
+        "steps": [
+          "Send a login invitation from the prepared parent record.",
+          "Accept it using the invited controlled inbox.",
+          "Open My children."
+        ],
+        "expect": "The login connects to that parent record and its children; no duplicate unrelated family is created.",
+        "needs": "",
+        "special": "Email required"
+      },
+      {
+        "id": "06-05",
+        "title": "Request a missing child by name",
+        "role": "Parent",
+        "steps": [
+          "Open Link a child.",
+          "Enter the prepared child's name, class if known and a short note.",
+          "Send and review the request."
+        ],
+        "expect": "The request is shown as awaiting school review. The child is not linked automatically.",
+        "needs": "Use the unlinked prepared child, not a real unknown child.",
+        "special": ""
+      },
+      {
+        "id": "06-06",
+        "title": "Avoid duplicate child requests",
+        "role": "Parent",
+        "steps": [
+          "Send the same child name again with different spacing or letter case.",
+          "Review request history."
+        ],
+        "expect": "The repeated request is not treated as another independent pending child link.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "06-07",
+        "title": "Approve a verified child request",
+        "role": "School manager and parent",
+        "steps": [
+          "Open the parent child-link requests.",
+          "Verify the prepared relationship and select the correct student.",
+          "Approve and ask the parent to refresh."
+        ],
+        "expect": "Only the approved child is added. Existing child links remain intact.",
+        "needs": "Coordinator confirms the test relationship before approval.",
+        "special": ""
+      },
+      {
+        "id": "06-08",
+        "title": "Decline a child request clearly",
+        "role": "School manager and parent",
+        "steps": [
+          "Open a disposable incorrect request.",
+          "Decline with a brief explanation.",
+          "Have the parent check its status."
+        ],
+        "expect": "The request is declined with the explanation. No child access is granted.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "06-09",
+        "title": "Review a student parent-email request",
+        "role": "Student then school manager",
+        "steps": [
+          "As student, request the controlled parent email in Settings.",
+          "As manager, open Student parent requests.",
+          "Verify the relationship and approve with the parent's names."
+        ],
+        "expect": "A parent record is linked only after approval. The school sends a separate parent login invitation if required.",
+        "needs": "A controlled email and a student without that existing parent link.",
+        "special": ""
+      },
+      {
+        "id": "06-10",
+        "title": "Preserve existing guardians",
+        "role": "School manager",
+        "steps": [
+          "Approve an additional verified parent for a child already linked to Parent A.",
+          "Check the child's parent records and Parent A's access."
+        ],
+        "expect": "The new link does not silently remove the existing guardian or replace the primary guardian.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "06-11",
+        "title": "Unlink a disposable parent connection",
+        "role": "School manager and parent",
+        "steps": [
+          "Remove only the disposable test child-parent link.",
+          "Reload both accounts online."
+        ],
+        "expect": "The removed child is no longer available to that parent. Other child links continue to work.",
+        "needs": "Do not remove the only guardian from real records.",
+        "special": "Changes family access"
+      }
+    ],
+    "filename": "06-parent-records-and-child-linking.html"
+  },
+  {
+    "code": "07",
+    "title": "Teacher attendance and school summaries",
+    "roles": "Class teacher; subject-only teacher; owner; principal; school administrator",
+    "needs": "An assigned class with known students, a subject-only teacher, and a current term with start/end dates.",
+    "cases": [
+      {
+        "id": "07-01",
+        "title": "Open the assigned class roll",
+        "role": "Class teacher",
+        "steps": [
+          "Open Attendance.",
+          "Check the class and date.",
+          "Look for a class selector if only one class is assigned."
+        ],
+        "expect": "The one assigned class opens simply. A multi-class teacher can choose only their assigned class-teacher classes.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "07-02",
+        "title": "Mark present and absent",
+        "role": "Class teacher",
+        "steps": [
+          "Mark Ada Present and John Absent.",
+          "Save attendance.",
+          "Reload the same class and date."
+        ],
+        "expect": "The two marks persist for the correct date. Other students are not silently marked present.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "07-03",
+        "title": "Use lateness only when wanted",
+        "role": "Class teacher",
+        "steps": [
+          "Open the roll with Track lateness off.",
+          "Turn Track lateness on and mark one student Late.",
+          "Save, reload and turn tracking off."
+        ],
+        "expect": "Present/Absent are the main choices. Saved Late marks remain visible and count as present, even when the optional control is off.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "07-04",
+        "title": "Excuse an absence",
+        "role": "Class teacher",
+        "steps": [
+          "Mark a student Absent.",
+          "Tick Excused absence, save and reload.",
+          "Change the student to Present."
+        ],
+        "expect": "Excused is offered only for an absent student. Present clears the absence; excused absences count as absent in summaries.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "07-05",
+        "title": "Search the roll without losing work",
+        "role": "Class teacher",
+        "steps": [
+          "Mark one student.",
+          "Search a different student by part of their name and mark them.",
+          "Save and clear search."
+        ],
+        "expect": "Both marks are retained. Counts and saving cover the full class, not just the filtered names.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "07-06",
+        "title": "Handle unmarked students",
+        "role": "Class teacher",
+        "steps": [
+          "Leave one student without a mark.",
+          "Save only the students intentionally marked.",
+          "Reload."
+        ],
+        "expect": "The untouched student remains unmarked. The page explains incomplete marking without inventing attendance.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "07-07",
+        "title": "Correct a saved mark",
+        "role": "Class teacher",
+        "steps": [
+          "Change an earlier saved Absent mark to Present.",
+          "Save and reload.",
+          "Check the school summary for the same date."
+        ],
+        "expect": "The correction replaces the earlier mark instead of adding another attendance record.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "07-08",
+        "title": "Choose a past or boundary date",
+        "role": "Class teacher",
+        "steps": [
+          "Open the first day of the prepared term and save a test roll.",
+          "Open the last day.",
+          "Try a date outside the term."
+        ],
+        "expect": "The selected dates are clear. Term summaries use the agreed term dates; unsupported dates are explained and do not silently enter the wrong term.",
+        "needs": "Coordinator supplies exact valid and outside dates.",
+        "special": ""
+      },
+      {
+        "id": "07-09",
+        "title": "Keep attendance separate from subject teaching",
+        "role": "Subject-only teacher",
+        "steps": [
+          "Open Attendance without a class-teacher assignment.",
+          "Try the coordinator's link to another class."
+        ],
+        "expect": "The account cannot mark attendance simply because it teaches a subject. A useful assignment message is shown.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "07-10",
+        "title": "Show summaries for school leaders",
+        "role": "Owner then principal and school administrator",
+        "steps": [
+          "Open Attendance.",
+          "Switch Day, Week and Term.",
+          "Check prepared totals and class summaries."
+        ],
+        "expect": "Leaders see summary views and do not mark rolls unless also assigned as class teachers. Late counts as present; excused counts as absent.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "07-11",
+        "title": "Save attendance offline",
+        "role": "Class teacher",
+        "steps": [
+          "Download the workspace while online.",
+          "Disconnect using the coordinator's instructions.",
+          "Mark attendance and save.",
+          "Reconnect and check the saved marks from a second account."
+        ],
+        "expect": "The offline save is clearly labelled. Marks reach the server once after permission checks.",
+        "needs": "Use packet 16 to prepare the installed web app.",
+        "special": "Offline test"
+      },
+      {
+        "id": "07-12",
+        "title": "Read an absence report",
+        "role": "School leader",
+        "steps": [
+          "Open any offered absent-student list for the test date.",
+          "Find the excused student and the late student."
+        ],
+        "expect": "Excused absences may be listed as absent with their status. Late students are not listed as absent.",
+        "needs": "If no absence-list control is offered, record Cannot test rather than inventing a route.",
+        "special": ""
+      }
+    ],
+    "filename": "07-teacher-attendance-and-school-summaries.html"
+  },
+  {
+    "code": "08",
+    "title": "Score entry and marking structure",
+    "roles": "Assigned subject teacher; teacher with additional roles",
+    "needs": "Assigned Mathematics class, two terms, known students John Doe, Sarah Joshua and Mary Jo, and a clean 20/20/60 score sheet.",
+    "cases": [
+      {
+        "id": "08-01",
+        "title": "Open the right score sheet",
+        "role": "Subject teacher",
+        "steps": [
+          "Open My classes and a Mathematics card.",
+          "Select the school year/term if needed.",
+          "Check the class, subject and student names."
+        ],
+        "expect": "The correct class/subject/term opens. Only permitted teaching choices are offered.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "08-02",
+        "title": "Save and reload valid scores",
+        "role": "Subject teacher",
+        "steps": [
+          "Enter CA1 12, CA2 14 and Exam 45 for the prepared student.",
+          "Choose Save scores.",
+          "Reload the sheet."
+        ],
+        "expect": "The saved row shows the same values and total 71. It is not published to families just by saving.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "08-03",
+        "title": "Keep zero different from blank",
+        "role": "Subject teacher",
+        "steps": [
+          "Enter zero in one assessment and leave another assessment blank.",
+          "Save and reload."
+        ],
+        "expect": "Zero remains zero. An unentered mark stays blank rather than being invented as zero.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "08-04",
+        "title": "Reject invalid marks",
+        "role": "Subject teacher",
+        "steps": [
+          "Try a negative mark, letters and a mark above the displayed maximum separately.",
+          "Read the error.",
+          "Correct the mark and save."
+        ],
+        "expect": "Invalid marks are identified with the student/field. Corrected marks save without silently changing the numbers.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "08-05",
+        "title": "Use the 15 15 70 structure",
+        "role": "Subject teacher",
+        "steps": [
+          "Open the coordinator's separate clean 15/15/70 term.",
+          "Enter CA1 15, CA2 15, Exam 70.",
+          "Try CA1 16 and Exam 71."
+        ],
+        "expect": "Maximum values are accepted; values above them fail. Total at full marks is 100.",
+        "needs": "Coordinator prepares this term before entering any scores.",
+        "special": ""
+      },
+      {
+        "id": "08-06",
+        "title": "Find students by part of a name",
+        "role": "Subject teacher",
+        "steps": [
+          "Type Jo in the student search.",
+          "Check John Doe, Sarah Joshua and Mary Jo.",
+          "Clear the search."
+        ],
+        "expect": "All three matching names appear; the search works within names, not just at the beginning.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "08-07",
+        "title": "Save edits hidden by search",
+        "role": "Subject teacher",
+        "steps": [
+          "Edit Ada's score.",
+          "Search John and edit his score.",
+          "Save, clear search and reload."
+        ],
+        "expect": "Both students' edited values persist; filtering does not discard the hidden edit.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "08-08",
+        "title": "Keep a draft after leaving the page",
+        "role": "Subject teacher",
+        "steps": [
+          "Change a mark without choosing Save scores.",
+          "Navigate away and return on the same account/device.",
+          "Check the displayed draft notice."
+        ],
+        "expect": "The local draft is restored where supported. It is not falsely described as already saved to the school.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "08-09",
+        "title": "Enter scores comfortably on phone and desktop",
+        "role": "Subject teacher",
+        "steps": [
+          "Use a desktop to edit a row in the table.",
+          "Repeat on a phone.",
+          "Move between fields and reach Save scores."
+        ],
+        "expect": "Desktop has an editable table; mobile controls remain readable and easy to reach. No score-entry popup blocks the task.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "08-10",
+        "title": "Protect another teacher's subject",
+        "role": "Subject teacher",
+        "steps": [
+          "Use the coordinator's link to an unassigned subject sheet.",
+          "Look for editable score controls."
+        ],
+        "expect": "Unauthorised subject marks cannot be read or changed through a direct link.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "08-11",
+        "title": "Respect locked results",
+        "role": "Subject teacher",
+        "steps": [
+          "Open a prepared submitted, approved or published row.",
+          "Try changing its marks."
+        ],
+        "expect": "Locked workflow rows are not editable as ordinary drafts. An authorised review step is needed.",
+        "needs": "Coordinator prepares the locked records; do not alter live published results.",
+        "special": ""
+      },
+      {
+        "id": "08-12",
+        "title": "Queue scores while offline",
+        "role": "Subject teacher",
+        "steps": [
+          "Prepare/download this sheet online.",
+          "Disconnect, edit two marks and choose Save scores.",
+          "Reload the saved page, reconnect and check from another account."
+        ],
+        "expect": "The draft/queue is labelled honestly. Both marks reach the school once when permission checks succeed.",
+        "needs": "",
+        "special": "Offline test"
+      },
+      {
+        "id": "08-13",
+        "title": "Handle a conflicting second editor",
+        "role": "Two assigned test editors",
+        "steps": [
+          "Open the same disposable sheet in two browsers.",
+          "Editor A saves a changed row.",
+          "Editor B attempts to save an older different value.",
+          "Reload both and report exactly what happened."
+        ],
+        "expect": "The outcome is clear and no edit is falsely confirmed. Record any silent overwrite or missing conflict warning as a problem.",
+        "needs": "Use a disposable row and coordinator supervision.",
+        "special": "Paired test"
+      }
+    ],
+    "filename": "08-score-entry-and-marking-structure.html"
+  },
+  {
+    "code": "09",
+    "title": "Result progress release and report printing",
+    "roles": "Owner; principal; exam officer; assigned teacher; parent; student",
+    "needs": "One complete approved report, one incomplete/draft report, a linked parent, and a student account. Coordinate publication with packet 20.",
+    "cases": [
+      {
+        "id": "09-01",
+        "title": "Read result progress",
+        "role": "Owner or exam officer",
+        "steps": [
+          "Open Results.",
+          "Choose the agreed term and class.",
+          "Compare progress with the prepared submitted scores."
+        ],
+        "expect": "Progress refers to the selected term/class. Missing scores are distinguishable from ready reports.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "09-02",
+        "title": "Keep the owner focused on review",
+        "role": "Owner",
+        "steps": [
+          "Open Results from Home and the sidebar.",
+          "Look for the next review or publish action."
+        ],
+        "expect": "The owner can monitor/release results without being sent through routine teacher score entry unless also assigned.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "09-03",
+        "title": "Review an individual report",
+        "role": "Authorised reviewer",
+        "steps": [
+          "Open the prepared student report.",
+          "Check name, admission number, class, term and subject totals.",
+          "Compare with the score sheet."
+        ],
+        "expect": "Report identity and calculations match the chosen student and term.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "09-04",
+        "title": "Handle approval controls",
+        "role": "Authorised reviewer",
+        "steps": [
+          "Open a report awaiting approval.",
+          "Use an offered approve/return control and confirm.",
+          "Reload the report."
+        ],
+        "expect": "If a review control is available, the saved status is clear and persists. If no control is offered, record Cannot test and ask the coordinator; do not assume approval.",
+        "needs": "Reviewer permissions and a report in the relevant state.",
+        "special": ""
+      },
+      {
+        "id": "09-05",
+        "title": "Confirm before releasing results",
+        "role": "Authorised publisher",
+        "steps": [
+          "Choose Publish for parents.",
+          "Read the term/class information.",
+          "Cancel before confirming."
+        ],
+        "expect": "The dialog explains what will become visible. Cancel leaves family visibility unchanged.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "09-06",
+        "title": "Release an approved report",
+        "role": "Authorised publisher and parent",
+        "steps": [
+          "Publish the agreed approved class report.",
+          "Sign in as its linked parent and then its student.",
+          "Open Results and reload."
+        ],
+        "expect": "Only the correct released report is visible to its family. A draft report is not exposed.",
+        "needs": "Publication changes family access; use test records only.",
+        "special": "Releases results"
+      },
+      {
+        "id": "09-07",
+        "title": "Keep incomplete reports distinguishable",
+        "role": "Authorised publisher",
+        "steps": [
+          "Open release controls with an incomplete class.",
+          "Read the warning before proceeding.",
+          "Check the parent's view if the coordinator approves publication."
+        ],
+        "expect": "The warning is clear. Only eligible approved reports become visible; missing or draft marks are not fabricated.",
+        "needs": "Coordinator approves this disposable publication test.",
+        "special": ""
+      },
+      {
+        "id": "09-08",
+        "title": "Manage an already released report",
+        "role": "Authorised publisher",
+        "steps": [
+          "Open the already released class.",
+          "Use an offered withdraw/unpublish action if present.",
+          "Reload the family view online."
+        ],
+        "expect": "Any offered withdrawal must actually hide the live report. If the screen offers manage/unpublish but no usable control, record that problem explicitly.",
+        "needs": "Do not treat downloaded offline copies as remotely erased.",
+        "special": ""
+      },
+      {
+        "id": "09-09",
+        "title": "Print a report on A4",
+        "role": "Parent or student",
+        "steps": [
+          "Open the released result.",
+          "Choose Print or Save result PDF.",
+          "Select A4 and preview all pages.",
+          "Save a copy."
+        ],
+        "expect": "School identity, student details, term, subject scores, totals and comments are legible. Nothing overlaps or is cut off; no fake signature is shown.",
+        "needs": "No paper printer is required; Save as PDF is sufficient.",
+        "special": ""
+      },
+      {
+        "id": "09-10",
+        "title": "Print both marking structures",
+        "role": "Parent or student",
+        "steps": [
+          "Open the prepared 20/20/60 report and print preview.",
+          "Repeat with the separate 15/15/70 term report."
+        ],
+        "expect": "Column maximums and scores match each report's own term, not the current default.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "09-11",
+        "title": "Check a long report",
+        "role": "Parent or student",
+        "steps": [
+          "Open a report with many subjects and a long name/comment.",
+          "Print preview every A4 page."
+        ],
+        "expect": "Rows, repeated table headers and comments remain readable. A long school name does not hide student details.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "09-12",
+        "title": "Save and print a report offline",
+        "role": "Parent or student",
+        "steps": [
+          "Download the workspace/report while online.",
+          "Disconnect and reopen the released result.",
+          "Use Print or Save result PDF."
+        ],
+        "expect": "The prepared result and full print document are available offline. A never-downloaded report does not falsely appear complete.",
+        "needs": "",
+        "special": "Offline test"
+      },
+      {
+        "id": "09-13",
+        "title": "Keep another child's report private",
+        "role": "Parent B or another student",
+        "steps": [
+          "Use a report link supplied for Parent A's child.",
+          "Try it while signed in as Parent B or another student."
+        ],
+        "expect": "No foreign child's private result is shown.",
+        "needs": "Use only the coordinator's test links, not guessed real accounts.",
+        "special": ""
+      }
+    ],
+    "filename": "09-result-progress-release-and-report-printing.html"
+  },
+  {
+    "code": "10",
+    "title": "Exam and test timetables",
+    "roles": "Exam officer; principal; owner; assigned teacher; parent",
+    "needs": "A clean term, three prepared classes with subjects, plus a separate class with 13 subjects. Use only test exam dates.",
+    "cases": [
+      {
+        "id": "10-01",
+        "title": "Start a timetable from subjects",
+        "role": "Exam officer",
+        "steps": [
+          "Open Exam timetable for the clean term.",
+          "Choose Exam.",
+          "Review the generated example before saving."
+        ],
+        "expect": "Available class subjects fill the example. It is labelled as a draft/example and is not silently published.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "10-02",
+        "title": "Set three papers each day",
+        "role": "Exam officer",
+        "steps": [
+          "Set 3 papers per day, 2 hours per paper, starting 08:00.",
+          "Set a 30-minute break after each paper.",
+          "Generate the 13-subject class example."
+        ],
+        "expect": "There are five exam days. Each day follows the chosen format; no day has more than three papers.",
+        "needs": "The class has exactly 13 active exam subjects.",
+        "special": ""
+      },
+      {
+        "id": "10-03",
+        "title": "Set four papers with grouped breaks",
+        "role": "Exam officer",
+        "steps": [
+          "Set 4 papers per day, 2 hours each, starting 08:00.",
+          "Set a 10-minute break after each 2 papers.",
+          "Generate or rebuild the draft."
+        ],
+        "expect": "Slots follow 08:00, 10:00, break 12:00 to 12:10, 12:10 and 14:10. Subjects fill only valid paper slots.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "10-04",
+        "title": "Check subject completeness",
+        "role": "Exam officer",
+        "steps": [
+          "Compare the generated timetable with the class subject list.",
+          "Tick each subject once on your own notes.",
+          "Check the last partial day."
+        ],
+        "expect": "Every included subject appears once per intended class/group. No subject is silently lost or duplicated.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "10-05",
+        "title": "Move a paper on desktop",
+        "role": "Exam officer",
+        "steps": [
+          "Drag a paper to another valid slot.",
+          "Save and reload.",
+          "Check its day/time."
+        ],
+        "expect": "The move persists without losing another paper. Break slots remain breaks.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "10-06",
+        "title": "Move a paper on a phone",
+        "role": "Exam officer",
+        "steps": [
+          "Open the draft on a phone.",
+          "Use the provided touch or alternative move controls.",
+          "Save and reload."
+        ],
+        "expect": "Papers can be rearranged without needing a mouse or dragging beyond the screen. Record a missing usable alternative as a problem.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "10-07",
+        "title": "Create class groups",
+        "role": "Exam officer",
+        "steps": [
+          "Create a Junior group with JSS 1 and JSS 2.",
+          "Create a Senior group with SS 1.",
+          "Review each group's subjects and format."
+        ],
+        "expect": "Only the selected classes are affected. Group names and membership are clear.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "10-08",
+        "title": "Exclude an exam class",
+        "role": "Exam officer",
+        "steps": [
+          "Create a group that excludes the prepared exam class.",
+          "Give the excluded class its own timetable group.",
+          "Save and reload."
+        ],
+        "expect": "The exam class is not accidentally included twice or assigned the wrong group's papers.",
+        "needs": "Coordinator supplies JSS 3 or SS 3 as an additional disposable class.",
+        "special": ""
+      },
+      {
+        "id": "10-09",
+        "title": "Use separate group formats",
+        "role": "Exam officer",
+        "steps": [
+          "Set Junior to 3 papers daily and Senior to 2.",
+          "Save and switch between groups."
+        ],
+        "expect": "Each group keeps its own paper/break format; changing one does not silently overwrite the other.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "10-10",
+        "title": "Merge and print a timetable",
+        "role": "Exam officer",
+        "steps": [
+          "Open the combined/merged timetable view.",
+          "Review class/group labels.",
+          "Download or print on A4."
+        ],
+        "expect": "The combined view clearly identifies the relevant groups. Print pages are readable and do not crop paper times.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "10-11",
+        "title": "Keep exam and test plans separate",
+        "role": "Exam officer",
+        "steps": [
+          "Save an Exam draft.",
+          "Switch to Test and create a different plan.",
+          "Return to Exam."
+        ],
+        "expect": "Exam and Test drafts remain separate for the chosen term.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "10-12",
+        "title": "Reject invalid timetable settings",
+        "role": "Exam officer",
+        "steps": [
+          "Try zero papers, invalid time or an impossible break setting.",
+          "Try an overlapping or duplicate class group if the form allows it."
+        ],
+        "expect": "Clear errors prevent an invalid save. The previous valid timetable remains available.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "10-13",
+        "title": "Publish and verify the reader view",
+        "role": "Exam officer and parent",
+        "steps": [
+          "Publish the agreed timetable.",
+          "As parent, choose each linked child and open Exam timetable.",
+          "As teacher, open the published timetable."
+        ],
+        "expect": "Only published and relevant class/group information appears. Readers cannot edit the plan.",
+        "needs": "",
+        "special": "Publishes timetable"
+      },
+      {
+        "id": "10-14",
+        "title": "Withdraw a timetable",
+        "role": "Exam officer and parent",
+        "steps": [
+          "Use Unpublish/withdraw on a disposable published plan.",
+          "Refresh the parent timetable online."
+        ],
+        "expect": "The live published plan is no longer available. Previously downloaded offline copies are not claimed to be remotely erased.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "10-15",
+        "title": "Handle concurrent timetable editing",
+        "role": "Two exam officers",
+        "steps": [
+          "Open the same draft in two browsers.",
+          "Editor A saves a move.",
+          "Editor B saves an older conflicting version."
+        ],
+        "expect": "The older edit is rejected or clearly reconciled; no unnoticed replacement is reported as success.",
+        "needs": "Use a disposable timetable.",
+        "special": "Paired test"
+      }
+    ],
+    "filename": "10-exam-and-test-timetables.html"
+  },
+  {
+    "code": "11",
+    "title": "Fee setup and expected income",
+    "roles": "Owner; bursar; school administrator",
+    "needs": "Use the six baseline students only: four juniors and two seniors. No payments or extra imports yet. Fee amounts are listed in the coordinator guide.",
+    "cases": [
+      {
+        "id": "11-01",
+        "title": "Create junior fees as one list",
+        "role": "Fee manager",
+        "steps": [
+          "Open Fees then Set fees and extra charges.",
+          "Choose JSS 1 A and JSS 2 A.",
+          "Add Tuition 10000, PTA 3500, Exam 8000, Sports 300 and Library 2000.",
+          "Save and reload."
+        ],
+        "expect": "Junior bill total is NGN 23800 per affected student. Each item is listed compactly; the form is not repeated for every class.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "11-02",
+        "title": "Create senior fees",
+        "role": "Fee manager",
+        "steps": [
+          "Create the senior bill for SS 1 A.",
+          "Add Tuition 12000, PTA 3500, Exam 9700, Sports 300 and Library 2000.",
+          "Save."
+        ],
+        "expect": "Senior base total is NGN 27500 per affected student.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "11-03",
+        "title": "Add a class-specific extra charge",
+        "role": "Fee manager",
+        "steps": [
+          "Add Laboratory 1000 for SS 1 A only.",
+          "Review one junior and one senior bill."
+        ],
+        "expect": "Senior total becomes NGN 28500. Junior totals remain NGN 23800.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "11-04",
+        "title": "Calculate expected income",
+        "role": "Fee manager",
+        "steps": [
+          "Open the main Fees summary after the three preceding setups.",
+          "Compare Expected this term with your prepared list.",
+          "Reload."
+        ],
+        "expect": "Expected is NGN 152200: 4 juniors times 23800 plus 2 seniors times 28500. Before payments, received is 0 and owed is 152200.",
+        "needs": "Only the six baseline assigned students and these fee rules may be active.",
+        "special": ""
+      },
+      {
+        "id": "11-05",
+        "title": "Apply one item to the whole school",
+        "role": "Fee manager",
+        "steps": [
+          "In a separate clean term, add one NGN 500 item for all classes.",
+          "Review every active class and its student count.",
+          "Check the expected total."
+        ],
+        "expect": "All intended active students receive the item without class-by-class repetition. Expected equals 500 times the eligible student count.",
+        "needs": "Use a separate clean term so the baseline calculation is unchanged.",
+        "special": ""
+      },
+      {
+        "id": "11-06",
+        "title": "Open an item to edit",
+        "role": "Fee manager",
+        "steps": [
+          "Click a fee in the compact bill list.",
+          "Change a disposable item description or amount.",
+          "Review the affected students before saving.",
+          "Reload."
+        ],
+        "expect": "A clear edit form opens only when requested. Saved changes and affected totals agree; paid history is not silently rewritten.",
+        "needs": "Use an unpaid disposable item, not the shared baseline.",
+        "special": ""
+      },
+      {
+        "id": "11-07",
+        "title": "Correct invalid fee values",
+        "role": "Fee manager",
+        "steps": [
+          "Try blank item name, zero, a negative amount and decimal naira separately.",
+          "Try saving without an intended target class/group.",
+          "Correct the values and save."
+        ],
+        "expect": "Invalid values are explained. No unexpected school-wide bill is created.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "11-08",
+        "title": "Prevent accidental duplicate billing",
+        "role": "Fee manager",
+        "steps": [
+          "Save a disposable fee once.",
+          "Use the same save/retry action again if a delayed response occurs.",
+          "Check the student's bill items."
+        ],
+        "expect": "One deliberate fee assignment does not silently create duplicate charges.",
+        "needs": "Coordinator may simulate a slow connection.",
+        "special": ""
+      },
+      {
+        "id": "11-09",
+        "title": "Include new eligible students correctly",
+        "role": "Fee manager",
+        "steps": [
+          "After recording the baseline, add one new student to the junior class.",
+          "Reload fee setup and expected totals.",
+          "Check that student's bill."
+        ],
+        "expect": "The applicable NGN 23800 bill is assigned once and expected income increases by 23800.",
+        "needs": "Run last or remove/reset the disposable addition before shared balance tests.",
+        "special": ""
+      },
+      {
+        "id": "11-10",
+        "title": "Handle a class move",
+        "role": "Fee manager",
+        "steps": [
+          "On a separate unpaid disposable student, move from junior to senior.",
+          "Review the bill and term totals.",
+          "Read any confirmation about billing changes."
+        ],
+        "expect": "The outcome is explicit and history is not silently corrupted. Record stale or unexplained charges as a problem.",
+        "needs": "Do not move a shared student with payments during the main test.",
+        "special": ""
+      },
+      {
+        "id": "11-11",
+        "title": "Keep old terms separate",
+        "role": "Fee manager",
+        "steps": [
+          "Create different fees in the second test term.",
+          "Switch between terms on Fees.",
+          "Compare totals and bills."
+        ],
+        "expect": "Each term keeps its own fees, expected amount and payments. No totals leak across terms.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "11-12",
+        "title": "Keep principals out of school accounts",
+        "role": "Principal with no finance role",
+        "steps": [
+          "Open Home and the sidebar.",
+          "Try the Fees page link supplied by the coordinator."
+        ],
+        "expect": "School-fee totals and management are not exposed to this principal.",
+        "needs": "Use the principal-only account, not an owner or combined-role account.",
+        "special": ""
+      }
+    ],
+    "filename": "11-fee-setup-and-expected-income.html"
+  },
+  {
+    "code": "12",
+    "title": "Bursar payments receipts and reports",
+    "roles": "Bursar; owner; school administrator",
+    "needs": "A fresh copy of the six-student fee baseline: expected NGN 152200, received 0. Use invented manual transactions only. Run after fee setup; pause family checkout tests.",
+    "cases": [
+      {
+        "id": "12-01",
+        "title": "Open the accounts workspace",
+        "role": "Bursar",
+        "steps": [
+          "Sign in and open Fees and payments.",
+          "Read the main totals and tabs.",
+          "Locate the payment action without guidance."
+        ],
+        "expect": "Expected, received and still owed are clear. Charts/reports do not prevent reaching the main payment task.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "12-02",
+        "title": "Record a partial payment quickly",
+        "role": "Bursar",
+        "steps": [
+          "Find Ada and choose the payment action.",
+          "Record NGN 3500 against her prepared bills using the offered method/reference.",
+          "Save once and reload."
+        ],
+        "expect": "A receipt is created. Ada owes NGN 20300; school received is 3500 and still owed is 148700.",
+        "needs": "No other payment or baseline change may occur during this calculation.",
+        "special": "Changes money records"
+      },
+      {
+        "id": "12-03",
+        "title": "Finish the same student's payment",
+        "role": "Bursar",
+        "steps": [
+          "Record Ada's remaining NGN 20300.",
+          "Reload Ada's balance and school summary."
+        ],
+        "expect": "Ada owes 0. School received is 23800 and still owed is 128400. A separate receipt records this payment.",
+        "needs": "Run after the previous case, or coordinator restores the equivalent state.",
+        "special": "Changes money records"
+      },
+      {
+        "id": "12-04",
+        "title": "Show one debtor row per student",
+        "role": "Bursar",
+        "steps": [
+          "Open debtors/student balances with a student owing Tuition and PTA.",
+          "Search their name.",
+          "Compare the row total with their item breakdown."
+        ],
+        "expect": "The student appears once with the total owed, not once per bill item.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "12-05",
+        "title": "Select particular items for a payment",
+        "role": "Bursar",
+        "steps": [
+          "Open a different unpaid student.",
+          "Choose the offered specific bill items and pay only the agreed amount.",
+          "Check the remaining item balances."
+        ],
+        "expect": "Only the selected/allocated items are reduced. The total received and receipt match the actual payment.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "12-06",
+        "title": "Reject invalid payment details",
+        "role": "Bursar",
+        "steps": [
+          "Try zero, a negative amount and invalid required reference/method fields.",
+          "Correct the form without closing it."
+        ],
+        "expect": "Invalid records are not saved. The corrected payment can be recorded without duplicate receipts.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "12-07",
+        "title": "Handle excess money as credit",
+        "role": "Bursar",
+        "steps": [
+          "On a separate disposable student, use the offered way to record more than the outstanding bill.",
+          "Read the warning and confirm only as agreed.",
+          "Check credit and receipt."
+        ],
+        "expect": "The system either clearly rejects excess money or records the excess as an identifiable credit. It must not show a negative debt or lose the difference.",
+        "needs": "Coordinator agrees an overpayment scenario and expected policy first.",
+        "special": ""
+      },
+      {
+        "id": "12-08",
+        "title": "Print a detailed receipt",
+        "role": "Bursar",
+        "steps": [
+          "Open a saved receipt.",
+          "Check school, student, date, reference, amount, items and remaining balance.",
+          "Print or save as PDF."
+        ],
+        "expect": "The receipt is legible and detailed. Printed amount matches the payment, with no cropped fields.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "12-09",
+        "title": "Review debtors paid students and credits",
+        "role": "Bursar",
+        "steps": [
+          "Open Reports.",
+          "Select owing students, paid students and credits separately.",
+          "Apply the offered class/term filters."
+        ],
+        "expect": "Each report contains the right students and correct totals. A report with no records says so clearly.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "12-10",
+        "title": "Download and print accounts reports",
+        "role": "Bursar",
+        "steps": [
+          "Download debtors, paid students and credit reports.",
+          "Open each file using the available spreadsheet viewer.",
+          "Print preview one report."
+        ],
+        "expect": "Files open with readable headings and matching totals. No unexplained duplicates or missing later-page students appear.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "12-11",
+        "title": "Retry a delayed payment save",
+        "role": "Bursar",
+        "steps": [
+          "Ask the coordinator to interrupt one disposable payment save.",
+          "Reconnect and use its saved retry action.",
+          "Check payments and receipts."
+        ],
+        "expect": "The same intended payment and receipt are recorded once, not charged or recorded twice.",
+        "needs": "Use a unique disposable payment reference.",
+        "special": "Paired connection test"
+      },
+      {
+        "id": "12-12",
+        "title": "Record a manual payment offline",
+        "role": "Bursar",
+        "steps": [
+          "Download the accounts workspace online.",
+          "Disconnect and record an agreed manual cash payment.",
+          "Read Saved payments/pending status.",
+          "Reconnect and check from another account."
+        ],
+        "expect": "The pending payment is clearly labelled until the school confirms it. It reaches the server once; online checkout is not claimed to work offline.",
+        "needs": "",
+        "special": "Offline test"
+      },
+      {
+        "id": "12-13",
+        "title": "Reverse an incorrect test payment",
+        "role": "Authorised fee manager",
+        "steps": [
+          "Open the prepared disposable wrong payment.",
+          "Use an offered reversal control, enter the reason and confirm.",
+          "Check its receipt history and student balance."
+        ],
+        "expect": "The reversal is traceable; balances restore correctly. The original payment is not silently deleted.",
+        "needs": "Use a dedicated wrong-payment fixture. If no reversal control is offered, record Cannot test.",
+        "special": "Changes money records"
+      },
+      {
+        "id": "12-14",
+        "title": "Correct or cancel an unpaid bill",
+        "role": "Fee manager",
+        "steps": [
+          "Open the prepared unpaid disposable bill.",
+          "Use an offered correction/cancel action.",
+          "Cancel once, then deliberately confirm the disposable correction."
+        ],
+        "expect": "Cancellation of the dialog changes nothing. A confirmed change updates totals and does not corrupt receipts.",
+        "needs": "Use only an unpaid test bill. If no matching control exists, record Cannot test.",
+        "special": ""
+      },
+      {
+        "id": "12-15",
+        "title": "Reconcile family and bursar views",
+        "role": "Bursar and parent",
+        "steps": [
+          "Record a payment for a linked child.",
+          "Have its parent refresh Fees and receipts.",
+          "Compare the amount, outstanding balance and receipt."
+        ],
+        "expect": "Both roles see the same confirmed money records for the same term.",
+        "needs": "",
+        "special": ""
+      }
+    ],
+    "filename": "12-bursar-payments-receipts-and-reports.html"
+  },
+  {
+    "code": "13",
+    "title": "Parent dashboard fees and receipts",
+    "roles": "Parent A; Parent B; parent with one child; parent with no linked children",
+    "needs": "Controlled parent accounts, one released and one draft result, published timetable/notices and unpaid test bills. Payment provider must be in test mode.",
+    "cases": [
+      {
+        "id": "13-01",
+        "title": "Understand the family home",
+        "role": "Parent A",
+        "steps": [
+          "Sign in.",
+          "Identify your children and find Results, Fees and receipts, Timetable and Notices.",
+          "Open each feature and return Home."
+        ],
+        "expect": "The home feels like a clear dashboard. Features are separate and easy to name; children are recognisable.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "13-02",
+        "title": "Keep a single child simple",
+        "role": "Parent with one child",
+        "steps": [
+          "Open Results then Fees and receipts.",
+          "Look for repeated child selectors.",
+          "Find the balance and payment button."
+        ],
+        "expect": "The only child is already selected. Totals and payment action are near the top without a long scroll.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "13-03",
+        "title": "Switch between siblings",
+        "role": "Parent A",
+        "steps": [
+          "Open Ada's fees and note the balance.",
+          "Switch to John.",
+          "Open both children's results."
+        ],
+        "expect": "Each child has the correct separate bills and reports. A payment selection is not accidentally applied to the other child.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "13-04",
+        "title": "Help a parent with no linked child",
+        "role": "Unlinked parent",
+        "steps": [
+          "Open Home and My children.",
+          "Choose Link a child.",
+          "Enter the prepared name and submit."
+        ],
+        "expect": "A friendly empty state gives a clear next step. No unrelated child is shown; the request awaits review.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "13-05",
+        "title": "Read paid and owed amounts",
+        "role": "Parent",
+        "steps": [
+          "Open one child's Fees and receipts.",
+          "Compare totals and the compact bill breakdown.",
+          "Open Receipts separately."
+        ],
+        "expect": "Paid, owed and bill amounts are easy to distinguish. Item-selection/payment controls appear only when requested.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "13-06",
+        "title": "Pay one selected item",
+        "role": "Parent",
+        "steps": [
+          "Choose Make a payment.",
+          "Select only the prepared unpaid PTA item.",
+          "Review the child, item and total.",
+          "Continue through test checkout."
+        ],
+        "expect": "Only that child/item is requested. A confirmed test payment updates the balance and creates a receipt.",
+        "needs": "Test checkout must be configured; never enter a real card.",
+        "special": "Test payment provider required"
+      },
+      {
+        "id": "13-07",
+        "title": "Pay all remaining items",
+        "role": "Parent",
+        "steps": [
+          "Choose another prepared child with unpaid items.",
+          "Choose all unpaid items and review the total.",
+          "Complete the test checkout and return."
+        ],
+        "expect": "One checkout covers the selected child's unpaid items. The confirmed balance and receipt match the total.",
+        "needs": "",
+        "special": "Test payment provider required"
+      },
+      {
+        "id": "13-08",
+        "title": "Cancel or fail a payment",
+        "role": "Parent",
+        "steps": [
+          "Start a disposable test checkout.",
+          "Cancel or use the coordinator's failed-payment method.",
+          "Return to the portal and refresh."
+        ],
+        "expect": "The bill remains unpaid. A cancelled/failed attempt is not shown as received money or a final receipt.",
+        "needs": "",
+        "special": "Test payment provider required"
+      },
+      {
+        "id": "13-09",
+        "title": "Recover a payment return",
+        "role": "Parent",
+        "steps": [
+          "Complete the approved test payment and close the return tab at the coordinator's signal.",
+          "Reopen Fees and use the pending payment check.",
+          "Refresh once more."
+        ],
+        "expect": "The final confirmed result is recovered without a second charge or duplicate receipt.",
+        "needs": "Use a dedicated provider test transaction.",
+        "special": "Paired payment test"
+      },
+      {
+        "id": "13-10",
+        "title": "Use bank instructions when offered",
+        "role": "Parent",
+        "steps": [
+          "Open Make a payment where online checkout is disabled.",
+          "Read the configured bank details or office instructions.",
+          "Return without sending real money."
+        ],
+        "expect": "Instructions are visible when needed. A transfer is not automatically marked as paid without school confirmation.",
+        "needs": "No real transfer is required.",
+        "special": ""
+      },
+      {
+        "id": "13-11",
+        "title": "Print a payment receipt",
+        "role": "Parent",
+        "steps": [
+          "Open Receipts for the selected child.",
+          "Open a confirmed receipt.",
+          "Print or save as PDF."
+        ],
+        "expect": "The correct child, amount and reference are clear. Pending or failed payments do not generate a misleading confirmed receipt.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "13-12",
+        "title": "Read and print released results",
+        "role": "Parent",
+        "steps": [
+          "Open View results and choose the child.",
+          "Open the released term and its print preview.",
+          "Look for the prepared draft result."
+        ],
+        "expect": "Released scores and a readable A4 report are available; draft results remain hidden.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "13-13",
+        "title": "View school notices and unread status",
+        "role": "Parent",
+        "steps": [
+          "Open a new published notice.",
+          "Return to Home or the notice list.",
+          "Reload."
+        ],
+        "expect": "The notice is readable and its unread indicator updates. Parents cannot create, edit or delete notices.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "13-14",
+        "title": "View only the relevant timetable",
+        "role": "Parent",
+        "steps": [
+          "Choose each child and open Exam timetable.",
+          "Compare class/group labels and dates.",
+          "Try editing a paper."
+        ],
+        "expect": "Only the relevant published plan is visible; it cannot be edited by the parent.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "13-15",
+        "title": "Update account details safely",
+        "role": "Parent",
+        "steps": [
+          "Open Account from the avatar menu.",
+          "Change the test display name/photo and save.",
+          "Change the password with the current password and sign in again."
+        ],
+        "expect": "Own profile changes persist. Password change works without granting control of academic records.",
+        "needs": "Save your report before sign-out. Share the replacement password privately with the coordinator.",
+        "special": ""
+      },
+      {
+        "id": "13-16",
+        "title": "Read prepared records offline",
+        "role": "Parent",
+        "steps": [
+          "Download the workspace online.",
+          "Disconnect and reopen the child's fees and results.",
+          "Try Make a payment."
+        ],
+        "expect": "Saved records remain useful and are labelled offline. Actual checkout requires a connection.",
+        "needs": "",
+        "special": "Offline test"
+      }
+    ],
+    "filename": "13-parent-dashboard-fees-and-receipts.html"
+  },
+  {
+    "code": "14",
+    "title": "Student sign in results fees and settings",
+    "roles": "Student; school manager helping a child",
+    "needs": "A newly issued activation code, an existing student account, one published result, one draft report and unpaid test bills.",
+    "cases": [
+      {
+        "id": "14-01",
+        "title": "Activate without a dashboard administrator",
+        "role": "New student",
+        "steps": [
+          "Open the school's student link.",
+          "Enter admission number, private activation code and matching new passwords.",
+          "Finish."
+        ],
+        "expect": "The correct student home opens after a successful activation. No parent dashboard or typed school slug is required.",
+        "needs": "Use the privately supplied details, not sample credentials.",
+        "special": ""
+      },
+      {
+        "id": "14-02",
+        "title": "Reject invalid activation details",
+        "role": "New student",
+        "steps": [
+          "Try a wrong admission number, wrong code and mismatched passwords separately.",
+          "Try a password shorter than 8 characters.",
+          "Correct the values."
+        ],
+        "expect": "Clear errors prevent access. A correct unused code and valid password still work.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "14-03",
+        "title": "Sign in with admission number",
+        "role": "Existing student",
+        "steps": [
+          "Open Student sign in.",
+          "Enter the assigned admission number and chosen password.",
+          "Reload after signing in."
+        ],
+        "expect": "The student sees their own name, class and simple Results/Fees home, not staff management tools.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "14-04",
+        "title": "Understand the student home",
+        "role": "Student or parent using the child account",
+        "steps": [
+          "Without help, find results, fees and settings.",
+          "Open each and return Home."
+        ],
+        "expect": "The home has a clear purpose with few choices. Record any wording a child or parent does not understand.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "14-05",
+        "title": "See only released own results",
+        "role": "Student",
+        "steps": [
+          "Open Results.",
+          "Choose the published term.",
+          "Look for the draft report and another student's test report link."
+        ],
+        "expect": "Only this student's released reports are accessible. Draft and other students' reports stay private.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "14-06",
+        "title": "Print a student report",
+        "role": "Student",
+        "steps": [
+          "Open a released result.",
+          "Choose Print or Save result PDF.",
+          "Preview A4 pages."
+        ],
+        "expect": "Identity, term, scores, totals and comments are readable and match the displayed result.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "14-07",
+        "title": "Read and select bill items",
+        "role": "Student",
+        "steps": [
+          "Open Fees and receipts.",
+          "Read paid/owed totals and the small breakdown.",
+          "Choose Make a payment and select an item."
+        ],
+        "expect": "Payment choices appear only on demand. Selected items and totals belong to this student.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "14-08",
+        "title": "Add a receipt email for checkout",
+        "role": "Student",
+        "steps": [
+          "Open a prepared test checkout without a saved contact email.",
+          "Enter the controlled receipt email when requested.",
+          "Save/continue and return to the fees page."
+        ],
+        "expect": "Receipt email is requested in the payment flow and persists. It does not change admission-number login or automatically link a parent.",
+        "needs": "",
+        "special": "Test payment provider required"
+      },
+      {
+        "id": "14-09",
+        "title": "Complete and print a test payment",
+        "role": "Student",
+        "steps": [
+          "Review the selected item total.",
+          "Complete only the approved test checkout.",
+          "Open its confirmed receipt."
+        ],
+        "expect": "The amount is confirmed once, the balance updates and a printable receipt is available.",
+        "needs": "",
+        "special": "Test payment provider required"
+      },
+      {
+        "id": "14-10",
+        "title": "Request a parent by email",
+        "role": "Student",
+        "steps": [
+          "Open Settings and Request a parent link.",
+          "Enter the controlled parent email and send.",
+          "Check the request status."
+        ],
+        "expect": "The request awaits school review. Entering an email does not give that parent immediate access.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "14-11",
+        "title": "Follow a reviewed parent request",
+        "role": "Student and manager",
+        "steps": [
+          "Have the manager approve or decline the prepared request.",
+          "Refresh Settings.",
+          "Try sending the same email again."
+        ],
+        "expect": "The reviewed status and any explanation appear. A repeated normalised email does not create duplicate pending requests.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "14-12",
+        "title": "Change own display details and password",
+        "role": "Student",
+        "steps": [
+          "Open Settings then your account details.",
+          "Change the test display name/photo.",
+          "Use current password to choose a new password.",
+          "Sign in again."
+        ],
+        "expect": "Own profile and password changes work. Official class, admission number and academic identity remain school-managed.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "14-13",
+        "title": "Recover a forgotten student password",
+        "role": "Student and school manager",
+        "steps": [
+          "Ask the manager to reset the disposable student password.",
+          "Sign in with the privately shared replacement.",
+          "Change it in Settings."
+        ],
+        "expect": "The old password stops working. Recovery does not depend on a fabricated student email inbox.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "14-14",
+        "title": "Use prepared student pages offline",
+        "role": "Student",
+        "steps": [
+          "Download your workspace online.",
+          "Disconnect and reopen Results and Fees.",
+          "Save a parent-email request and reconnect later."
+        ],
+        "expect": "Saved own records remain available; the request queues and later reaches the school once. It is not falsely approved offline.",
+        "needs": "",
+        "special": "Offline test"
+      }
+    ],
+    "filename": "14-student-sign-in-results-fees-and-settings.html"
+  },
+  {
+    "code": "15",
+    "title": "Announcements notices and notification badges",
+    "roles": "Owner; principal; school administrator; teacher; parent; general staff",
+    "needs": "A controlled test notice, a draft, a scheduled notice, a reader account and an authorised publishing account.",
+    "cases": [
+      {
+        "id": "15-01",
+        "title": "Create a clear draft notice",
+        "role": "Notice manager",
+        "steps": [
+          "Open Announcements and choose the create action.",
+          "Enter TEST Notice and a short message.",
+          "Save as draft and reload."
+        ],
+        "expect": "The author can find the draft. Readers cannot see it yet.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "15-02",
+        "title": "Reject an empty notice",
+        "role": "Notice manager",
+        "steps": [
+          "Try saving without a title or message.",
+          "Correct the missing field and save."
+        ],
+        "expect": "A useful error identifies the missing text; the corrected notice can be saved.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "15-03",
+        "title": "Edit a notice",
+        "role": "Notice manager",
+        "steps": [
+          "Open the test draft and edit its title/body.",
+          "Save and reload."
+        ],
+        "expect": "The intended notice changes. Other notices are unaffected.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "15-04",
+        "title": "Publish a notice",
+        "role": "Notice manager and reader",
+        "steps": [
+          "Publish the agreed test notice.",
+          "Sign in as teacher, parent and general staff.",
+          "Open Notices/Announcements."
+        ],
+        "expect": "The published message appears with readable text. The draft remains hidden.",
+        "needs": "",
+        "special": "Publishes a notice"
+      },
+      {
+        "id": "15-05",
+        "title": "Schedule a notice",
+        "role": "Notice manager and reader",
+        "steps": [
+          "Schedule a test notice a few minutes ahead using the shown local time.",
+          "Check as a reader before that time.",
+          "Check again after that time."
+        ],
+        "expect": "The reader cannot see it early and sees it when published by the configured service. The displayed time is understandable.",
+        "needs": "Coordinator confirms the background delivery service is running.",
+        "special": "Timed test"
+      },
+      {
+        "id": "15-06",
+        "title": "Pin and expire a notice",
+        "role": "Notice manager",
+        "steps": [
+          "Use the offered pin/expiry controls on a test notice.",
+          "Check the reader list before and after the agreed expiry."
+        ],
+        "expect": "Pinned notices are identifiable. Expired notices are not misleadingly presented as current.",
+        "needs": "Use a short agreed expiry and record the time.",
+        "special": "Timed test"
+      },
+      {
+        "id": "15-07",
+        "title": "Read-only notice board",
+        "role": "Teacher then parent and general staff",
+        "steps": [
+          "Open the notice board.",
+          "Read a notice and look for create/edit/delete actions.",
+          "Try the supplied create-page address."
+        ],
+        "expect": "Readers see a simple board with published notices only. They cannot author or edit a notice.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "15-08",
+        "title": "Update unread indicators",
+        "role": "Reader",
+        "steps": [
+          "Note the unread badge before opening a new notice.",
+          "Open it and return to the list.",
+          "Reload or reopen the account menu."
+        ],
+        "expect": "Unread count decreases for this user only. Reading one notice does not mark unrelated notices read.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "15-09",
+        "title": "Keep another user's unread status",
+        "role": "Two readers",
+        "steps": [
+          "Have Reader A open a new notice.",
+          "Sign in as Reader B who has not opened it.",
+          "Check the badge."
+        ],
+        "expect": "Reader B still sees that notice as unread.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "15-10",
+        "title": "Confirm notice deletion",
+        "role": "Notice manager",
+        "steps": [
+          "Delete a disposable draft or test notice.",
+          "Cancel first, then confirm the disposable deletion.",
+          "Refresh the reader list."
+        ],
+        "expect": "Cancel changes nothing. Confirmed deletion affects only the selected notice and does not leave a broken detail page.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "15-11",
+        "title": "Separate email delivery from posting",
+        "role": "Notice manager and reader",
+        "steps": [
+          "Publish a notice with an offered email notification option.",
+          "Check both the board and the controlled mailbox.",
+          "Record delivery time."
+        ],
+        "expect": "Posting and email delivery are distinguishable. A queued email is not described as delivered.",
+        "needs": "If no email option exists in the UI, record Cannot test; the coordinator handles delivery checks.",
+        "special": "Email required"
+      },
+      {
+        "id": "15-12",
+        "title": "Read a notice offline",
+        "role": "Reader",
+        "steps": [
+          "Download or open the published notice while online.",
+          "Disconnect and read it again.",
+          "Reconnect and check its read indicator."
+        ],
+        "expect": "The saved notice is readable. Read tracking syncs without changing anyone else's status.",
+        "needs": "",
+        "special": "Offline test"
+      }
+    ],
+    "filename": "15-announcements-notices-and-notification-badges.html"
+  },
+  {
+    "code": "16",
+    "title": "Offline use installation and recovery",
+    "roles": "Teacher; bursar; parent; student; coordinator",
+    "needs": "Use a deployed HTTPS production version, or the coordinator's prepared localhost production build. Use only one account/device per offline run and keep work saved.",
+    "cases": [
+      {
+        "id": "16-01",
+        "title": "Install the offline web app",
+        "role": "Any supported user",
+        "steps": [
+          "While online, find Download offline version or Install app.",
+          "Follow the browser prompt.",
+          "Open SchoolOs from its new home-screen/desktop icon."
+        ],
+        "expect": "The installed app opens the same permitted school workspace. If installation is unavailable, instructions explain the supported browser path.",
+        "needs": "An installable production build. Ordinary development mode is not a full offline-install test.",
+        "special": ""
+      },
+      {
+        "id": "16-02",
+        "title": "Prepare your workspace",
+        "role": "Each test role",
+        "steps": [
+          "While online, use Download workspace/offline preparation.",
+          "Wait for the completed message.",
+          "Open the required class, report or fee records once."
+        ],
+        "expect": "Preparation confirms what was saved. Failed or unavailable parts are not called complete.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "16-03",
+        "title": "Keep working when the school server stops",
+        "role": "Any prepared user",
+        "steps": [
+          "Keep the device connected to the internet.",
+          "Have the coordinator stop only the test backend.",
+          "Reload an already prepared protected page."
+        ],
+        "expect": "Saved authorised pages still open. An access-check warning does not unnecessarily block records just because the backend is unavailable.",
+        "needs": "Coordinator handles the test server; tester does not edit settings or run commands.",
+        "special": "Coordinator required"
+      },
+      {
+        "id": "16-04",
+        "title": "Reopen while fully disconnected",
+        "role": "Any prepared user",
+        "steps": [
+          "Close only the prepared app window.",
+          "Turn off Wi-Fi/mobile data or enable flight mode.",
+          "Reopen the installed SchoolOs app.",
+          "Open previously downloaded records."
+        ],
+        "expect": "The saved app opens without contacting the server. Prepared data and the current account identity remain available.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "16-05",
+        "title": "Use it after two days offline",
+        "role": "Any prepared user",
+        "steps": [
+          "Prepare the workspace and record date/time.",
+          "Stay disconnected for at least 48 hours without signing out or clearing data.",
+          "Reopen the same installed app and prepared records."
+        ],
+        "expect": "Prepared records remain useful after two days while the offline authorisation remains valid. Record actual start/end times; do not simulate this by changing the clock.",
+        "needs": "Coordinator confirms the account and offline access period will remain valid.",
+        "special": "48-hour follow-up"
+      },
+      {
+        "id": "16-06",
+        "title": "Queue attendance safely",
+        "role": "Class teacher",
+        "steps": [
+          "Disconnect after preparing a class.",
+          "Mark and save attendance.",
+          "Close/reopen the app and check the same date.",
+          "Reconnect and wait for the sync result."
+        ],
+        "expect": "Marks survive reopening and sync once. Other students are not silently marked present.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "16-07",
+        "title": "Queue score changes safely",
+        "role": "Subject teacher",
+        "steps": [
+          "Disconnect with a prepared score sheet.",
+          "Edit two students and choose Save scores.",
+          "Reopen the same sheet, then reconnect.",
+          "Check the server copy with the coordinator."
+        ],
+        "expect": "Draft/queued marks survive and reach the school once, with the correct term/class/subject.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "16-08",
+        "title": "Queue a manual cash payment",
+        "role": "Bursar",
+        "steps": [
+          "Disconnect after downloading Fees.",
+          "Record the approved manual test payment.",
+          "Reopen Saved payments.",
+          "Reconnect and compare the confirmed receipt."
+        ],
+        "expect": "Money is shown as pending until confirmed. Reconnect does not create a second payment.",
+        "needs": "Use a unique disposable reference; do not run a real card payment offline.",
+        "special": ""
+      },
+      {
+        "id": "16-09",
+        "title": "Queue a parent-link request",
+        "role": "Parent or student",
+        "steps": [
+          "Disconnect with the relevant prepared request page.",
+          "Send the prepared child-name or parent-email request.",
+          "Reopen and reconnect."
+        ],
+        "expect": "The request is retained and later sent once. Offline sending never approves family access automatically.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "16-10",
+        "title": "Read results and receipts offline",
+        "role": "Parent or student",
+        "steps": [
+          "Prepare a released result and a confirmed receipt.",
+          "Disconnect and open both.",
+          "Open print preview for the prepared report."
+        ],
+        "expect": "Saved documents are readable and printable where downloaded. A missing copy gets clear guidance, not invented data.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "16-11",
+        "title": "Handle a page never downloaded",
+        "role": "Any prepared user",
+        "steps": [
+          "While offline, open a permitted page or record not downloaded before.",
+          "Return to a prepared page."
+        ],
+        "expect": "The app explains what is missing. It does not crash, invent records or force all saved pages to stop working.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "16-12",
+        "title": "Keep online-only actions honest",
+        "role": "Any prepared user",
+        "steps": [
+          "While disconnected, try sign-up or password change and a payment checkout.",
+          "Read the response and return to saved records."
+        ],
+        "expect": "A connection requirement is clear. No password change, activation, bank verification or online payment is falsely confirmed.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "16-13",
+        "title": "Sync after the connection returns",
+        "role": "Any user with queued changes",
+        "steps": [
+          "Restore internet and the test backend.",
+          "Use the shown sync/retry action if needed.",
+          "Check the record from a second online account."
+        ],
+        "expect": "The pending count clears only after confirmation. The final record and totals match the intended single change.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "16-14",
+        "title": "Protect against changed permissions at sync",
+        "role": "Disposable staff account and coordinator",
+        "steps": [
+          "Prepare and queue one harmless test edit while offline.",
+          "Have the coordinator remove that account's relevant permission online.",
+          "Reconnect and sync."
+        ],
+        "expect": "The server rejects unauthorised work with a clear message. The app does not pretend it uploaded successfully or silently discard the only copy.",
+        "needs": "Use a separate disposable account; restore its access after the test.",
+        "special": "Coordinator required"
+      },
+      {
+        "id": "16-15",
+        "title": "Protect another school's saved data",
+        "role": "Two controlled accounts",
+        "steps": [
+          "Finish/sync work and sign out.",
+          "Sign in to School B on the same device.",
+          "Disconnect and open School B's saved pages."
+        ],
+        "expect": "School A's records and queued changes are not shown as School B's data.",
+        "needs": "Never switch account with unreported unsynchronised work.",
+        "special": ""
+      },
+      {
+        "id": "16-16",
+        "title": "Show offline status clearly",
+        "role": "Each role",
+        "steps": [
+          "Disconnect on desktop and phone.",
+          "Open the sidebar, bottom navigation and a save action.",
+          "Read the offline notice."
+        ],
+        "expect": "The notice is visible above navigation and does not cover essential controls. It says whether data is saved locally or confirmed by the school.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "16-17",
+        "title": "Update the installed app safely",
+        "role": "Prepared user and coordinator",
+        "steps": [
+          "Save and sync work.",
+          "Have the coordinator publish an approved test frontend update.",
+          "Reopen online and use the update/reload prompt.",
+          "Check saved records."
+        ],
+        "expect": "Update guidance is clear. A normal update does not silently erase pending work or show another account's data.",
+        "needs": "Do not clear browser/app storage as a routine update step.",
+        "special": "Coordinator required"
+      },
+      {
+        "id": "16-18",
+        "title": "Sign out while offline deliberately",
+        "role": "Disposable prepared account",
+        "steps": [
+          "Make sure no important work is pending.",
+          "Disconnect and choose Sign out.",
+          "Reopen the app."
+        ],
+        "expect": "Local signed-in access ends. The app does not promise immediate server revocation while disconnected.",
+        "needs": "Run last on a disposable prepared account; signing out can remove offline access.",
+        "special": ""
+      },
+      {
+        "id": "16-19",
+        "title": "Queue ordinary school record changes",
+        "role": "School manager",
+        "steps": [
+          "Prepare a disposable student, parent, class and subject while online.",
+          "Disconnect and make one harmless permitted edit in each available screen.",
+          "Reconnect and compare the records from a second browser."
+        ],
+        "expect": "Supported changes are clearly pending and reach the correct school once. Unsupported actions ask for connection instead of pretending to save.",
+        "needs": "Use a separate disposable dataset, not the shared fee baseline.",
+        "special": ""
+      },
+      {
+        "id": "16-20",
+        "title": "Queue a draft notice or fee setup",
+        "role": "Authorised manager",
+        "steps": [
+          "Prepare a disposable draft notice and unpaid fee rule online.",
+          "Disconnect and make a harmless edit in each supported screen.",
+          "Reconnect and review the final saved versions."
+        ],
+        "expect": "Pending changes are labelled. Family-visible money/notices do not get described as confirmed before the school accepts the changes.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "16-21",
+        "title": "Queue an exam draft carefully",
+        "role": "Exam officer",
+        "steps": [
+          "Download the prepared exam draft online.",
+          "Disconnect, move one paper and save.",
+          "Reconnect and open the server copy."
+        ],
+        "expect": "Supported draft changes sync correctly or show a clear conflict. A local draft is not misrepresented as already published to families.",
+        "needs": "",
+        "special": ""
+      }
+    ],
+    "filename": "16-offline-use-installation-and-recovery.html"
+  },
+  {
+    "code": "17",
+    "title": "Role permissions and school privacy",
+    "roles": "One tester per role; coordinator pairs school accounts",
+    "needs": "Separate test logins for owner, administrator, principal, teacher, exam officer, bursar, general staff, parent, student and platform roles. Coordinator supplies safe test page links.",
+    "cases": [
+      {
+        "id": "17-01",
+        "title": "Owner access",
+        "role": "Owner",
+        "steps": [
+          "Open Home, Students, Parents, Classes, Staff, Results, Attendance, Fees, Notices and Settings.",
+          "Check the school name on each."
+        ],
+        "expect": "The owner can manage the school. Attendance/results are oversight views unless teaching assignments also exist.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "17-02",
+        "title": "School administrator access",
+        "role": "School administrator",
+        "steps": [
+          "Open school management features and financial pages offered to this account.",
+          "Open Attendance and score entry without a teaching assignment."
+        ],
+        "expect": "Authorised school administration works. It does not automatically grant class-teacher attendance or unassigned subject score entry.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "17-03",
+        "title": "Principal academic access",
+        "role": "Principal only",
+        "steps": [
+          "Open academic summaries, classes, staff, results and exam timetable.",
+          "Try the provided Fees and record-payment links.",
+          "Check Home for financial totals."
+        ],
+        "expect": "Academic tools work. Finance data/actions and financial Home summaries are not available without an added finance role.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "17-04",
+        "title": "Teacher assignment boundaries",
+        "role": "Teacher only",
+        "steps": [
+          "Open My classes, Attendance, Results and Announcements.",
+          "Try the coordinator's unassigned class and school-settings links."
+        ],
+        "expect": "Assigned work is accessible. Unassigned teaching work and school management stay unavailable; Today is not a required extra sidebar item.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "17-05",
+        "title": "Exam officer access",
+        "role": "Exam officer only",
+        "steps": [
+          "Open Result progress and Exam timetable.",
+          "Try attendance and unassigned score entry."
+        ],
+        "expect": "Exam coordination works. The title alone does not grant classroom attendance or unassigned subject entry.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "17-06",
+        "title": "Bursar access",
+        "role": "Bursar only",
+        "steps": [
+          "Open Fees and payments and the offered notices.",
+          "Try class management, score entry and receiving-bank settings."
+        ],
+        "expect": "Accounts work is available. Unassigned academic entry and creator-only bank changes are blocked.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "17-07",
+        "title": "General staff access",
+        "role": "General staff only",
+        "steps": [
+          "Open Announcements and My details.",
+          "Look for staff-directory edit controls.",
+          "Try the provided score-entry and fee-management links."
+        ],
+        "expect": "General staff cannot edit other staff, enter unassigned scores or manage school money. Empty assigned-work views are explained.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "17-08",
+        "title": "Parent privacy",
+        "role": "Parent B",
+        "steps": [
+          "Open your linked child.",
+          "Use the supplied link for Parent A's child, receipt and result.",
+          "Try a staff page."
+        ],
+        "expect": "Only the parent's linked children are accessible. Staff work and other families' private records are blocked.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "17-09",
+        "title": "Student privacy",
+        "role": "Student",
+        "steps": [
+          "Open your Results and Fees.",
+          "Use the supplied link for another student's report or receipt.",
+          "Try the parent review queue and staff pages."
+        ],
+        "expect": "Only own released reports and bills are available. A student cannot review their own parent-link request.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "17-10",
+        "title": "Combine and remove roles",
+        "role": "Teacher with Exam officer and Bursar roles",
+        "steps": [
+          "Check the combined sidebar.",
+          "Open teaching, result-progress, timetable and fee tools.",
+          "Have the manager remove the added roles and refresh online."
+        ],
+        "expect": "Features are combined in one account, without duplicates. Removed permissions stop working on live access checks.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "17-11",
+        "title": "Typing a forbidden page address",
+        "role": "Each restricted role",
+        "steps": [
+          "While signed in, paste the coordinator's forbidden page link into the address bar.",
+          "Reload and try browser Back."
+        ],
+        "expect": "Private unauthorised content is not exposed simply by typing a URL.",
+        "needs": "Coordinator supplies exact test links; do not guess real student IDs.",
+        "special": ""
+      },
+      {
+        "id": "17-12",
+        "title": "Protect School B records",
+        "role": "School A user",
+        "steps": [
+          "Open a private School B class/report/receipt link supplied by the coordinator.",
+          "Try the same address after reload."
+        ],
+        "expect": "No School B private records are disclosed under School A's account.",
+        "needs": "Use the two controlled schools only.",
+        "special": ""
+      },
+      {
+        "id": "17-13",
+        "title": "Reject a removed membership online",
+        "role": "Disposable staff account",
+        "steps": [
+          "Sign in and open a private page.",
+          "Have the coordinator remove that school membership.",
+          "Refresh online."
+        ],
+        "expect": "Further online access is rejected. The page does not treat a recent successful login as permanent permission.",
+        "needs": "Offline saved copies are governed separately; use packet 16 for that scenario.",
+        "special": ""
+      },
+      {
+        "id": "17-14",
+        "title": "Keep stale tabs safe",
+        "role": "Two controlled accounts",
+        "steps": [
+          "Open Account A in two tabs.",
+          "Sign out in one and sign in as Account B.",
+          "Use the old tab to refresh or attempt a harmless save."
+        ],
+        "expect": "It updates to the correct context or rejects the stale action. It must not save under the wrong person/school.",
+        "needs": "No important pending work should exist before this test.",
+        "special": ""
+      },
+      {
+        "id": "17-15",
+        "title": "Handle an account with no school access",
+        "role": "Unassigned or removed user",
+        "steps": [
+          "Try signing in with the controlled account that has no active school membership.",
+          "Read the response."
+        ],
+        "expect": "No school dashboard or private records open. Guidance explains contacting the school.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "17-16",
+        "title": "Protect creator-only controls",
+        "role": "Co-owner or administrator who did not create the school",
+        "steps": [
+          "Open Settings and try the supplied receiving-account address.",
+          "Attempt a bank change only if the page incorrectly offers it."
+        ],
+        "expect": "Only the original creator can change the receiving bank account, even if another person has broad school-management permissions.",
+        "needs": "Use a harmless test account; do not confirm a real bank change.",
+        "special": ""
+      }
+    ],
+    "filename": "17-role-permissions-and-school-privacy.html"
+  },
+  {
+    "code": "18",
+    "title": "Mobile clarity appearance and accessibility",
+    "roles": "Repeat with owner; teacher; bursar; parent; student",
+    "needs": "A phone, desktop browser and tablet if available. Use real devices where possible; this packet evaluates usability, not only technical success.",
+    "cases": [
+      {
+        "id": "18-01",
+        "title": "Understand each home without help",
+        "role": "Each assigned role",
+        "steps": [
+          "Sign in and spend no more than one minute looking at Home.",
+          "Say what you can do next.",
+          "Find one important role-specific task."
+        ],
+        "expect": "The purpose and next action are clear without a demonstration. Record the time and any help needed.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "18-02",
+        "title": "Use the phone navigation",
+        "role": "Each assigned role",
+        "steps": [
+          "Open the bottom tabs and More menu.",
+          "Visit every permitted feature.",
+          "Return Home."
+        ],
+        "expect": "Icons have meaningful labels, active location is clear and nothing is hidden behind the bottom bar.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "18-03",
+        "title": "Read on a small phone",
+        "role": "Each assigned role",
+        "steps": [
+          "Open a class list, form, fees summary and notice on the smallest available phone.",
+          "Read without zooming.",
+          "Turn the phone sideways."
+        ],
+        "expect": "Text stays readable, buttons are easy to tap and content reflows. Only wide data tables need deliberate sideways scrolling.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "18-04",
+        "title": "Use desktop space well",
+        "role": "Owner and bursar",
+        "steps": [
+          "Open dashboard, fees and reports on desktop.",
+          "Find the primary action and summary totals.",
+          "Compare with the phone version."
+        ],
+        "expect": "Desktop layouts use the space well without giant cards, empty stretches or an overwhelming wall of content.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "18-05",
+        "title": "Use menus at the bottom of a list",
+        "role": "School manager",
+        "steps": [
+          "Scroll to the final student/class record.",
+          "Open its menu and each offered action.",
+          "Repeat on phone."
+        ],
+        "expect": "Menus and dialogs fit within the screen and every action is clickable.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "18-06",
+        "title": "Navigate with the keyboard",
+        "role": "Desktop tester",
+        "steps": [
+          "Use Tab and Shift+Tab to move through navigation and a form.",
+          "Use Enter/Space to activate controls.",
+          "Open a dialog and close it with Escape where safe."
+        ],
+        "expect": "Focus is visible, controls are labelled and focus does not get trapped behind the dialog.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "18-07",
+        "title": "Read larger text",
+        "role": "Tester",
+        "steps": [
+          "Increase browser zoom/text size to 200 percent.",
+          "Open navigation, a form and fees.",
+          "Complete a harmless task."
+        ],
+        "expect": "Important labels and actions remain available without overlap or unreadable clipping.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "18-08",
+        "title": "Understand status without colour",
+        "role": "Tester",
+        "steps": [
+          "Review attendance, payment and result-progress statuses.",
+          "Read the wording without relying on green/red/gold."
+        ],
+        "expect": "Status includes words or other clear indicators, not colour alone.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "18-09",
+        "title": "Read errors and save confirmations",
+        "role": "Tester",
+        "steps": [
+          "Trigger one harmless required-field error.",
+          "Correct it and save a disposable change.",
+          "Read the confirmation."
+        ],
+        "expect": "Both messages explain what happened and the next step. A saved-on-device message is not confused with a confirmed school save.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "18-10",
+        "title": "Inspect long names and empty screens",
+        "role": "Tester",
+        "steps": [
+          "Open a long school name, long student name and an empty permitted list.",
+          "Look for the next action."
+        ],
+        "expect": "Names do not overlap controls. Empty screens explain what is missing and offer a useful allowed next step.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "18-11",
+        "title": "Check scrolling and sticky controls",
+        "role": "Tester",
+        "steps": [
+          "Scroll a long class list and open the sidebar.",
+          "Check that the top bar stays available.",
+          "Try the page on mobile."
+        ],
+        "expect": "Scrollbars are thin/themed where visible; sidebar scrolling remains usable. Sticky bars do not cover the content or offline notice.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "18-12",
+        "title": "Give a frank overall rating",
+        "role": "Each assigned role",
+        "steps": [
+          "Complete the four usability ratings at the end of this packet.",
+          "Name the hardest task.",
+          "Suggest one change that would help most."
+        ],
+        "expect": "Your answers reflect your actual experience. Beautiful appearance does not automatically mean the task was easy.",
+        "needs": "",
+        "special": ""
+      }
+    ],
+    "filename": "18-mobile-clarity-appearance-and-accessibility.html"
+  },
+  {
+    "code": "19",
+    "title": "Platform administration readiness",
+    "roles": "Platform administrator; super administrator; coordinator",
+    "needs": "Platform-scoped test accounts and two disposable schools. This packet is separate from ordinary school testing; do not change a real subscription or disable a real school.",
+    "cases": [
+      {
+        "id": "19-01",
+        "title": "Open the platform home",
+        "role": "Platform administrator",
+        "steps": [
+          "Sign in with the platform test account.",
+          "Check the platform home and school summaries.",
+          "Open an offered metric."
+        ],
+        "expect": "Platform pages open for platform roles, not as a school owner's dashboard. Counts match the prepared schools.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "19-02",
+        "title": "Find a school",
+        "role": "Platform administrator",
+        "steps": [
+          "Open Schools.",
+          "Search and use the offered status filters.",
+          "Open School A and then School B."
+        ],
+        "expect": "Each school's identity/details are correct. Switching records does not leave the previous school's details displayed.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "19-03",
+        "title": "Inspect school details",
+        "role": "Platform administrator",
+        "steps": [
+          "Open a school's Overview, People and Academic tabs.",
+          "Compare with the coordinator's records.",
+          "Reload."
+        ],
+        "expect": "Each tab reflects that school and its real records; loading/empty errors are not disguised as working example data.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "19-04",
+        "title": "Disable and restore a disposable school",
+        "role": "Platform administrator and school tester",
+        "steps": [
+          "Disable only the agreed disposable school.",
+          "Ask its tester to refresh online.",
+          "Restore the school and sign in again."
+        ],
+        "expect": "Disabled schools reject online school access; restored access works. Other schools remain available.",
+        "needs": "",
+        "special": "Disables a test school"
+      },
+      {
+        "id": "19-05",
+        "title": "Change a disposable subscription",
+        "role": "Platform administrator",
+        "steps": [
+          "Open the test school's plan/student-limit controls.",
+          "Set the coordinator-approved test limit and save.",
+          "Reload and ask the school tester to check the limit."
+        ],
+        "expect": "The saved limit persists and applies to student creation/imports without affecting another school.",
+        "needs": "Record the original subscription and restore it afterward.",
+        "special": ""
+      },
+      {
+        "id": "19-06",
+        "title": "Review billing totals honestly",
+        "role": "Platform administrator",
+        "steps": [
+          "Open Billing.",
+          "Compare every offered count/amount with the prepared subscriptions.",
+          "Reload."
+        ],
+        "expect": "Live values persist and agree with school subscription records. Static example rows or pretend saves must be reported, not accepted.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "19-07",
+        "title": "Manage platform assignments",
+        "role": "Super administrator and coordinator",
+        "steps": [
+          "Open Team and assign the prepared platform administrator where offered.",
+          "Reload and verify the intended assignment.",
+          "Remove only the disposable assignment."
+        ],
+        "expect": "Permitted assignments persist. Removal affects only the selected user/school scope.",
+        "needs": "Coordinator confirms which platform role can perform this action.",
+        "special": ""
+      },
+      {
+        "id": "19-08",
+        "title": "Protect super administrator controls",
+        "role": "Platform administrator without super status",
+        "steps": [
+          "Open Team.",
+          "Look for platform-user creation or super-role actions.",
+          "Try only the supplied restricted page links."
+        ],
+        "expect": "Super-only actions are unavailable; ordinary platform access cannot create a super administrator.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "19-09",
+        "title": "Check new school creation readiness",
+        "role": "Platform administrator",
+        "steps": [
+          "Open the offered Add school screen.",
+          "Create only a uniquely named disposable test school if the coordinator approves.",
+          "Reload the school list and try its recorded login flow."
+        ],
+        "expect": "Success counts only if the school actually persists and is usable. A success animation alone is not a pass.",
+        "needs": "This screen needs a readiness check; do not assume every visible platform screen is connected.",
+        "special": ""
+      },
+      {
+        "id": "19-10",
+        "title": "Check global settings readiness",
+        "role": "Super administrator",
+        "steps": [
+          "Change a harmless test support setting and save.",
+          "Reload and reopen from another browser.",
+          "Restore the original setting if saved."
+        ],
+        "expect": "A claimed save must persist across reload. If values reset or no real save exists, record Failed or Cannot test with details.",
+        "needs": "Do not alter PIN or other legacy settings for real users.",
+        "special": ""
+      },
+      {
+        "id": "19-11",
+        "title": "Check legacy screens without relying on them",
+        "role": "Coordinator",
+        "steps": [
+          "Look for any remaining PIN card or public PIN result-checker links.",
+          "Open only the supplied disposable links.",
+          "Record which are visible and whether they are clearly unavailable."
+        ],
+        "expect": "Legacy or unfinished tools are not presented as required working SchoolOs features. Record visible stale links as a release issue.",
+        "needs": "Do not generate, sell or rely on PIN cards; student/parent accounts are the supported family route.",
+        "special": ""
+      },
+      {
+        "id": "19-12",
+        "title": "Keep platform accounts separate from schools",
+        "role": "School owner then platform user",
+        "steps": [
+          "As owner, try the platform address supplied by the coordinator.",
+          "As platform user, confirm the intended school context before any action."
+        ],
+        "expect": "A school owner cannot enter platform administration just by using its address. Platform actions clearly identify their target school.",
+        "needs": "",
+        "special": ""
+      }
+    ],
+    "filename": "19-platform-administration-readiness.html"
+  },
+  {
+    "code": "20",
+    "title": "Complete school day with handoffs",
+    "roles": "Coordinator pairs owner; teacher; exam officer; bursar; parent; student",
+    "needs": "A fresh disposable school with the six-student baseline. Run in order after feature testing; record every handoff. Do not invent an approval or use the database to bypass a broken screen.",
+    "cases": [
+      {
+        "id": "20-01",
+        "title": "Set up the school",
+        "role": "Owner",
+        "steps": [
+          "Create the test school.",
+          "Set the agreed year/term dates, classes, subjects and marking structure.",
+          "Invite and assign the test staff."
+        ],
+        "expect": "Staff can sign in with the correct combined permissions and teaching assignments.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "20-02",
+        "title": "Bring in students and families",
+        "role": "School manager and parent",
+        "steps": [
+          "Upload the six baseline students and confirm class placement.",
+          "Link Parent A to Ada and John and invite the parent.",
+          "Issue Ada's activation code."
+        ],
+        "expect": "The parent sees only their children; Ada can activate the simple student account.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "20-03",
+        "title": "Set and check school fees",
+        "role": "Owner or bursar",
+        "steps": [
+          "Apply the junior, senior and Laboratory fees from packet 11.",
+          "Check all six students' bill totals.",
+          "Confirm expected income before any payment."
+        ],
+        "expect": "Expected is NGN 152200, received 0 and still owed 152200.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "20-04",
+        "title": "Take attendance offline and confirm online",
+        "role": "Class teacher and owner",
+        "steps": [
+          "Prepare the assigned class online.",
+          "Disconnect, mark attendance and save.",
+          "Reconnect; the owner checks the day summary."
+        ],
+        "expect": "The saved marks reach the correct class/date once and the owner summary agrees.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "20-05",
+        "title": "Enter and review results",
+        "role": "Assigned teacher and reviewer",
+        "steps": [
+          "Save the prepared subject marks.",
+          "Have the reviewer inspect progress and use the available review controls.",
+          "Prepare one approved report for release."
+        ],
+        "expect": "Each handoff is usable through the app. If approval cannot be completed in the UI, stop and record a blocked release test.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "20-06",
+        "title": "Release and print the report",
+        "role": "Authorised publisher then parent and student",
+        "steps": [
+          "Publish the approved test report.",
+          "Parent and student open it independently.",
+          "Save its A4 printout."
+        ],
+        "expect": "Both see the same released result. A different family and another student cannot access it.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "20-07",
+        "title": "Pay and reconcile",
+        "role": "Parent and bursar",
+        "steps": [
+          "Complete one approved test payment for Ada, or record an agreed manual payment if provider testing is unavailable.",
+          "Have bursar and parent check the balance/receipt.",
+          "Compare school totals."
+        ],
+        "expect": "One payment changes totals once and both views agree. If checkout is unavailable, mark online-payment testing Cannot test separately.",
+        "needs": "",
+        "special": "Test payment approval required"
+      },
+      {
+        "id": "20-08",
+        "title": "Publish the exam plan and notice",
+        "role": "Exam officer and notice manager",
+        "steps": [
+          "Publish the test timetable and a related notice.",
+          "Teacher and parent open them.",
+          "Check the parent's class-specific timetable and unread notice indicator."
+        ],
+        "expect": "The right readers get the relevant published information without editing access.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "20-09",
+        "title": "Check cross-school and role boundaries",
+        "role": "Coordinator and paired testers",
+        "steps": [
+          "Use the agreed School B and other-family test links.",
+          "Try them under School A and Parent B.",
+          "Record any exposed name, score, receipt or action."
+        ],
+        "expect": "No unauthorised school/family record is disclosed. Any exposure stops release testing immediately.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "20-10",
+        "title": "Close the run and agree next steps",
+        "role": "All testers and coordinator",
+        "steps": [
+          "Save/download all reports and backups.",
+          "List failed and untested cases.",
+          "Assign owners and retest dates for each important problem.",
+          "Restore disposable changes as agreed."
+        ],
+        "expect": "Nothing untested is labelled passed. The coordinator can identify the remaining release blockers and who will retest them.",
+        "needs": "",
+        "special": ""
+      }
+    ],
+    "filename": "20-complete-school-day-with-handoffs.html"
+  },
+  {
+    "code": "21",
+    "title": "Own account name picture and password",
+    "roles": "Repeat for staff; parent; student; platform account",
+    "needs": "Own controlled test account, sample-school-logo.png for a harmless picture test, and invalid-picture.txt. Keep replacement passwords private.",
+    "cases": [
+      {
+        "id": "21-01",
+        "title": "Find your account settings",
+        "role": "Any signed-in user",
+        "steps": [
+          "Open your name/avatar menu.",
+          "Choose Account or Settings.",
+          "Check the displayed person and available account actions."
+        ],
+        "expect": "The page belongs to you. Menu controls stay visible above the page, and sign out is easy to find.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "21-02",
+        "title": "Change your displayed name",
+        "role": "Any signed-in user",
+        "steps": [
+          "Enter a new harmless first/last display name.",
+          "Save and reload.",
+          "Check the top bar and My details."
+        ],
+        "expect": "The saved name is used consistently. It does not change someone else's profile or the school-managed student academic identity.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "21-03",
+        "title": "Reject an empty display name",
+        "role": "Any signed-in user",
+        "steps": [
+          "Try saving a blank first or last name.",
+          "Correct the field and save."
+        ],
+        "expect": "A clear error prevents a blank identity. The corrected name persists.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "21-04",
+        "title": "Add a profile picture",
+        "role": "Any signed-in user",
+        "steps": [
+          "Choose the small sample PNG as your picture.",
+          "Save if requested.",
+          "Reload and check the avatar."
+        ],
+        "expect": "The picture is displayed neatly without stretching or breaking the menu.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "21-05",
+        "title": "Remove a profile picture",
+        "role": "Any signed-in user",
+        "steps": [
+          "Use Remove picture.",
+          "Reload."
+        ],
+        "expect": "The old picture is removed and a readable initials/default avatar appears.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "21-06",
+        "title": "Reject an unsuitable picture",
+        "role": "Any signed-in user",
+        "steps": [
+          "Try invalid-picture.txt and the coordinator's oversized test picture.",
+          "Read the message.",
+          "Choose the small PNG afterward."
+        ],
+        "expect": "Unsupported or oversized images fail clearly. A valid image can still be selected afterward.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "21-07",
+        "title": "Change your password",
+        "role": "Any account with a password",
+        "steps": [
+          "Enter the current password and a new valid matching password.",
+          "Save.",
+          "Sign in with the new password and test the old one once."
+        ],
+        "expect": "New password works; the old one fails. The page explains if it signs you out.",
+        "needs": "At least 8 characters including a letter and number; share changes privately with your coordinator.",
+        "special": ""
+      },
+      {
+        "id": "21-08",
+        "title": "Reject a wrong current password",
+        "role": "Any account with a password",
+        "steps": [
+          "Try a password change with an incorrect current password.",
+          "Sign in using the original correct password."
+        ],
+        "expect": "The change is rejected and the original credential remains valid.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "21-09",
+        "title": "Reject weak or mismatched new passwords",
+        "role": "Any account with a password",
+        "steps": [
+          "Try 7 characters, letters only, numbers only and different confirmation values separately.",
+          "Correct the form."
+        ],
+        "expect": "Each error is understandable and no password is changed accidentally.",
+        "needs": "",
+        "special": ""
+      },
+      {
+        "id": "21-10",
+        "title": "Set a password for a Google account",
+        "role": "Google user with no existing password",
+        "steps": [
+          "Open your own account settings.",
+          "Use the offered reset/set-password path with your controlled email.",
+          "Complete the link and sign in."
+        ],
+        "expect": "The account can establish a password through a verified flow. Google access is not attached to another person.",
+        "needs": "Coordinator confirms Google/email setup and the intended account.",
+        "special": "Email required"
+      },
+      {
+        "id": "21-11",
+        "title": "Keep account actions honest offline",
+        "role": "Prepared account",
+        "steps": [
+          "Disconnect and open account settings.",
+          "Try changing the password or profile picture.",
+          "Return to a downloaded page."
+        ],
+        "expect": "The app does not falsely confirm live credential changes. The rest of the prepared workspace stays usable.",
+        "needs": "",
+        "special": ""
+      }
+    ],
+    "filename": "21-own-account-name-picture-and-password.html"
+  }
+]

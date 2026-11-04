@@ -110,7 +110,7 @@ export class PlatformController {
   ) => {
     try {
       const input = createPlatformUserSchema.parse(req.body);
-      const data = await platformService.createPlatformUser(input);
+      const data = await platformService.createPlatformUser(input, req.auth!.userId);
       sendSuccess(res, data, 201);
     } catch (err) {
       next(err);

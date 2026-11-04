@@ -217,6 +217,8 @@ enum MarkingScheme {
 }
 
 model Organization {
+  termSubscriptions TermSubscription[]
+  billingPayments BillingPayment[]
   offlineOperations OfflineOperation[]
   markingScheme MarkingScheme @default(CA20_20_EXAM60)
   examTimetables ExamTimetable[]
@@ -370,6 +372,7 @@ model AcademicSession {
 }
 
 model Term {
+  termSubscriptions TermSubscription[]
   markingScheme MarkingScheme?
   examTimetables ExamTimetable[]
   id        String    @id @default(uuid())
@@ -925,6 +928,10 @@ model File {
 }
 
 model Subscription {
+  billingStartedAt DateTime @default(now())
+  paymentSchedule String @default("TWO_INSTALMENTS")
+  schoolSharePercent Int @default(100)
+  accessUntil DateTime?
   id               String             @id @default(uuid())
   organizationId   String             @unique
   plan             SubscriptionPlan   @default(FREE)
@@ -1133,4 +1140,79 @@ model StudentParentRequest {
  student Student @relation(fields:[studentId],references:[id],onDelete:Cascade)
  @@unique([studentId,email])
  @@index([organizationId,status,createdAt])
+}
+
+
+model TermSubscription {
+ id String @id @default(uuid())
+ organizationId String
+ termId String
+ unitPriceNgn Int @default(300)
+ annualPrepaid Boolean @default(false)
+ sponsorship SponsorshipModel @default(SCHOOL)
+ schoolSharePercent Int @default(100)
+ startDate DateTime
+ endDate DateTime
+ balanceDueAt DateTime
+ createdAt DateTime @default(now())
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+ term Term @relation(fields:[termId],references:[id],onDelete:Restrict)
+ seats SubscriptionSeat[]
+ allocations BillingAllocation[]
+ payments BillingPayment[]
+ @@unique([organizationId,termId])
+ @@index([organizationId,balanceDueAt])
+}
+model SubscriptionSeat {
+ id String @id @default(uuid())
+ invoiceId String
+ studentId String
+ studentName String
+ admissionNumber String
+ createdAt DateTime @default(now())
+ invoice TermSubscription @relation(fields:[invoiceId],references:[id],onDelete:Cascade)
+ @@unique([invoiceId,studentId])
+}
+model BillingPayment {
+ id String @id @default(uuid())
+ organizationId String
+ invoiceId String
+ studentId String?
+ actorId String
+ amountNgn Int
+ channel String
+ status String @default("PENDING")
+ reference String @unique
+ externalReference String? @unique
+ idempotencyKey String
+ requestHash String
+ note String?
+ reviewedById String?
+ reviewedAt DateTime?
+ paidAt DateTime?
+ checkoutUrl String?
+ annual Boolean @default(false)
+ createdAt DateTime @default(now())
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+ invoice TermSubscription @relation(fields:[invoiceId],references:[id],onDelete:Restrict)
+ allocations BillingAllocation[]
+ @@unique([organizationId,idempotencyKey])
+ @@index([status,createdAt])
+}
+model BillingAllocation {
+ id String @id @default(uuid())
+ paymentId String
+ invoiceId String
+ amountNgn Int
+ payment BillingPayment @relation(fields:[paymentId],references:[id],onDelete:Restrict)
+ invoice TermSubscription @relation(fields:[invoiceId],references:[id],onDelete:Restrict)
+ @@unique([paymentId,invoiceId])
+}
+model PlatformBillingSettings {
+ id String @id @default("billing")
+ bankName String @default("")
+ accountName String @default("")
+ accountNumber String @default("")
+ supportEmail String @default("")
+ updatedAt DateTime @updatedAt
 }

@@ -2,15 +2,7 @@ import type { Prisma, SubscriptionPlan } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import { hashPassword } from "../../lib/password";
-import { auditService } from "../audit/audit.service";
-
-const PLAN_CAPS: Record<SubscriptionPlan, number> = {
-  FREE: 100,
-  STARTER: 250,
-  GROWTH: 600,
-  PRO: 1500,
-  ENTERPRISE: 100_000,
-};
+import { schoolTransaction } from "../../lib/schoolTransaction";
 
 export class PlatformService {
   // ─── Schools ───────────────────────────────────────────────────
@@ -120,22 +112,12 @@ export class PlatformService {
     if (!school)
       throw new AppError(404, "SCHOOL_NOT_FOUND", "School not found");
 
-    const updated = await prisma.organization.update({
-      where: { id: organizationId },
-      data: { isActive },
+    if(!reason || reason.trim().length<5)throw new AppError(400,"REASON_REQUIRED","Enter a clear reason for changing school access.");
+    return schoolTransaction(organizationId,async tx=>{
+      const updated=await tx.organization.update({where:{id:organizationId},data:{isActive}});
+      await tx.auditLog.create({data:{organizationId,actorId,action:"SETTINGS_CHANGED",entity:"Organization",entityId:organizationId,metadata:{operation:"SCHOOL_ACCESS_CHANGED",isActive,reason},requestId:meta?.requestId}});
+      return updated;
     });
-
-    await auditService.write({
-      action: "SETTINGS_CHANGED",
-      actorId,
-      organizationId,
-      entity: "Organization",
-      entityId: organizationId,
-      metadata: { isActive, reason },
-      requestId: meta?.requestId,
-    });
-
-    return updated;
   }
 
   // ─── Subscriptions ─────────────────────────────────────────────
@@ -151,50 +133,7 @@ export class PlatformService {
     actorId: string,
     meta?: { requestId?: string }
   ) {
-    const existing = await prisma.subscription.findUnique({
-      where: { organizationId },
-    });
-    if (!existing) {
-      throw new AppError(
-        404,
-        "NO_SUBSCRIPTION",
-        "School has no subscription record"
-      );
-    }
-
-    // Auto-set cap when plan changes (unless explicitly overridden)
-    let studentCap = data.studentCap;
-    if (data.plan && studentCap === undefined) {
-      studentCap = PLAN_CAPS[data.plan];
-    }
-
-    const updated = await prisma.subscription.update({
-      where: { organizationId },
-      data: {
-        plan: data.plan,
-        status: data.status,
-        studentCap,
-        sponsorship: data.sponsorship,
-        currentPeriodEnd:
-          data.currentPeriodEnd === undefined
-            ? undefined
-            : data.currentPeriodEnd
-            ? new Date(data.currentPeriodEnd)
-            : null,
-      },
-    });
-
-    await auditService.write({
-      action: "SETTINGS_CHANGED",
-      actorId,
-      organizationId,
-      entity: "Subscription",
-      entityId: updated.id,
-      metadata: data,
-      requestId: meta?.requestId,
-    });
-
-    return updated;
+    throw new AppError(410,"LEGACY_BILLING_RETIRED","Use term subscription bills and verified payments.");
   }
 
   // ─── Platform admin assignments ────────────────────────────────
@@ -207,6 +146,7 @@ export class PlatformService {
       prisma.organization.findUnique({ where: { id: data.organizationId } }),
     ]);
     if (!user) throw new AppError(404, "USER_NOT_FOUND", "User not found");
+    if(!["PLATFORM_ADMIN","SUPER_ADMIN"].includes(user.globalRole))throw new AppError(400,"PLATFORM_ROLE_REQUIRED","Choose an existing platform administrator.");
     if (!org) throw new AppError(404, "SCHOOL_NOT_FOUND", "School not found");
 
     return prisma.platformAdminAssignment.upsert({
@@ -265,7 +205,7 @@ export class PlatformService {
     lastName: string;
     password: string;
     globalRole: "PLATFORM_ADMIN" | "SUPER_ADMIN";
-  }) {
+  }, actorId?: string) {
     const existing = await prisma.user.findUnique({
       where: { email: input.email },
     });
@@ -275,7 +215,7 @@ export class PlatformService {
 
     const passwordHash = await hashPassword(input.password);
 
-    return prisma.user.create({
+    return prisma.$transaction(async tx=>{const created=await tx.user.create({
       data: {
         email: input.email,
         firstName: input.firstName,
@@ -292,6 +232,8 @@ export class PlatformService {
         createdAt: true,
       },
     });
+    await tx.auditLog.create({data:{actorId:actorId??created.id,action:"SETTINGS_CHANGED",entity:"PlatformUser",entityId:created.id,metadata:{operation:"PLATFORM_USER_CREATED",globalRole:created.globalRole}}});
+    return created;});
   }
 
   // ─── Platform metrics (lightweight) ────────────────────────────

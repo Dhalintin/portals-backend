@@ -1,3 +1,4 @@
+import {verifyBillingPayment} from '../subscriptions/termBilling';
 import {studentPaymentSchema,type StudentPaymentInput} from "./financeWorkspace";
 import { permissionsForMembership } from '../../auth/rbac';
 import {itemBalances,allocateItems,type ItemAmount} from "./itemBalances";
@@ -918,6 +919,7 @@ export class FeesService {
     }
 
     const reference = data.reference as string;
+    if(typeof reference==="string"&&reference.startsWith("SCHSUB-"))return verifyBillingPayment(reference);
 
     return this.finalizePaystackPayment(reference, data, meta);
   }

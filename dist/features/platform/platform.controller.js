@@ -79,7 +79,7 @@ class PlatformController {
     createPlatformUser = async (req, res, next) => {
         try {
             const input = platform_validation_1.createPlatformUserSchema.parse(req.body);
-            const data = await platform_service_1.platformService.createPlatformUser(input);
+            const data = await platform_service_1.platformService.createPlatformUser(input, req.auth.userId);
             (0, http_1.sendSuccess)(res, data, 201);
         }
         catch (err) {

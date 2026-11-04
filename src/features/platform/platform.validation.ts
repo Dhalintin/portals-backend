@@ -1,3 +1,4 @@
+import {passwordSchema} from '../auth/auth.validation';
 import { z } from "zod";
 
 import {
@@ -36,7 +37,7 @@ export const listSchoolsQuerySchema = z.object({
 export const updateSchoolStatusSchema = z.object({
   isActive: z.boolean(),
 
-  reason: z.string().max(500, "Must not exceed 500 characters.").optional(),
+  reason: z.string().trim().min(5).max(500),
 });
 
 export const updateSubscriptionSchema = z.object({
@@ -81,7 +82,7 @@ export const assignPlatformAdminSchema = z.object({
 });
 
 export const createPlatformUserSchema = z.object({
-  email: z.string().email("Please enter a valid email address."),
+  email: z.string().trim().toLowerCase().email("Please enter a valid email address."),
 
   firstName: z
     .string()
@@ -93,10 +94,7 @@ export const createPlatformUserSchema = z.object({
     .min(1, "Must be at least 1 characters long.")
     .max(80, "Must not exceed 80 characters."),
 
-  password: z
-    .string()
-    .min(8, "Must be at least 8 characters long.")
-    .max(128, "Must not exceed 128 characters."),
+  password: passwordSchema,
 
   globalRole: z
     .enum(["PLATFORM_ADMIN", "SUPER_ADMIN"])

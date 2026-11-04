@@ -1695,7 +1695,7 @@ check('parents pay selected items, retry safely and receive scoped itemized rece
  const bill=await prisma.invoice.create({data:{organizationId:a.id,studentId:a.studentId,invoiceNumber:'PARENT-ITEM-'+crypto.randomUUID(),totalNgn:15500,outstandingNgn:15500,status:'ISSUED',items:{create:[{description:'Tuition',amountNgn:12000},{description:'PTA',amountNgn:3500}]}},include:{items:true}});
  const pta=bill.items.find(i=>i.description==='PTA');
  let calls=0;
- mock.method(paystack,'initializeTransaction',async input=>{calls++;assert.equal(input.amountKobo,350000);assert.equal(input.subaccount,'ACCT_schoolA');assert.equal(input.callback_url,'https://portal.test/parent');return {reference:input.reference,authorization_url:'https://checkout.paystack.com/test',access_code:'test'};});
+ mock.method(paystack,'initializeTransaction',async input=>{calls++;assert.equal(input.amountKobo,350000);assert.equal(input.subaccount,'ACCT_schoolA');assert.equal(input.callback_url,'https://portal.test/parent/fees');return {reference:input.reference,authorization_url:'https://checkout.paystack.com/test',access_code:'test'};});
  mock.method(paystack,'verifyTransaction',async reference=>({status:'success',amount:350000,currency:'NGN',reference}));
  try{
   const body={studentId:a.studentId,itemIds:[pta.id],idempotencyKey:crypto.randomUUID(),callbackOrigin:'https://portal.test'};
@@ -2310,3 +2310,125 @@ check('names-only student imports generate admissions, allow unassigned students
  const invalid=await importsService.importStudents(a.id,{rows:[{rowNumber:2,firstName:'MissingLastName'}],dryRun:true},a.ownerId);assert.equal(invalid.canCommit,false);
  const duplicate=await importsService.importStudents(a.id,{rows:[{rowNumber:2,firstName:'A',lastName:'B',admissionNumber:added[0].admissionNumber}],dryRun:true},a.ownerId);assert.equal(duplicate.canCommit,false);
 });
+
+// Subscription fixtures live only in the disposable test database.
+const billing = require('../.test-build/features/subscriptions/termBilling');
+async function billingSchool({daysAgo=40,termAgo=40,students=2,sponsorship='SCHOOL',share=100,annual=false}={}) {
+ const id=crypto.randomUUID(),day=86400000,now=Date.now();
+ await prisma.organization.create({data:{id,name:'Subscription fixture '+id.slice(0,8),slug:'billing-'+id,createdById:a.ownerId,isActive:true,onBoarded:true}});
+ await prisma.membership.create({data:{organizationId:id,userId:a.ownerId,role:'PROPRIETOR'}});
+ await prisma.membership.create({data:{organizationId:id,userId:a.parentUserId,role:'PARENT'}});
+ await prisma.subscription.create({data:{organizationId:id,billingStartedAt:new Date(now-daysAgo*day),sponsorship,schoolSharePercent:share,studentCap:1000000}});
+ const session=await prisma.academicSession.create({data:{organizationId:id,name:'Billing year',isCurrent:true,startDate:new Date(now-100*day),endDate:new Date(now+400*day)}});
+ const term=await prisma.term.create({data:{sessionId:session.id,name:'FIRST',isCurrent:true,startDate:new Date(now-termAgo*day),endDate:new Date(now+60*day)}});
+ if(annual)for(const [name,offset] of [['SECOND',70],['THIRD',160]])await prisma.term.create({data:{sessionId:session.id,name,startDate:new Date(now+offset*day),endDate:new Date(now+(offset+60)*day)}});
+ const kids=[];for(let n=0;n<students;n++)kids.push(await prisma.student.create({data:{organizationId:id,firstName:'Student',lastName:String(n),admissionNumber:'B'+n}}));
+ const parent=await prisma.parent.create({data:{organizationId:id,userId:a.parentUserId,firstName:'Parent',lastName:'Billing',email:'parent.a@example.test'}});
+ if(kids[0])await prisma.parentStudent.create({data:{organizationId:id,parentId:parent.id,studentId:kids[0].id,relation:'Guardian'}});
+ const owner={userId:a.ownerId,schoolId:id,globalRole:'USER',orgRole:'PROPRIETOR',orgRoles:['PROPRIETOR'],permissions:['payments:write']};
+ return {id,term,kids,owner,parent:{...owner,userId:a.parentUserId,orgRole:'PARENT',orgRoles:['PARENT'],permissions:[]},workspace:await billing.billingWorkspace(id)};
+}
+async function platformToken(role='SUPER_ADMIN') {const u=await prisma.user.create({data:{email:crypto.randomUUID()+'@example.test',firstName:'Platform',lastName:'Billing',globalRole:role,passwordHash:await require('bcryptjs').hash(DEFAULT_TEST_PASSWORD,4)}});return {user:u,token:(await tokens(u.id,null)).accessToken};}
+async function transfer(f,amount,extra={}) {return billing.startBillingPayment(f.owner,{invoiceId:f.workspace.invoices[0].id,amountNgn:amount,channel:'TRANSFER',bankReference:crypto.randomUUID(),idempotencyKey:crypto.randomUUID(),...extra});}
+check('subscription policy: exact grace boundary, no stacked grace, paid term and extension',async()=>{
+ const day=86400000,start=new Date('2026-01-01T00:00:00Z'),due=new Date(+start+30*day),invoice={startDate:start,endDate:new Date(+start+90*day),balanceDueAt:due,totalNgn:90000,paidNgn:45000},base={trialEnds:start,accessUntil:null,invoice,arrears:false};
+ assert.deepEqual(billing.evaluateAccess({...base,now:due}),{status:'INSTALMENT',canWrite:true});
+ assert.deepEqual(billing.evaluateAccess({...base,now:new Date(+due+1)}),{status:'OVERDUE',canWrite:false});
+ assert.equal(billing.evaluateAccess({...base,now:new Date(+due+1),invoice:{...invoice,paidNgn:90000}}).canWrite,true);
+ assert.equal(billing.evaluateAccess({...base,now:due,arrears:true}).canWrite,false);
+ assert.equal(billing.evaluateAccess({...base,now:due,arrears:true,accessUntil:new Date(+due+day)}).status,'EXTENDED');
+ assert.equal(billing.evaluateAccess({...base,invoice:null,now:due}).status,'SETUP_REQUIRED');
+ assert.equal(billing.evaluateAccess({...base,invoice:null,now:start,trialEnds:due}).status,'TRIAL');
+ assert.equal(billing.evaluateAccess({...base,now:new Date(+start+91*day),invoice:{...invoice,paidNgn:90000}}).status,'TERM_ENDED');
+});
+check('subscription seats: per-student total persists after archive and counts new students once',async()=>{
+ const f=await billingSchool();assert.equal(f.workspace.invoices[0].totalNgn,600);
+ await prisma.student.update({where:{id:f.kids[0].id},data:{isActive:false}});
+ await prisma.student.create({data:{organizationId:f.id,firstName:'New',lastName:'Student',admissionNumber:'NEW'}});
+ const w=await billing.billingWorkspace(f.id);assert.equal(w.invoices[0].students,3);assert.equal(w.invoices[0].totalNgn,900);
+ assert.equal((await billing.billingWorkspace(f.id)).invoices[0].totalNgn,900);
+});
+check('subscription routes: overdue writes stop, reads and payment recovery remain available',async()=>{
+ const f=await billingSchool(),owner=(await tokens(a.ownerId,f.id)).accessToken;
+ assert.equal(f.workspace.access.status,'OVERDUE');
+ assert.equal((await request('GET','/students',owner)).status,200);
+ const blocked=await request('POST','/subjects',owner,{name:'Blocked subject',code:'BLOCK'});assert.equal(blocked.status,402);assert.equal(blocked.body.error.code,'SUBSCRIPTION_REQUIRED');
+ assert.equal((await request('GET','/subscription/billing',owner)).status,200);
+ assert.equal((await request('GET','/platform/console',owner)).status,403);
+ assert.equal((await request('GET','/subscription/billing',(await tokens(a.parentUserId,f.id)).accessToken)).status,403);
+});
+check('subscription transfers: pending is not paid, review is audited, duplicate references cannot credit twice',async()=>{
+ const f=await billingSchool(),admin=await platformToken(),body={invoiceId:f.workspace.invoices[0].id,amountNgn:300,channel:'TRANSFER',bankReference:crypto.randomUUID(),idempotencyKey:crypto.randomUUID()};
+ const p=await billing.startBillingPayment(f.owner,body);assert.equal(p.status,'PENDING');assert.equal((await billing.billingAccess(f.id)).canWrite,false);
+ assert.equal((await billing.startBillingPayment(f.owner,body)).id,p.id);
+ await assert.rejects(()=>billing.startBillingPayment(f.owner,{...body,amountNgn:200}),e=>e.code==='IDEMPOTENCY_CONFLICT');
+ await assert.rejects(()=>billing.startBillingPayment(f.owner,{...body,idempotencyKey:crypto.randomUUID()}),e=>e.code==='DUPLICATE_REFERENCE');
+ const path='/platform/console/payments/'+p.id+'/review';
+ assert.equal((await request('POST',path,(await tokens(a.ownerId,f.id)).accessToken,{decision:'CONFIRMED',reason:'Bank verified'})).status,403);
+ assert.equal((await request('POST',path,admin.token,{decision:'CONFIRMED',reason:'Verified bank credit'})).status,200);
+ assert.equal((await billing.billingAccess(f.id)).canWrite,false); // 50% after grace does not clear overdue.
+ assert.equal((await request('POST',path,admin.token,{decision:'CONFIRMED',reason:'Duplicate confirmation'})).status,409);
+ const rest=await transfer(f,300);await billing.reviewBillingPayment(rest.id,admin.user.id,{decision:'CONFIRMED',reason:'Verified remaining balance'});
+ assert.equal((await billing.billingAccess(f.id)).status,'PAID');
+ assert.equal(await prisma.auditLog.count({where:{organizationId:f.id,entity:'BillingPayment'}}),2);
+ await billing.reviewBillingPayment(rest.id,admin.user.id,{decision:'REVERSED',reason:'Bank credit reversed externally'});assert.equal((await billing.billingAccess(f.id)).canWrite,false);
+});
+check('subscription grace: first instalment works within 30 days and no historical billing at rollout',async()=>{
+ const f=await billingSchool({termAgo:10,daysAgo:40});assert.equal(f.workspace.access.status,'GRACE');const p=await transfer(f,300);
+ await billing.reviewBillingPayment(p.id,a.ownerId,{decision:'CONFIRMED',reason:'Verified test bank receipt'});assert.equal((await billing.billingAccess(f.id)).status,'INSTALMENT');
+ const old=await billingSchool({daysAgo:1});await prisma.term.update({where:{id:old.term.id},data:{endDate:new Date(Date.now()-5*86400000)}});
+ // Remove only this fixture's never-paid ledger, then verify old closed terms are not retrospectively billed.
+ await prisma.subscriptionSeat.deleteMany({where:{invoiceId:old.workspace.invoices[0].id}});await prisma.termSubscription.delete({where:{id:old.workspace.invoices[0].id}});
+ assert.equal((await billing.billingWorkspace(old.id)).invoices.length,0);
+});
+check('subscription family: own-child contribution, share cap and receipt isolation from school tuition',async()=>{
+ const f=await billingSchool({sponsorship:'SHARED',share:50}),admin=await platformToken(),child=f.kids[0].id;
+ const w=await billing.familyBilling(f.parent,child);assert.equal(w.shareNgn,150);assert.equal(w.outstandingNgn,150);assert.equal(f.workspace.invoices[0].totalNgn,600);
+ await assert.rejects(()=>billing.familyBilling(f.parent,f.kids[1].id));
+ const origin=(process.env.CORS_ORIGINS||'http://localhost:3000').split(',')[0].trim();
+ mock.method(paystack,'initializeTransaction',async()=>({authorization_url:'https://checkout.paystack.com/test-only',access_code:'test'}));
+ const p=await billing.startBillingPayment(f.parent,{invoiceId:w.invoiceId,studentId:child,amountNgn:150,channel:'PAYSTACK',callbackOrigin:origin,idempotencyKey:crypto.randomUUID()});
+ mock.method(paystack,'verifyTransaction',async ref=>({reference:ref,status:'success',currency:'NGN',amount:15000,paid_at:new Date().toISOString()}));
+ const tuitionBefore=await prisma.payment.count();const payload=JSON.stringify({event:'charge.success',data:{reference:p.reference}}),signature=crypto.createHmac('sha512',process.env.PAYSTACK_SECRET_KEY).update(payload).digest('hex');assert.equal((await request('POST','/payments/webhook',null,JSON.parse(payload),{'x-paystack-signature':signature})).status,200);await billing.verifyBillingPayment(p.reference);assert.equal(await prisma.payment.count(),tuitionBefore);
+ assert.equal((await billing.familyBilling(f.parent,child)).outstandingNgn,0);
+ const parentToken=(await tokens(a.parentUserId,f.id)).accessToken;assert.equal((await request('GET','/subscription/receipts/'+p.id,parentToken)).status,200);
+ assert.equal((await request('GET','/subscription/receipts/'+p.id,(await tokens(b.ownerId,b.id)).accessToken)).status,404);
+ assert.equal((await billing.billingWorkspace(f.id)).invoices[0].outstandingNgn,450);
+ await assert.rejects(()=>billing.startBillingPayment(f.parent,{invoiceId:w.invoiceId,studentId:child,amountNgn:1,channel:'PAYSTACK',callbackOrigin:origin,idempotencyKey:crypto.randomUUID()}),e=>e.code==='BALANCE_CHANGED');
+});
+check('subscription gateway: provider mismatch fails and platform cannot manually confirm online money',async()=>{
+ const f=await billingSchool(),admin=await platformToken(),origin=(process.env.CORS_ORIGINS||'http://localhost:3000').split(',')[0].trim();
+ mock.method(paystack,'initializeTransaction',async()=>({authorization_url:'https://checkout.paystack.com/test-only',access_code:'test'}));
+ const p=await billing.startBillingPayment(f.owner,{invoiceId:f.workspace.invoices[0].id,amountNgn:600,channel:'PAYSTACK',callbackOrigin:origin,idempotencyKey:crypto.randomUUID()});
+ mock.method(paystack,'verifyTransaction',async ref=>({reference:ref,status:'success',currency:'USD',amount:60000}));
+ await assert.rejects(()=>billing.verifyBillingPayment(p.reference),e=>e.code==='PAYMENT_MISMATCH');
+ assert.equal((await request('POST','/platform/console/payments/'+p.id+'/review',admin.token,{decision:'CONFIRMED',reason:'Cannot fake online receipt'})).status,400);
+ assert.equal((await billing.billingWorkspace(f.id)).invoices[0].paidNgn,0);
+});
+check('subscription annual: exact full-prepayment discount, three-term allocation, credit and reversal',async()=>{
+ const f=await billingSchool({annual:true}),admin=await platformToken(),quote=await billing.quoteAnnual(f.id,f.workspace.invoices[0].id);assert.equal(quote.amountNgn,1620);assert.equal(await prisma.termSubscription.count({where:{organizationId:f.id}}),1); // Looking at a quote does not issue future bills.
+ await assert.rejects(()=>transfer(f,500,{annual:true}),e=>e.code==='ANNUAL_FULL_PAYMENT');
+ const p=await transfer(f,quote.amountNgn,{annual:true});await assert.rejects(()=>transfer(f,100),e=>e.code==='PAYMENT_PENDING');
+ await billing.reviewBillingPayment(p.id,admin.user.id,{decision:'CONFIRMED',reason:'Verified annual prepayment'});
+ const w=await billing.billingWorkspace(f.id);assert.equal(w.invoices.length,3);assert.ok(w.invoices.every(i=>i.unitPriceNgn===270&&i.outstandingNgn===0));assert.equal(w.creditNgn,0);assert.equal(w.access.status,'PAID');
+ await prisma.student.create({data:{organizationId:f.id,firstName:'Added',lastName:'After prepayment',admissionNumber:'ANNUAL-NEW'}});
+ assert.equal((await billing.billingWorkspace(f.id)).invoices.find(i=>i.termId===f.term.id).outstandingNgn,270);assert.equal((await billing.quoteAnnual(f.id,f.workspace.invoices[0].id)).amountNgn,810);
+ await billing.reviewBillingPayment(p.id,admin.user.id,{decision:'REVERSED',reason:'Externally reversed annual transfer'});assert.equal((await billing.billingWorkspace(f.id)).invoices.find(i=>i.termId===f.term.id).paidNgn,0);assert.equal((await billing.billingWorkspace(f.id)).invoices.find(i=>i.termId===f.term.id).unitPriceNgn,300);
+});
+check('subscription platform: access boundaries, manual reactivation, extension and protected bank settings',async()=>{
+ const f=await billingSchool(),admin=await platformToken(),operator=await platformToken('PLATFORM_ADMIN');await prisma.organization.update({where:{id:f.id},data:{isActive:false}});
+ assert.equal((await request('GET','/platform/console',admin.token)).status,200);
+ const p=await transfer(f,600);assert.equal((await request('POST','/platform/console/payments/'+p.id+'/review',admin.token,{decision:'CONFIRMED',reason:'Bank receipt checked',reactivate:true})).status,200);
+ assert.equal((await prisma.organization.findUnique({where:{id:f.id}})).isActive,true);assert.equal((await billing.billingAccess(f.id)).canWrite,true);
+ const bad=await request('POST','/platform/console/schools/'+f.id+'/extension',admin.token,{until:new Date(Date.now()+40*86400000).toISOString(),reason:'Invalid long extension'});assert.equal(bad.status,400);
+ assert.equal((await request('GET','/platform/console/team',operator.token)).status,403);
+ const bank={bankName:'Test bank',accountName:'SchoolOs',accountNumber:'0123456789',supportEmail:'billing@example.test',password:DEFAULT_TEST_PASSWORD};
+ assert.equal((await request('PUT','/platform/console/settings',operator.token,bank)).status,403);
+ assert.equal((await request('PUT','/platform/console/settings',admin.token,{...bank,password:'wrong'})).status,403);
+ assert.equal((await request('PUT','/platform/console/settings',admin.token,bank)).status,200);
+ assert.equal((await request('PATCH','/platform/console/team/'+admin.user.id,admin.token,{isActive:false,reason:'Cannot disable self'})).status,400);
+ assert.equal((await request('PATCH','/platform/console/team/'+operator.user.id,admin.token,{isActive:false,reason:'Access revoked for test'})).status,200);
+ assert.equal((await request('GET','/platform/console',operator.token)).status,401);
+});
+
+check('subscription credit: overlapping verified receipts keep excess visible and allocate it only once',async()=>{const f=await billingSchool({annual:true}),admin=await platformToken(),one=await transfer(f,600),two=await transfer(f,600);await billing.reviewBillingPayment(one.id,admin.user.id,{decision:'CONFIRMED',reason:'First transfer verified'});await billing.reviewBillingPayment(two.id,admin.user.id,{decision:'CONFIRMED',reason:'Overlapping bank receipt verified'});assert.equal((await billing.billingWorkspace(f.id)).creditNgn,600);const future=await prisma.term.findFirst({where:{sessionId:f.term.sessionId,name:'SECOND'}});const target=await prisma.$transaction(tx=>billing.ensureInvoice(tx,f.id,future.id));await assert.rejects(()=>billing.applyBillingCredit(f.id,admin.user.id,a.invoiceId),e=>e.code==='NOT_FOUND');await billing.applyBillingCredit(f.id,admin.user.id,target.id);await billing.applyBillingCredit(f.id,admin.user.id,target.id);const w=await billing.billingWorkspace(f.id);assert.equal(w.creditNgn,0);assert.equal(w.invoices.find(i=>i.id===target.id).paidNgn,600);await billing.reviewBillingPayment(two.id,admin.user.id,{decision:'REVERSED',reason:'Bank returned overlapping receipt'});assert.equal((await billing.billingWorkspace(f.id)).invoices.find(i=>i.id===target.id).outstandingNgn,600);});

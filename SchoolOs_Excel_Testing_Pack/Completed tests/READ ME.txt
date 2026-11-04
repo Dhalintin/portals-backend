@@ -1,0 +1,1 @@
+Save returned Excel files here, with the tester name in each filename. Keep screenshots separately named by test ID. Do not give a new tester someone else's completed answers.

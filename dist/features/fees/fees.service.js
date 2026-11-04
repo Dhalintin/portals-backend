@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.feesService = exports.FeesService = void 0;
+const termBilling_1 = require("../subscriptions/termBilling");
 const financeWorkspace_1 = require("./financeWorkspace");
 const rbac_1 = require("../../auth/rbac");
 const itemBalances_1 = require("./itemBalances");
@@ -807,6 +808,8 @@ class FeesService {
             return { ignored: true, event: eventType };
         }
         const reference = data.reference;
+        if (typeof reference === "string" && reference.startsWith("SCHSUB-"))
+            return (0, termBilling_1.verifyBillingPayment)(reference);
         return this.finalizePaystackPayment(reference, data, meta);
     }
     async finalizePaystackPayment(reference, rawData, meta) {

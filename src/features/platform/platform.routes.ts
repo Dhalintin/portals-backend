@@ -1,3 +1,4 @@
+import {billingAdminRoutes} from './billingAdmin.routes';
 import { Router } from "express";
 import { authenticate } from "../../middlewares/authenticate";
 import {
@@ -10,6 +11,7 @@ const platformRoutes = Router();
 
 // All platform routes require a platform-scoped token
 platformRoutes.use(authenticate, requirePlatform);
+platformRoutes.use(billingAdminRoutes);
 
 // Metrics
 platformRoutes.get("/metrics", platformController.metrics);
@@ -20,15 +22,15 @@ platformRoutes.get("/schools/:id", platformController.getSchool);
 platformRoutes.patch("/schools/:id/status", platformController.setSchoolStatus);
 platformRoutes.patch(
   "/schools/:id/subscription",
-  platformController.updateSubscription
+  (_req,res)=>res.status(410).json({success:false,error:{code:"LEGACY_BILLING_RETIRED",message:"Use term subscription bills and verified payments."}})
 );
 
 // Platform admin assignments
 platformRoutes.get("/admins", platformController.listAdmins);
-platformRoutes.post("/admins", platformController.assignAdmin);
+platformRoutes.post("/admins", requireSuperAdmin, platformController.assignAdmin);
 platformRoutes.delete(
   "/admins/:userId/:organizationId",
-  platformController.removeAdmin
+  requireSuperAdmin, platformController.removeAdmin
 );
 
 // Create platform users (SUPER_ADMIN only)

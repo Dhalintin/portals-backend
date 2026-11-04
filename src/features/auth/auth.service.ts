@@ -70,9 +70,9 @@ export class AuthService {
           site: { create: {} },
           subscription: {
             create: {
-              plan: "FREE",
+              plan: "STARTER",
               status: "ACTIVE",
-              studentCap: 100,
+              studentCap: 1_000_000,
               sponsorship: "SCHOOL",
             },
           },

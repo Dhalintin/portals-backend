@@ -1,3 +1,4 @@
+import {requireTermSubscription} from '../middlewares/requireTermSubscription';
 import {offlineOperation} from '../middlewares/offlineOperation';
 import examRoutes from "./exams/exams.routes";
 import express from "express";
@@ -39,6 +40,7 @@ appRouter.get("/health/ready", async (_req, res) => {
 appRouter.use("/auth", authRoutes);
 appRouter.use("/public", publicLimiter, publicRoutes);
 appRouter.use(apiLimiter);
+appRouter.use(requireTermSubscription);
 appRouter.use(offlineOperation);
 appRouter.use("/memberships", membershipRoutes);
 appRouter.use("/schools", schoolRoutes);

@@ -1,0 +1,12 @@
+SchoolOs Excel testing pack
+
+1. Extract this folder.
+2. Open 00-Start-here-and-assignments.xlsx in Excel. Read Start here, then use Assignments to divide the work.
+3. Give each tester the appropriate file from Feature tests, their own login and the current test app address.
+4. Testers enter answers in the yellow boxes and choose result/rating dropdowns. They can type longer comments in the formula bar and increase row height if needed.
+5. Save As with the tester name in the filename and return that saved Excel file.
+6. Always use a fresh blank copy for the next tester.
+
+All 291 original tests are retained across 21 feature files. No browser forms, backup JSON, macros or special testing software are needed. The original browser pack is unchanged.
+
+Print if preferred: A4 fit-to-width is set on each feature sheet. For long written answers, increase that row height before printing.

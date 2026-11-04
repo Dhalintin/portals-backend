@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createPlatformUserSchema = exports.assignPlatformAdminSchema = exports.updateSubscriptionSchema = exports.updateSchoolStatusSchema = exports.listSchoolsQuerySchema = void 0;
+const auth_validation_1 = require("../auth/auth.validation");
 const zod_1 = require("zod");
 const client_1 = require("@prisma/client");
 exports.listSchoolsQuerySchema = zod_1.z.object({
@@ -24,7 +25,7 @@ exports.listSchoolsQuerySchema = zod_1.z.object({
 });
 exports.updateSchoolStatusSchema = zod_1.z.object({
     isActive: zod_1.z.boolean(),
-    reason: zod_1.z.string().max(500, "Must not exceed 500 characters.").optional(),
+    reason: zod_1.z.string().trim().min(5).max(500),
 });
 exports.updateSubscriptionSchema = zod_1.z.object({
     plan: zod_1.z
@@ -60,7 +61,7 @@ exports.assignPlatformAdminSchema = zod_1.z.object({
     note: zod_1.z.string().max(300, "Must not exceed 300 characters.").optional(),
 });
 exports.createPlatformUserSchema = zod_1.z.object({
-    email: zod_1.z.string().email("Please enter a valid email address."),
+    email: zod_1.z.string().trim().toLowerCase().email("Please enter a valid email address."),
     firstName: zod_1.z
         .string()
         .min(1, "Must be at least 1 characters long.")
@@ -69,10 +70,7 @@ exports.createPlatformUserSchema = zod_1.z.object({
         .string()
         .min(1, "Must be at least 1 characters long.")
         .max(80, "Must not exceed 80 characters."),
-    password: zod_1.z
-        .string()
-        .min(8, "Must be at least 8 characters long.")
-        .max(128, "Must not exceed 128 characters."),
+    password: auth_validation_1.passwordSchema,
     globalRole: zod_1.z
         .enum(["PLATFORM_ADMIN", "SUPER_ADMIN"])
         .default("PLATFORM_ADMIN"),
