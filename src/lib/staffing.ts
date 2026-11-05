@@ -2,11 +2,11 @@ import { rolesWhere } from "../auth/rbac";
 import type { Prisma } from "@prisma/client";
 import { AppError } from "./errors";
 
-export const TEACHING_ROLES = ["TEACHER", "EXAM_OFFICER", "PRINCIPAL", "SCHOOL_ADMIN", "PROPRIETOR", "STAFF"] as const;
+export const TEACHING_ROLES = ["TEACHER", "STAFF"] as const;
 
 export async function requireTeachingMember(tx: Prisma.TransactionClient, organizationId: string, userId: string) {
   const membership = await tx.membership.findFirst({ where: { organizationId, userId, isActive: true,
-    user: { isActive: true }, ...rolesWhere(TEACHING_ROLES) } });
+    user: { isActive: true, globalRole: "USER" }, ...rolesWhere(TEACHING_ROLES) } });
   if (!membership) throw new AppError(400, "INVALID_TEACHER", "User is not an active teaching staff member of this school");
   return membership;
 }

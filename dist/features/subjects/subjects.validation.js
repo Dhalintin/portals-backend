@@ -12,7 +12,7 @@ exports.listSubjectsQuerySchema = zod_1.z.object({
         .enum(["true", "false", "all"], "Active filter must be true, false, or all")
         .default("true")
         .optional()
-        .transform((v) => (v === undefined ? undefined : v === "true")),
+        .transform((v) => (v === undefined || v === "all" ? undefined : v === "true")),
     page: zod_1.z.coerce
         .number("Page must be a number")
         .int("Page must be a whole number")

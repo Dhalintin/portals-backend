@@ -2114,6 +2114,9 @@ check('teacher plus exam officer keeps teaching assignments and uses live combin
  assert.equal(await prisma.classSubjectTeacher.count({where:{organizationId:a.id,userId:target.user.id}}),1);
  assert.equal((await prisma.class.findUnique({where:{id:schoolClass.id}})).classTeacherId,target.user.id);
  assert.equal((await request('PATCH','/memberships/'+target.membership.id,owner,{roles:['STAFF']})).status,200);
+ assert.equal(await prisma.classSubjectTeacher.count({where:{organizationId:a.id,userId:target.user.id}}),1);
+ assert.equal((await prisma.class.findUnique({where:{id:schoolClass.id}})).classTeacherId,target.user.id);
+ assert.equal((await request('PATCH','/memberships/'+target.membership.id,owner,{roles:['EXAM_OFFICER']})).status,200);
  assert.equal(await prisma.classSubjectTeacher.count({where:{organizationId:a.id,userId:target.user.id}}),0);
  assert.equal((await prisma.class.findUnique({where:{id:schoolClass.id}})).classTeacherId,null);
 });
@@ -2432,3 +2435,55 @@ check('subscription platform: access boundaries, manual reactivation, extension 
 });
 
 check('subscription credit: overlapping verified receipts keep excess visible and allocate it only once',async()=>{const f=await billingSchool({annual:true}),admin=await platformToken(),one=await transfer(f,600),two=await transfer(f,600);await billing.reviewBillingPayment(one.id,admin.user.id,{decision:'CONFIRMED',reason:'First transfer verified'});await billing.reviewBillingPayment(two.id,admin.user.id,{decision:'CONFIRMED',reason:'Overlapping bank receipt verified'});assert.equal((await billing.billingWorkspace(f.id)).creditNgn,600);const future=await prisma.term.findFirst({where:{sessionId:f.term.sessionId,name:'SECOND'}});const target=await prisma.$transaction(tx=>billing.ensureInvoice(tx,f.id,future.id));await assert.rejects(()=>billing.applyBillingCredit(f.id,admin.user.id,a.invoiceId),e=>e.code==='NOT_FOUND');await billing.applyBillingCredit(f.id,admin.user.id,target.id);await billing.applyBillingCredit(f.id,admin.user.id,target.id);const w=await billing.billingWorkspace(f.id);assert.equal(w.creditNgn,0);assert.equal(w.invoices.find(i=>i.id===target.id).paidNgn,600);await billing.reviewBillingPayment(two.id,admin.user.id,{decision:'REVERSED',reason:'Bank returned overlapping receipt'});assert.equal((await billing.billingWorkspace(f.id)).invoices.find(i=>i.id===target.id).outstandingNgn,600);});
+
+
+check('school teaching choices exclude administrators, platform accounts and foreign memberships', async()=>{
+ const token=(await tokens(a.ownerId,a.id)).accessToken,created=[];
+ try {
+  for(const [label,role,roles,globalRole,isActive] of [
+   ['plain-staff','STAFF',['STAFF'],'USER',true],
+   ['academic-admin','PRINCIPAL',['PRINCIPAL'],'USER',true],
+   ['exam-only','EXAM_OFFICER',['EXAM_OFFICER'],'USER',true],
+   ['multi-teacher','EXAM_OFFICER',['EXAM_OFFICER','TEACHER'],'USER',true],
+   ['platform','TEACHER',['TEACHER'],'PLATFORM_ADMIN',true],
+   ['super','TEACHER',['TEACHER'],'SUPER_ADMIN',true],
+   ['inactive','TEACHER',['TEACHER'],'USER',false],
+  ]) {
+   const user=await prisma.user.create({data:{email:label+'-'+crypto.randomUUID()+'@example.test',firstName:label,lastName:'Scope',globalRole,isActive,memberships:{create:{organizationId:a.id,role,roles}}}});
+   created.push({id:user.id,label});
+  }
+  const choices=await request('GET','/staff/teaching-options',token);
+  assert.equal(choices.status,200,JSON.stringify(choices.body));const ids=choices.body.data.map(r=>r.user.id);
+  assert.ok(ids.includes(a.teacherId));assert.ok(!ids.includes(b.teacherId));assert.ok(!ids.includes(a.ownerId));
+  for(const user of created)assert.equal(ids.includes(user.id),['plain-staff','multi-teacher'].includes(user.label),user.label);
+  for(const route of ['/staff','/memberships','/teachers?search=Scope']){
+   const response=await request('GET',route,token);assert.equal(response.status,200);
+   const rows=Array.isArray(response.body.data)?response.body.data:response.body.data.items;
+   const json=JSON.stringify(rows);for(const user of created.filter(u=>['platform','super'].includes(u.label)))assert.ok(!json.includes(user.id),route);
+  }
+  for(const id of [a.ownerId,b.teacherId,...created.filter(u=>!['plain-staff','multi-teacher'].includes(u.label)).map(u=>u.id)]){
+   for(const [route,body] of [[`/classes/${a.classId}/class-teacher`,{classTeacherId:id}],[`/classes/${a.classId}/subjects/${a.subjectId}/teacher`,{userId:id}]]){
+    const response=await request('PUT',route,token,body);assert.equal(response.status,400,JSON.stringify(response.body));assert.equal(response.body.error.code,'INVALID_TEACHER');
+   }
+  }
+  const {requireTeachingMember}=require('../.test-build/lib/staffing');
+  for(const user of created.filter(u=>['plain-staff','multi-teacher'].includes(u.label)))assert.equal((await requireTeachingMember(prisma,a.id,user.id)).userId,user.id);
+  assert.equal((await request('GET','/staff/teaching-options',(await tokens(a.parentUserId,a.id)).accessToken)).status,403);
+ }finally{await prisma.membership.deleteMany({where:{userId:{in:created.map(u=>u.id)}}});await prisma.user.deleteMany({where:{id:{in:created.map(u=>u.id)}}});}
+});
+
+check('school collection APIs and subject links stay inside the authenticated school',async()=>{
+ const token=(await tokens(a.ownerId,a.id)).accessToken;
+ for(const [route,foreign] of [['/students',b.studentId],['/subjects?isActive=all&limit=100',b.subjectId],['/classes',b.classId],['/parents',b.parentId],['/memberships',b.teacherId],['/staff',b.teacherId]]){
+  const valid=await request('GET',route+(route.includes('?')?'&':'?')+'organizationId='+b.id,token);
+  assert.equal(valid.status,200,route+JSON.stringify(valid.body));assert.ok(!JSON.stringify(valid.body.data).includes(foreign),route);
+ }
+ for(const route of [`/classes/${b.classId}`,`/classes/${b.classId}/subjects`,`/subjects/${b.subjectId}`,`/parents/${b.parentId}`])assert.equal((await request('GET',route,token)).status,404,route);
+ assert.equal((await request('POST',`/classes/${a.classId}/subjects`,token,{subjectIds:[b.subjectId]})).status,404);
+ assert.equal((await request('POST',`/classes/${b.classId}/subjects`,token,{subjectIds:[a.subjectId]})).status,404);
+ const archived=await prisma.subject.create({data:{organizationId:a.id,name:'Archived scope subject',isActive:false}});
+ try {
+  const all=await request('GET','/subjects?isActive=all&limit=100',token),active=await request('GET','/subjects?isActive=true&limit=100',token);
+  assert.equal(all.status,200);assert.ok(all.body.data.items.some(s=>s.id===archived.id));assert.ok(!active.body.data.items.some(s=>s.id===archived.id));
+ }finally{await prisma.subject.delete({where:{id:archived.id}});}
+});

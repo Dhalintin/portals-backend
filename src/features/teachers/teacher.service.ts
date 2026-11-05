@@ -43,6 +43,7 @@ async function loadTeacherInOrg(organizationId: string, userId: string) {
     where: {
       organizationId,
       userId,
+      user: { globalRole: "USER" },
       ...rolesWhere(STAFF_ROLES),
     },
     include: {
@@ -109,6 +110,7 @@ export const teacherService = {
 
     const where: Prisma.MembershipWhereInput = {
       organizationId,
+      user: { globalRole: "USER" },
       ...rolesWhere(query.role ? [query.role as OrgRole] : STAFF_ROLES),
     };
 
@@ -118,6 +120,7 @@ export const teacherService = {
     if (query.search?.trim()) {
       const q = query.search.trim();
       where.user = {
+        globalRole: "USER",
         OR: [
           { firstName: { contains: q, mode: "insensitive" } },
           { lastName: { contains: q, mode: "insensitive" } },

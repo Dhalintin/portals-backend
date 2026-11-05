@@ -1,3 +1,5 @@
+import { TEACHING_ROLES } from "../../lib/staffing";
+import { rolesWhere } from "../../auth/rbac";
 import { membershipRoles } from "../../auth/rbac";
 import { prisma } from "../../lib/prisma";
 
@@ -12,13 +14,13 @@ const STAFF_ROLES = [
 ] as const;
 
 export class StaffService {
-  async list(organizationId: string) {
+  async list(organizationId: string, teachingOnly = false) {
     const memberships = await prisma.membership.findMany({
       where: {
         organizationId,
         isActive: true,
-        user: { isActive: true },
-        role: { in: [...STAFF_ROLES] },
+        user: { isActive: true, globalRole: "USER" },
+        ...rolesWhere(teachingOnly ? TEACHING_ROLES : STAFF_ROLES),
       },
       include: {
         user: {

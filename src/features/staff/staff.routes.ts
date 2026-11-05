@@ -1,3 +1,4 @@
+import { staffService } from "./staff.service";
 import { membershipRoles } from "../../auth/rbac";
 import {requireStaffManager} from "../../middlewares/requireStaffManager";
 import {AppError} from "../../lib/errors";
@@ -39,6 +40,10 @@ staffRoutes.get("/me/assignments", requireStaff, async (req, res, next) => {
     ]);
     sendSuccess(res, { classTeacherOf: classes.map(c => ({ id: c.id, name: c.name, arm: c.arm,studentCount:c._count.students })), assignments: subjects.map(a => ({ classId: a.classId, className: a.class.name, classArm: a.class.arm, subjectId: a.subjectId, subjectName: a.subject.name,studentCount:a.class._count.students })) });
   } catch (error) { next(error); }
+});
+staffRoutes.get("/teaching-options", requireStaffManager, requirePermission("classes:write"), async (req, res, next) => {
+  try { sendSuccess(res, await staffService.list(req.auth!.schoolId!, true)); }
+  catch (error) { next(error); }
 });
 staffRoutes.get("/", requireStaffManager, requirePermission("staff:read"), c.list);
 const inviteStaffSchema = createMembershipSchema.refine(input => input.role !== "PARENT", { path: ["role"], message: "Use parent invitations for parent access" });

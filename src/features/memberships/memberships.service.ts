@@ -19,7 +19,7 @@ type ListQuery = z.infer<typeof listMembershipsQuerySchema>;
 export class MembershipsService {
   async list(organizationId: string, query: ListQuery) {
     const skip = (query.page - 1) * query.limit;
-    const where = { organizationId };
+    const where = { organizationId, user: { globalRole: "USER" as const } };
 
     const [rows, total] = await Promise.all([
       prisma.membership.findMany({
@@ -84,7 +84,7 @@ export class MembershipsService {
         throw new AppError(403, "FORBIDDEN", "Cannot manage memberships");
       }
       actor = { ...actor, orgRole: primaryRole(membershipRoles(manager)) };
-      const membership=await tx.membership.findFirst({where:{id:membershipId,organizationId}});
+      const membership=await tx.membership.findFirst({where:{id:membershipId,organizationId,user:{globalRole:"USER"}}});
       if(!membership)throw new AppError(404,"NOT_FOUND","Membership not found");
       const before=membershipRoles(membership),requested=input.roles??(input.role?[input.role]:before);
       const roles=[...new Set(requested)],role=primaryRole(roles);
@@ -98,7 +98,7 @@ export class MembershipsService {
         if(count<=1)throw new AppError(400,'LAST_PROPRIETOR','Cannot remove or demote the last proprietor');
       }
       const updated=await tx.membership.update({where:{id:membershipId},data:{role,roles,isActive:input.isActive}});
-      if(!updated.isActive||!roles.some(role=>(input.role||input.roles?['TEACHER','EXAM_OFFICER']:TEACHING_ROLES as readonly string[]).includes(role)))await clearStaffAssignments(tx,organizationId,membership.userId);
+      if(!updated.isActive||!roles.some(role=>(TEACHING_ROLES as readonly string[]).includes(role)))await clearStaffAssignments(tx,organizationId,membership.userId);
       if(JSON.stringify(before)!==JSON.stringify(membershipRoles(updated)))await tx.auditLog.create({data:{action:'ROLE_CHANGED',actorId:actor.userId,organizationId,entity:'Membership',entityId:membershipId,metadata:{from:before,to:membershipRoles(updated)},requestId}});
 
     if (input.isActive !== undefined && input.isActive !== membership.isActive) {

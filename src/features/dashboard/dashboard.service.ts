@@ -17,8 +17,8 @@ export class DashboardService {
     const financeAllowed = can("fees:read") && can("payments:read");
     const [students, teachers, staff, parents, classes, attendance, finance, absent, results, pendingPayments] = await Promise.all([
       can("students:read") ? prisma.student.count({where:{organizationId,isActive:true}}) : undefined,
-      can("staff:read") ? prisma.membership.count({where:{organizationId,OR:[{role:"TEACHER"},{roles:{has:"TEACHER"}}],isActive:true}}) : undefined,
-      can("staff:read") ? prisma.membership.count({where:{organizationId,isActive:true,role:{not:"PARENT"}}}) : undefined,
+      can("staff:read") ? prisma.membership.count({where:{organizationId,user:{globalRole:"USER",isActive:true},OR:[{role:"TEACHER"},{roles:{has:"TEACHER"}}],isActive:true}}) : undefined,
+      can("staff:read") ? prisma.membership.count({where:{organizationId,isActive:true,user:{globalRole:"USER",isActive:true},role:{notIn:["PARENT","STUDENT"]}}}) : undefined,
       can("parents:read") ? prisma.parent.count({where:{organizationId,isActive:true}}) : undefined,
       can("classes:read") ? prisma.class.count({where:{organizationId,isActive:true}}) : undefined,
       can("attendance:read") ? attendanceService.attendancePercentage(organizationId,{from:todayStr,to:todayStr}) : undefined,

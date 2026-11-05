@@ -10,7 +10,7 @@ const staffing_1 = require("../../lib/staffing");
 class MembershipsService {
     async list(organizationId, query) {
         const skip = (query.page - 1) * query.limit;
-        const where = { organizationId };
+        const where = { organizationId, user: { globalRole: "USER" } };
         const [rows, total] = await Promise.all([
             prisma_1.prisma.membership.findMany({
                 where,
@@ -60,7 +60,7 @@ class MembershipsService {
                 throw new errors_1.AppError(403, "FORBIDDEN", "Cannot manage memberships");
             }
             actor = { ...actor, orgRole: (0, rbac_1.primaryRole)((0, rbac_1.membershipRoles)(manager)) };
-            const membership = await tx.membership.findFirst({ where: { id: membershipId, organizationId } });
+            const membership = await tx.membership.findFirst({ where: { id: membershipId, organizationId, user: { globalRole: "USER" } } });
             if (!membership)
                 throw new errors_1.AppError(404, "NOT_FOUND", "Membership not found");
             const before = (0, rbac_1.membershipRoles)(membership), requested = input.roles ?? (input.role ? [input.role] : before);
@@ -81,7 +81,7 @@ class MembershipsService {
                     throw new errors_1.AppError(400, 'LAST_PROPRIETOR', 'Cannot remove or demote the last proprietor');
             }
             const updated = await tx.membership.update({ where: { id: membershipId }, data: { role, roles, isActive: input.isActive } });
-            if (!updated.isActive || !roles.some(role => (input.role || input.roles ? ['TEACHER', 'EXAM_OFFICER'] : staffing_1.TEACHING_ROLES).includes(role)))
+            if (!updated.isActive || !roles.some(role => staffing_1.TEACHING_ROLES.includes(role)))
                 await (0, staffing_1.clearStaffAssignments)(tx, organizationId, membership.userId);
             if (JSON.stringify(before) !== JSON.stringify((0, rbac_1.membershipRoles)(updated)))
                 await tx.auditLog.create({ data: { action: 'ROLE_CHANGED', actorId: actor.userId, organizationId, entity: 'Membership', entityId: membershipId, metadata: { from: before, to: (0, rbac_1.membershipRoles)(updated) }, requestId } });

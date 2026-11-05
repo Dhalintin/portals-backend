@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const staff_service_1 = require("./staff.service");
 const rbac_1 = require("../../auth/rbac");
 const requireStaffManager_1 = require("../../middlewares/requireStaffManager");
 const errors_1 = require("../../lib/errors");
@@ -43,6 +44,14 @@ staffRoutes.get("/me/assignments", requireStaff_1.requireStaff, async (req, res,
             prisma_1.prisma.classSubjectTeacher.findMany({ where: { organizationId, userId, class: { isActive: true }, subject: { isActive: true } }, include: { class: { include: { _count: { select: { students: { where: { isActive: true } } } } } }, subject: true } }),
         ]);
         (0, http_1.sendSuccess)(res, { classTeacherOf: classes.map(c => ({ id: c.id, name: c.name, arm: c.arm, studentCount: c._count.students })), assignments: subjects.map(a => ({ classId: a.classId, className: a.class.name, classArm: a.class.arm, subjectId: a.subjectId, subjectName: a.subject.name, studentCount: a.class._count.students })) });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+staffRoutes.get("/teaching-options", requireStaffManager_1.requireStaffManager, (0, requirePermission_1.requirePermission)("classes:write"), async (req, res, next) => {
+    try {
+        (0, http_1.sendSuccess)(res, await staff_service_1.staffService.list(req.auth.schoolId, true));
     }
     catch (error) {
         next(error);

@@ -1,7 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.staffService = exports.StaffService = void 0;
+const staffing_1 = require("../../lib/staffing");
 const rbac_1 = require("../../auth/rbac");
+const rbac_2 = require("../../auth/rbac");
 const prisma_1 = require("../../lib/prisma");
 const STAFF_ROLES = [
     "PROPRIETOR",
@@ -13,13 +15,13 @@ const STAFF_ROLES = [
     "STAFF",
 ];
 class StaffService {
-    async list(organizationId) {
+    async list(organizationId, teachingOnly = false) {
         const memberships = await prisma_1.prisma.membership.findMany({
             where: {
                 organizationId,
                 isActive: true,
-                user: { isActive: true },
-                role: { in: [...STAFF_ROLES] },
+                user: { isActive: true, globalRole: "USER" },
+                ...(0, rbac_1.rolesWhere)(teachingOnly ? staffing_1.TEACHING_ROLES : STAFF_ROLES),
             },
             include: {
                 user: {
@@ -57,7 +59,7 @@ class StaffService {
         return memberships.map((m) => ({
             membershipId: m.id,
             role: m.role,
-            roles: (0, rbac_1.membershipRoles)(m),
+            roles: (0, rbac_2.membershipRoles)(m),
             user: m.user,
             formClasses: formClasses.filter((c) => c.classTeacherId === m.userId),
             teachingAssignments: teaching

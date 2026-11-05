@@ -29,6 +29,7 @@ async function loadTeacherInOrg(organizationId, userId) {
         where: {
             organizationId,
             userId,
+            user: { globalRole: "USER" },
             ...(0, rbac_1.rolesWhere)(STAFF_ROLES),
         },
         include: {
@@ -88,6 +89,7 @@ exports.teacherService = {
         const organizationId = requireSchoolId(schoolId);
         const where = {
             organizationId,
+            user: { globalRole: "USER" },
             ...(0, rbac_1.rolesWhere)(query.role ? [query.role] : STAFF_ROLES),
         };
         if (query.isActive === "true")
@@ -97,6 +99,7 @@ exports.teacherService = {
         if (query.search?.trim()) {
             const q = query.search.trim();
             where.user = {
+                globalRole: "USER",
                 OR: [
                     { firstName: { contains: q, mode: "insensitive" } },
                     { lastName: { contains: q, mode: "insensitive" } },
