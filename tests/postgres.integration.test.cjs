@@ -2487,3 +2487,29 @@ check('school collection APIs and subject links stay inside the authenticated sc
   assert.equal(all.status,200);assert.ok(all.body.data.items.some(s=>s.id===archived.id));assert.ok(!active.body.data.items.some(s=>s.id===archived.id));
  }finally{await prisma.subject.delete({where:{id:archived.id}});}
 });
+
+
+check('subscription bank transfer HTTP saves once and reconciles attempts only for their school and actor',async()=>{
+ const f=await billingSchool(),owner=(await tokens(a.ownerId,f.id)).accessToken,body={invoiceId:f.workspace.invoices[0].id,amountNgn:300,channel:'TRANSFER',bankReference:'BANK-'+crypto.randomUUID(),idempotencyKey:crypto.randomUUID()};
+ const absent=await request('GET','/subscription/payment-attempts/'+body.idempotencyKey,owner);assert.equal(absent.status,200);assert.equal(absent.body.data,null);
+ const first=await request('POST','/subscription/payments',owner,body);assert.equal(first.status,200,JSON.stringify(first.body));assert.equal(first.body.data.status,'PENDING');assert.equal(first.body.data.channel,'TRANSFER');
+ const retry=await request('POST','/subscription/payments',owner,body);assert.equal(retry.status,200);assert.equal(retry.body.data.id,first.body.data.id);
+ const saved=await request('GET','/subscription/payment-attempts/'+body.idempotencyKey,owner);assert.equal(saved.status,200);assert.equal(saved.body.data.id,first.body.data.id);assert.equal(saved.body.data.requestHash,undefined);
+ assert.equal((await request('POST','/subscription/payments',owner,{...body,amountNgn:150})).status,409);
+ assert.equal(await prisma.billingPayment.count({where:{organizationId:f.id,idempotencyKey:body.idempotencyKey}}),1);
+ assert.equal((await request('GET','/subscription/payment-attempts/'+body.idempotencyKey,(await tokens(a.parentUserId,f.id)).accessToken)).body.data,null);
+ assert.equal((await request('GET','/subscription/payment-attempts/'+body.idempotencyKey,(await tokens(a.ownerId,a.id)).accessToken)).body.data,null);
+ assert.equal((await billing.billingWorkspace(f.id)).invoices[0].paidNgn,0);
+});
+
+
+check('subscription bank transfer never calls Paystack after a failed online attempt',async()=>{
+ const f=await billingSchool(),token=(await tokens(a.ownerId,f.id)).accessToken,origin=(process.env.CORS_ORIGINS||'http://localhost:3000').split(',')[0].trim();
+ const gateway=mock.method(paystack,'initializeTransaction',async()=>{throw new (require('../.test-build/lib/errors').AppError)(502,'PAYSTACK_ERROR','Invalid key');});
+ const online={invoiceId:f.workspace.invoices[0].id,amountNgn:300,channel:'PAYSTACK',callbackOrigin:origin,idempotencyKey:crypto.randomUUID()};
+ const failed=await request('POST','/subscription/payments',token,online);assert.equal(failed.status,502);assert.equal(failed.body.error.message,'Invalid key');assert.equal(gateway.mock.callCount(),1);
+ const saved=await request('GET','/subscription/payment-attempts/'+online.idempotencyKey,token);assert.equal(saved.body.data.channel,'PAYSTACK');
+ const bank={invoiceId:online.invoiceId,amountNgn:300,channel:'TRANSFER',bankReference:'BANK-'+crypto.randomUUID(),idempotencyKey:online.idempotencyKey};
+ assert.equal((await request('POST','/subscription/payments',token,bank)).status,409);
+ const submitted=await request('POST','/subscription/payments',token,{...bank,idempotencyKey:crypto.randomUUID()});assert.equal(submitted.status,200,JSON.stringify(submitted.body));assert.equal(submitted.body.data.channel,'TRANSFER');assert.equal(submitted.body.data.status,'PENDING');assert.equal(gateway.mock.callCount(),1);assert.equal((await billing.billingWorkspace(f.id)).invoices[0].paidNgn,0);
+});

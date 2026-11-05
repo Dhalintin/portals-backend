@@ -23,6 +23,11 @@ router.get('/quote/:id', handle(req => { if (!manager(req.auth))
     throw new AppError(403, 'FORBIDDEN', 'School accounts access required'); return quoteAnnual(req.auth.schoolId, z.string().uuid().parse(req.params.id)); }));
 router.patch('/sponsorship', handle(req => changeSponsorship(req.auth, req.body)));
 router.get('/family/:studentId', handle(req => familyBilling(req.auth, z.string().uuid().parse(req.params.studentId))));
+// Reconcile a saved browser attempt without creating or charging another payment.
+router.get('/payment-attempts/:key', handle(req => prisma.billingPayment.findFirst({
+    where: { organizationId: req.auth.schoolId, actorId: req.auth.userId, idempotencyKey: z.string().uuid().parse(req.params.key) },
+    select: { id: true, reference: true, invoiceId: true, amountNgn: true, channel: true, status: true, checkoutUrl: true, createdAt: true },
+})));
 router.post('/payments', handle(req => startBillingPayment(req.auth, req.body)));
 router.post('/payments/:reference/verify', handle(async (req) => { const p = await prisma.billingPayment.findFirst({ where: { reference: req.params.reference, organizationId: req.auth.schoolId } }); if (!p)
     throw new AppError(404, 'NOT_FOUND', 'Payment not found'); if (!manager(req.auth)) {

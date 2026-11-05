@@ -33,6 +33,11 @@ router.get('/quote/:id', handle(req => {
 }));
 router.patch('/sponsorship', handle(req => (0, termBilling_1.changeSponsorship)(req.auth, req.body)));
 router.get('/family/:studentId', handle(req => (0, termBilling_1.familyBilling)(req.auth, zod_1.z.string().uuid().parse(req.params.studentId))));
+// Reconcile a saved browser attempt without creating or charging another payment.
+router.get('/payment-attempts/:key', handle(req => prisma_1.prisma.billingPayment.findFirst({
+    where: { organizationId: req.auth.schoolId, actorId: req.auth.userId, idempotencyKey: zod_1.z.string().uuid().parse(req.params.key) },
+    select: { id: true, reference: true, invoiceId: true, amountNgn: true, channel: true, status: true, checkoutUrl: true, createdAt: true },
+})));
 router.post('/payments', handle(req => (0, termBilling_1.startBillingPayment)(req.auth, req.body)));
 router.post('/payments/:reference/verify', handle(async (req) => {
     const p = await prisma_1.prisma.billingPayment.findFirst({ where: { reference: req.params.reference, organizationId: req.auth.schoolId } });
